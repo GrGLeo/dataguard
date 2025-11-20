@@ -1,4 +1,7 @@
+pub mod errors;
 pub mod reader;
+pub mod column_builder;
+pub mod rules;
 use std::sync::Arc;
 
 use arrow::{array::RecordBatch, datatypes::DataType};
@@ -7,7 +10,7 @@ use pyo3::{
     prelude::*,
 };
 
-use crate::reader::read_csv;
+use crate::{column_builder::ColumnBuilder, reader::read_csv};
 
 #[pyclass]
 struct Validator {
@@ -42,6 +45,9 @@ impl Validator {
             }
             _ => Err(PyErr::new::<PyValueError, _>("Unknown column type")),
         }
+    }
+    fn add_column_rule(&self, column_name: &str) -> PyResult<ColumnBuilder> {
+       Ok(ColumnBuilder::new(column_name.to_string()))
     }
 
     fn validate_csv(&mut self, path: &str) -> PyResult<usize> {
