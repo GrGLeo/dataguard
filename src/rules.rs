@@ -1,9 +1,9 @@
-use arrow::{array::RecordBatch, datatypes::DataType};
+use arrow::{array::ArrayRef, compute, datatypes::DataType};
 
 use crate::errors::RuleError;
 
 pub trait Rule: Send + Sync {
-    fn validate(&self, batch: &RecordBatch) -> Result<usize, RuleError>;
+    fn validate(&self, array: &ArrayRef) -> Result<usize, RuleError>;
     fn name(&self) -> &str;
 }
 
@@ -14,21 +14,21 @@ pub struct TypeCheck {
 
 impl TypeCheck {
     pub fn new(column: String, expected: DataType) -> Self {
-        Self {
-            column,
-            expected,
-        }
+        Self { column, expected }
     }
 }
-
 
 impl Rule for TypeCheck {
     fn name(&self) -> &str {
         "TypeCheck"
     }
 
-    fn validate(&self, batch: &RecordBatch) -> Result<usize, RuleError> {
-        todo!()
+    fn validate(&self, array: &ArrayRef) -> Result<usize, RuleError> {
+        if let Ok(casted_array) = compute::cast(array, &self.expected) {
+            Ok(casted_array.null_count())
+        } else {
+            Err(RuleError::TypeCastError(self.column.clone(), self.expected.to_string()))
+        }
     }
 }
 
@@ -38,9 +38,7 @@ pub struct NotUnique {
 
 impl NotUnique {
     pub fn new(column: String) -> Self {
-        Self {
-            column
-        }
+        Self { column }
     }
 }
 
@@ -49,7 +47,7 @@ impl Rule for NotUnique {
         "NotUnique"
     }
 
-    fn validate(&self, batch: &RecordBatch) -> Result<usize, RuleError> {
+    fn validate(&self, _array: &ArrayRef) -> Result<usize, RuleError> {
         todo!()
     }
 }

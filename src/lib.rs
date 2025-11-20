@@ -70,3 +70,47 @@ mod dataguard {
         Ok((a + b).to_string())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::rules::{NotUnique, TypeCheck};
+    use arrow::datatypes::DataType;
+
+    #[test]
+    fn test_get_rules_empty() {
+        let validator = Validator::new();
+        let rules = validator.get_rules().unwrap();
+        assert!(rules.is_empty());
+    }
+
+    #[test]
+    fn test_get_rules_with_rules() {
+        let validator = Validator::new();
+        {
+            let mut rules = validator.rules.lock().unwrap();
+            rules.insert(
+                "name".to_string(),
+                vec![
+                    Box::new(TypeCheck::new("name".to_string(), DataType::Utf8)),
+                    Box::new(NotUnique::new("name".to_string())),
+                ],
+            );
+            rules.insert(
+                "age".to_string(),
+                vec![Box::new(TypeCheck::new("age".to_string(), DataType::Int64))],
+            );
+        }
+        let rules_dict = validator.get_rules().unwrap();
+        assert_eq!(rules_dict.len(), 2);
+        assert_eq!(rules_dict["name"], vec!["TypeCheck", "NotUnique"]);
+        assert_eq!(rules_dict["age"], vec!["TypeCheck"]);
+    }
+
+    #[test]
+    fn test_add_column_rule() {
+        let validator = Validator::new();
+        let builder = validator.add_column_rule("test_column").unwrap();
+        assert_eq!(builder.column, "test_column");
+    }
+}

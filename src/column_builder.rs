@@ -9,7 +9,7 @@ use crate::{rules::{NotUnique, TypeCheck}, types::RuleMap};
 
 #[pyclass]
 pub struct ColumnBuilder {
-    column: String,
+    pub(crate) column: String,
     rules_map: Arc<Mutex<RuleMap>>,
 }
 
@@ -24,6 +24,11 @@ impl ColumnBuilder {
 
 #[pymethods]
 impl ColumnBuilder {
+    #[getter]
+    fn column_name(&self) -> &str {
+        &self.column
+    }
+
     /// Add a type-check rule
     fn type_check<'py>(slf: PyRefMut<'py, Self>, type_name: &str) -> PyResult<PyRefMut<'py, Self>> {
         let data_type = match type_name {
