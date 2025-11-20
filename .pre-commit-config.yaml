@@ -1,4 +1,18 @@
 repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.5
+    hooks:
+      - id: ruff-check
+        types_or: [ python, pyi ]
+      - id: ruff-format
+        types_or: [ python, pyi ]
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: check-toml
+
   - repo: local
     hooks:
       - id: cargo-fmt
@@ -7,7 +21,6 @@ repos:
         language: system
         pass_filenames: false
         types: [rust]
-
       - id: cargo-clippy
         name: Run cargo clippy
         entry: cargo clippy -- -D warnings
