@@ -11,3 +11,6 @@ crate-type = ["cdylib"]
 [dependencies]
 pyo3 = "0.27.0"
 arrow = "57.0.0"
+
+[dev-dependencies]
+tempfile = "3.0"
