@@ -1,23 +1,22 @@
 use std::{
-    collections::HashMap,
     sync::{Arc, Mutex},
 };
 
 use arrow::datatypes::DataType;
 use pyo3::{exceptions::PyValueError, prelude::*};
 
-use crate::rules::{NotUnique, Rule, TypeCheck};
+use crate::{rules::{NotUnique, TypeCheck}, types::RuleMap};
 
 #[pyclass]
 pub struct ColumnBuilder {
     column: String,
-    rules_map: Arc<Mutex<HashMap<String, Vec<Box<dyn Rule + Send + Sync>>>>>,
+    rules_map: Arc<Mutex<RuleMap>>,
 }
 
 impl ColumnBuilder {
     pub fn new(
         column: String,
-        rules_map: Arc<Mutex<HashMap<String, Vec<Box<dyn Rule + Send + Sync>>>>>,
+        rules_map: Arc<Mutex<RuleMap>>,
     ) -> Self {
         Self { column, rules_map }
     }

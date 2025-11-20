@@ -1,20 +1,21 @@
+pub mod column_builder;
 pub mod errors;
 pub mod reader;
-pub mod column_builder;
 pub mod rules;
-use std::{collections::HashMap, sync::{Arc, Mutex}};
-
-use arrow::{array::RecordBatch, datatypes::DataType};
-use pyo3::{
-    exceptions::{PyIOError, PyValueError},
-    prelude::*,
+pub mod types;
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
 };
 
-use crate::{column_builder::ColumnBuilder, reader::read_csv, rules::Rule};
+use arrow::array::RecordBatch;
+use pyo3::{exceptions::PyIOError, prelude::*};
+
+use crate::{column_builder::ColumnBuilder, reader::read_csv, types::RuleMap};
 
 #[pyclass]
 struct Validator {
-    rules: Arc<Mutex<HashMap<String, Vec<Box<dyn Rule + Send + Sync>>>>>,
+    rules: Arc<Mutex<RuleMap>>,
     batches: Vec<Arc<RecordBatch>>,
 }
 
@@ -29,7 +30,10 @@ impl Validator {
     }
 
     fn add_column_rule(&self, column_name: &str) -> PyResult<ColumnBuilder> {
-       Ok(ColumnBuilder::new(column_name.to_string(), Arc::clone(&self.rules)))
+        Ok(ColumnBuilder::new(
+            column_name.to_string(),
+            Arc::clone(&self.rules),
+        ))
     }
 
     fn validate_csv(&mut self, path: &str) -> PyResult<usize> {
@@ -39,6 +43,16 @@ impl Validator {
         } else {
             Err(PyErr::new::<PyIOError, _>("Failed to load CSV"))
         }
+    }
+
+    fn get_rules(&self) -> PyResult<HashMap<String, Vec<String>>> {
+        let rules = self.rules.lock().unwrap();
+        let mut result = HashMap::new();
+        for (column, rule_list) in rules.iter() {
+            let names: Vec<String> = rule_list.iter().map(|r| r.name().to_string()).collect();
+            result.insert(column.clone(), names);
+        }
+        Ok(result)
     }
 }
 
