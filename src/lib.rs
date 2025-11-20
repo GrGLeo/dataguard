@@ -2,7 +2,7 @@ pub mod errors;
 pub mod reader;
 pub mod column_builder;
 pub mod rules;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::{Arc, Mutex}};
 
 use arrow::{array::RecordBatch, datatypes::DataType};
 use pyo3::{
@@ -10,11 +10,11 @@ use pyo3::{
     prelude::*,
 };
 
-use crate::{column_builder::ColumnBuilder, reader::read_csv};
+use crate::{column_builder::ColumnBuilder, reader::read_csv, rules::Rule};
 
 #[pyclass]
 struct Validator {
-    columns: Vec<(String, DataType)>,
+    rules: Arc<Mutex<HashMap<String, Vec<Box<dyn Rule + Send + Sync>>>>>,
     batches: Vec<Arc<RecordBatch>>,
 }
 
@@ -23,31 +23,13 @@ impl Validator {
     #[new]
     fn new() -> Self {
         Self {
-            columns: Vec::new(),
+            rules: Arc::new(Mutex::new(HashMap::new())),
             batches: Vec::new(),
         }
     }
 
-    #[getter]
-    fn columns(&self) -> Vec<String> {
-        self.columns.iter().map(|(c, _)| c.clone()).collect()
-    }
-
-    fn add_type_column(&mut self, name: String, column_type: String) -> PyResult<()> {
-        match column_type.as_str() {
-            "string" => {
-                self.columns.push((name, DataType::Utf8));
-                Ok(())
-            }
-            "int" => {
-                self.columns.push((name, DataType::Int64));
-                Ok(())
-            }
-            _ => Err(PyErr::new::<PyValueError, _>("Unknown column type")),
-        }
-    }
     fn add_column_rule(&self, column_name: &str) -> PyResult<ColumnBuilder> {
-       Ok(ColumnBuilder::new(column_name.to_string()))
+       Ok(ColumnBuilder::new(column_name.to_string(), Arc::clone(&self.rules)))
     }
 
     fn validate_csv(&mut self, path: &str) -> PyResult<usize> {

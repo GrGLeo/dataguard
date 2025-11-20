@@ -5,6 +5,7 @@ from dataguard import Validator
 CSV_PATH = "data/leads-100000.csv"
 NUM_RUNS = 100
 
+
 def benchmark_pandas():
     times = []
     for _ in range(NUM_RUNS):
@@ -14,6 +15,7 @@ def benchmark_pandas():
         end = time.time()
         times.append(end - start)
     return sum(times) / len(times), count
+
 
 def benchmark_validator():
     validator = Validator()
@@ -25,6 +27,7 @@ def benchmark_validator():
         times.append(end - start)
     return sum(times) / len(times), count
 
+
 if __name__ == "__main__":
     print("Benchmarking CSV row counting...")
     print(f"Running {NUM_RUNS} times each")
@@ -34,4 +37,8 @@ if __name__ == "__main__":
 
     print(f"Pandas average time: {pandas_avg:.6f}s, count: {pandas_count}")
     print(f"Validator average time: {validator_avg:.6f}s, count: {validator_count}")
-    print(f"Validator is {pandas_avg / validator_avg:.2f}x faster" if validator_avg < pandas_avg else f"Pandas is {validator_avg / pandas_avg:.2f}x faster")
+    print(
+        f"Validator is {pandas_avg / validator_avg:.2f}x faster"
+        if validator_avg < pandas_avg
+        else f"Pandas is {validator_avg / pandas_avg:.2f}x faster"
+    )

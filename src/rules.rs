@@ -36,6 +36,14 @@ pub struct NotUnique {
     column: String,
 }
 
+impl NotUnique {
+    pub fn new(column: String) -> Self {
+        Self {
+            column
+        }
+    }
+}
+
 impl Rule for NotUnique {
     fn name(&self) -> &str {
         "NotUnique"
