@@ -5,18 +5,23 @@ pub mod rules;
 pub mod types;
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
-use arrow::array::RecordBatch;
-use pyo3::{exceptions::PyIOError, prelude::*};
+use pyo3::{
+    exceptions::{PyIOError, PyValueError},
+    prelude::*,
+};
+use rayon::prelude::*;
 
 use crate::{column_builder::ColumnBuilder, reader::read_csv, types::RuleMap};
 
 #[pyclass]
 struct Validator {
     rules: Arc<Mutex<RuleMap>>,
-    batches: Vec<Arc<RecordBatch>>,
 }
 
 #[pymethods]
@@ -25,7 +30,6 @@ impl Validator {
     fn new() -> Self {
         Self {
             rules: Arc::new(Mutex::new(HashMap::new())),
-            batches: Vec::new(),
         }
     }
 
@@ -38,8 +42,25 @@ impl Validator {
 
     fn validate_csv(&mut self, path: &str) -> PyResult<usize> {
         if let Ok(batches) = read_csv(path) {
-            self.batches = batches;
-            Ok(self.batches.iter().map(|b| b.num_rows()).sum())
+            let validation_rules = self.rules.lock().unwrap();
+            let error_count = AtomicUsize::new(0);
+            batches.par_iter().for_each(|batch| {
+                for (colname, rules) in validation_rules.iter() {
+                    if let Ok(col_index) = batch.schema().index_of(colname) {
+                        let array = batch.column(col_index);
+                        for rule in rules {
+                            let res = rule.validate(array);
+                            match res {
+                                Ok(count) => {
+                                    let _ = error_count.fetch_add(count, Ordering::Relaxed);
+                                }
+                                Err(_) => {}
+                            }
+                        }
+                    }
+                }
+            });
+            Ok(error_count.load(Ordering::Relaxed))
         } else {
             Err(PyErr::new::<PyIOError, _>("Failed to load CSV"))
         }
