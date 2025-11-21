@@ -22,4 +22,3 @@ pub enum RuleError {
     #[error("Validation error: {0}")]
     ValidationError(String),
 }
-

@@ -27,7 +27,10 @@ impl Rule for TypeCheck {
         if let Ok(casted_array) = compute::cast(array, &self.expected) {
             Ok(casted_array.null_count())
         } else {
-            Err(RuleError::TypeCastError(self.column.clone(), self.expected.to_string()))
+            Err(RuleError::TypeCastError(
+                self.column.clone(),
+                self.expected.to_string(),
+            ))
         }
     }
 }

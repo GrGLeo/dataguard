@@ -1,11 +1,12 @@
-use std::{
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 use arrow::datatypes::DataType;
 use pyo3::{exceptions::PyValueError, prelude::*};
 
-use crate::{rules::{NotUnique, TypeCheck}, types::RuleMap};
+use crate::{
+    rules::{NotUnique, TypeCheck},
+    types::RuleMap,
+};
 
 #[pyclass]
 pub struct ColumnBuilder {
@@ -14,10 +15,7 @@ pub struct ColumnBuilder {
 }
 
 impl ColumnBuilder {
-    pub fn new(
-        column: String,
-        rules_map: Arc<Mutex<RuleMap>>,
-    ) -> Self {
+    pub fn new(column: String, rules_map: Arc<Mutex<RuleMap>>) -> Self {
         Self { column, rules_map }
     }
 }
@@ -41,7 +39,7 @@ impl ColumnBuilder {
             let mut mapper = slf.rules_map.lock().unwrap();
             mapper
                 .entry(slf.column.clone())
-                .or_insert_with(|| Vec::new())
+                .or_default()
                 .push(Box::new(rule));
         }
 
@@ -55,7 +53,7 @@ impl ColumnBuilder {
             let mut mapper = slf.rules_map.lock().unwrap();
             mapper
                 .entry(slf.column.clone())
-                .or_insert_with(|| Vec::new())
+                .or_default()
                 .push(Box::new(rule));
         }
         Ok(slf)

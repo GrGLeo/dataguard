@@ -11,10 +11,7 @@ use std::{
     },
 };
 
-use pyo3::{
-    exceptions::{PyIOError, PyValueError},
-    prelude::*,
-};
+use pyo3::{exceptions::PyIOError, prelude::*};
 use rayon::prelude::*;
 
 use crate::{column_builder::ColumnBuilder, reader::read_csv, types::RuleMap};
@@ -50,11 +47,8 @@ impl Validator {
                         let array = batch.column(col_index);
                         for rule in rules {
                             let res = rule.validate(array);
-                            match res {
-                                Ok(count) => {
-                                    let _ = error_count.fetch_add(count, Ordering::Relaxed);
-                                }
-                                Err(_) => {}
+                            if let Ok(count) = res {
+                                let _ = error_count.fetch_add(count, Ordering::Relaxed);
                             }
                         }
                     }
