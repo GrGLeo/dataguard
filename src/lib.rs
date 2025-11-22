@@ -3,6 +3,7 @@ pub mod errors;
 pub mod reader;
 pub mod rules;
 pub mod types;
+pub mod report; // Add report module
 use std::{
     collections::HashMap,
     sync::{
@@ -17,7 +18,7 @@ use pyo3::{exceptions::PyIOError, prelude::*};
 use rayon::prelude::*;
 #[cfg(feature = "python")]
 use crate::column_builder::ColumnBuilder;
-use crate::{reader::read_csv_parallel, types::RuleMap};
+use crate::{reader::read_csv_parallel, types::RuleMap, report::ValidationReport}; // Import ValidationReport
 
 #[cfg(feature = "python")]
 #[pyclass]
@@ -54,10 +55,11 @@ impl Validator {
     ///
     /// Args:
     ///     path (str): Path to the CSV file to validate.
+    ///     print_report (bool): Whether to print the validation report.
     ///
     /// Returns:
     ///     int: The number of validation errors found.
-    fn validate_csv(&mut self, path: &str) -> PyResult<usize> {
+    fn validate_csv(&mut self, path: &str, print_report: bool) -> PyResult<usize> {
         let start = Instant::now();
         if let Ok(batches) = read_csv_parallel(path) {
             let read_duration = start.elapsed();
@@ -65,6 +67,11 @@ impl Validator {
             let validation_start = Instant::now();
             let validation_rules = self.rules.lock().unwrap();
             let error_count = AtomicUsize::new(0);
+            let report = ValidationReport::new(); // Initialize ValidationReport
+
+            let total_rows: usize = batches.iter().map(|batch| batch.num_rows()).sum();
+            report.set_total_rows(total_rows);
+
             batches.par_iter().for_each(|batch| {
                 for (colname, rules) in validation_rules.iter() {
                     if let Ok(col_index) = batch.schema().index_of(colname) {
@@ -73,6 +80,7 @@ impl Validator {
                             let res = rule.validate(array);
                             if let Ok(count) = res {
                                 let _ = error_count.fetch_add(count, Ordering::Relaxed);
+                                report.record_result(colname, rule.name(), count); // Record result
                             }
                         }
                     }
@@ -80,6 +88,11 @@ impl Validator {
             });
             let validation_duration = validation_start.elapsed();
             eprintln!("Validation took {:?}", validation_duration);
+
+            if print_report {
+                println!("{}", report.generate_report());
+            }
+
             Ok(error_count.load(Ordering::Relaxed))
         } else {
             Err(PyErr::new::<PyIOError, _>("Failed to load CSV"))
