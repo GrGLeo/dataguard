@@ -1,3 +1,4 @@
+use pyo3::PyErr;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -21,4 +22,10 @@ pub enum RuleError {
     /// Generic validation error with message
     #[error("Validation error: {0}")]
     ValidationError(String),
+}
+
+impl From<RuleError> for PyErr {
+    fn from(err: RuleError) -> PyErr {
+        PyErr::new::<pyo3::exceptions::PyValueError, _>(err.to_string())
+    }
 }

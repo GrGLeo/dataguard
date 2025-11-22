@@ -10,7 +10,7 @@ use arrow::{
     datatypes::{DataType, Field, Schema},
 };
 
-const BATCH: usize = 128_000;
+const BATCH: usize = 256_000;
 
 pub fn read_csv(path: &str) -> Result<Vec<Arc<RecordBatch>>, Error> {
     let file = File::open(path)?;

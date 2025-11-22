@@ -4,7 +4,7 @@ use arrow::datatypes::DataType;
 use pyo3::{exceptions::PyValueError, prelude::*};
 
 use crate::{
-    rules::{NotUnique, TypeCheck},
+    rules::{NotUnique, RegexMatch, TypeCheck},
     types::RuleMap,
 };
 
@@ -49,6 +49,23 @@ impl ColumnBuilder {
     /// Add a not-unique rule
     fn not_unique<'py>(slf: PyRefMut<'py, Self>) -> PyResult<PyRefMut<'py, Self>> {
         let rule = NotUnique::new(slf.column.clone());
+        {
+            let mut mapper = slf.rules_map.lock().unwrap();
+            mapper
+                .entry(slf.column.clone())
+                .or_default()
+                .push(Box::new(rule));
+        }
+        Ok(slf)
+    }
+
+    // Add a regex matching
+    fn regex_match<'py>(
+        slf: PyRefMut<'py, Self>,
+        pattern: &str,
+        flag: Option<&str>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let rule = RegexMatch::new(slf.column.clone(), pattern, flag)?;
         {
             let mut mapper = slf.rules_map.lock().unwrap();
             mapper
