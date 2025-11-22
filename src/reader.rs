@@ -173,13 +173,13 @@ mod tests {
     }
 
     #[test]
-    fn test_read_csv_valid() {
+    fn test_read_csv_sequential_valid() {
         let mut file = NamedTempFile::new().unwrap();
         writeln!(file, "name,age").unwrap();
         writeln!(file, "Alice,30").unwrap();
         writeln!(file, "Bob,25").unwrap();
 
-        let batches = read_csv(file.path().to_str().unwrap()).unwrap();
+        let batches = read_csv_sequential(file.path().to_str().unwrap()).unwrap();
         assert_eq!(batches.len(), 1);
         let batch = &batches[0];
         assert_eq!(batch.num_rows(), 2);
@@ -187,16 +187,16 @@ mod tests {
     }
 
     #[test]
-    fn test_read_csv_empty_file() {
+    fn test_read_csv_sequential_empty_file() {
         let file = NamedTempFile::new().unwrap();
-        let result = read_csv(file.path().to_str().unwrap());
+        let result = read_csv_sequential(file.path().to_str().unwrap());
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().kind(), io::ErrorKind::InvalidData);
     }
 
     #[test]
-    fn test_read_csv_invalid_path() {
-        let result = read_csv("nonexistent.csv");
+    fn test_read_csv_sequential_invalid_path() {
+        let result = read_csv_sequential("nonexistent.csv");
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().kind(), io::ErrorKind::NotFound);
     }

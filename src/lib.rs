@@ -12,18 +12,22 @@ use std::{
     time::Instant,
 };
 
+#[cfg(feature = "python")]
 use pyo3::{exceptions::PyIOError, prelude::*};
 use rayon::prelude::*;
+use crate::column_builder::ColumnBuilder;
+use crate::{reader::read_csv_parallel, types::RuleMap};
 
-use crate::{column_builder::ColumnBuilder, reader::read_csv_parallel, types::RuleMap};
-
+#[cfg(feature = "python")]
 #[pyclass]
 struct Validator {
     rules: Arc<Mutex<RuleMap>>,
 }
 
+#[cfg(feature = "python")]
 #[pymethods]
 impl Validator {
+    /// Create a new Validator instance for CSV data validation.
     #[new]
     fn new() -> Self {
         Self {
@@ -31,6 +35,13 @@ impl Validator {
         }
     }
 
+    /// Add a new column rule builder for the specified column.
+    ///
+    /// Args:
+    ///     column_name (str): The name of the column to add rules for.
+    ///
+    /// Returns:
+    ///     ColumnBuilder: A builder object to add validation rules for the column.
     fn add_column_rule(&self, column_name: &str) -> PyResult<ColumnBuilder> {
         Ok(ColumnBuilder::new(
             column_name.to_string(),
@@ -38,6 +49,13 @@ impl Validator {
         ))
     }
 
+    /// Validate a CSV file against the defined rules.
+    ///
+    /// Args:
+    ///     path (str): Path to the CSV file to validate.
+    ///
+    /// Returns:
+    ///     int: The number of validation errors found.
     fn validate_csv(&mut self, path: &str) -> PyResult<usize> {
         let start = Instant::now();
         if let Ok(batches) = read_csv_parallel(path) {
@@ -67,6 +85,10 @@ impl Validator {
         }
     }
 
+    /// Get a dictionary of all defined validation rules.
+    ///
+    /// Returns:
+    ///     dict: A dictionary where keys are column names and values are lists of rule names.
     fn get_rules(&self) -> PyResult<HashMap<String, Vec<String>>> {
         let rules = self.rules.lock().unwrap();
         let mut result = HashMap::new();
@@ -78,7 +100,9 @@ impl Validator {
     }
 }
 
-/// A Python module implemented in Rust.
+/// DataGuard: A high-performance CSV validation library.
+/// Provides tools for defining validation rules and validating CSV files in parallel.
+#[cfg(feature = "python")]
 #[pyo3::pymodule]
 mod dataguard {
     use pyo3::prelude::*;
@@ -86,17 +110,24 @@ mod dataguard {
     #[pymodule_export]
     use super::Validator;
 
-    /// Formats the sum of two numbers as string.
+    /// Calculate the sum of two numbers and return it as a string.
+    ///
+    /// Args:
+    ///     a (int): First number to add.
+    ///     b (int): Second number to add.
+    ///
+    /// Returns:
+    ///     str: The sum of a and b as a string.
     #[pyfunction]
     fn sum_as_string(a: usize, b: usize) -> PyResult<String> {
         Ok((a + b).to_string())
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "python"))]
 mod tests {
     use super::*;
-    use crate::rules::{NotUnique, TypeCheck};
+    use crate::rules::TypeCheck;
     use arrow::datatypes::DataType;
 
     #[test]
@@ -115,7 +146,6 @@ mod tests {
                 "name".to_string(),
                 vec![
                     Box::new(TypeCheck::new("name".to_string(), DataType::Utf8)),
-                    Box::new(NotUnique::new("name".to_string())),
                 ],
             );
             rules.insert(
@@ -125,7 +155,7 @@ mod tests {
         }
         let rules_dict = validator.get_rules().unwrap();
         assert_eq!(rules_dict.len(), 2);
-        assert_eq!(rules_dict["name"], vec!["TypeCheck", "NotUnique"]);
+        assert_eq!(rules_dict["name"], vec!["TypeCheck"]);
         assert_eq!(rules_dict["age"], vec!["TypeCheck"]);
     }
 

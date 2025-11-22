@@ -1,8 +1,9 @@
 use arrow::{
-    array::{Array, ArrayRef, StringArray},
+    array::{Array, ArrayRef, Int32Array, StringArray},
     compute,
     datatypes::DataType,
 };
+use arrow_string::length::length;
 use regex::Regex;
 
 use crate::errors::RuleError;
@@ -99,22 +100,210 @@ impl Rule for RegexMatch {
     }
 }
 
-pub struct NotUnique {
+pub enum Case {
+    Lower,
+    Upper,
+}
+
+pub struct CaseCheck {
     column: String,
+    case: Case,
 }
 
-impl NotUnique {
-    pub fn new(column: String) -> Self {
-        Self { column }
+impl CaseCheck {
+    pub fn new(column: String, case: &str) -> Result<Self, RuleError> {
+        let c = match case {
+            "lower" => Case::Lower,
+            "upper" => Case::Upper,
+            _ => {
+                return Err(RuleError::ValidationError(format!(
+                    "case: '{}' not recognized",
+                    case
+                )));
+            }
+        };
+
+        Ok(Self { column, case: c })
     }
 }
 
-impl Rule for NotUnique {
+impl Rule for CaseCheck {
     fn name(&self) -> &str {
-        "NotUnique"
+        "CaseCheck"
     }
 
-    fn validate(&self, _array: &ArrayRef) -> Result<usize, RuleError> {
+    fn validate(&self, array: &ArrayRef) -> Result<usize, RuleError> {
+        arrow_string::length::length(array);
         todo!()
+    }
+}
+
+pub struct MinLength {
+    column: String,
+    min_length: usize,
+}
+
+impl MinLength {
+    pub fn new(column: String, min_length: usize) -> Self {
+        Self { column, min_length }
+    }
+}
+
+impl Rule for MinLength {
+    fn name(&self) -> &str {
+        "MinLength"
+    }
+
+    fn validate(&self, array: &ArrayRef) -> Result<usize, RuleError> {
+        if array.data_type() != &DataType::Utf8 {
+            return Err(RuleError::ValidationError(format!(
+                "MinLength applied to a non-string column '{}'",
+                self.column
+            )));
+        }
+        let res = length(array);
+        match res {
+            Ok(dyn_array) => {
+                let len_array =
+                    dyn_array
+                        .as_any()
+                        .downcast_ref::<Int32Array>()
+                        .ok_or_else(|| {
+                            RuleError::ValidationError(format!(
+                                "MinLength applied to a non-string column '{}'",
+                                self.column
+                            ))
+                        })?;
+                let mut counter: u32 = 0;
+                for value in len_array.iter() {
+                    match value {
+                        Some(i) => {
+                            if i < self.min_length as i32 {
+                                counter += 1;
+                            }
+                        }
+                        None => counter += 1,
+                    }
+                }
+                Ok(counter as usize)
+            }
+            Err(e) => return Err(RuleError::ArrowError(e)),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use arrow::array::{Int64Array, StringArray};
+    use std::sync::Arc;
+
+    #[test]
+    fn test_type_check_string_success() {
+        let rule = TypeCheck::new("col".to_string(), DataType::Utf8);
+        let array = Arc::new(StringArray::from(vec!["a", "b", "c"])) as ArrayRef;
+        let result = rule.validate(&array);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 0); // No nulls, cast succeeds
+    }
+
+    #[test]
+    fn test_type_check_string_with_nulls() {
+        let rule = TypeCheck::new("col".to_string(), DataType::Utf8);
+        let array = Arc::new(StringArray::from(vec![Some("a"), None, Some("c")])) as ArrayRef;
+        let result = rule.validate(&array);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 1); // One null
+    }
+
+    #[test]
+    fn test_type_check_string_to_int_with_violations() {
+        let rule = TypeCheck::new("col".to_string(), DataType::Int64);
+        let array = Arc::new(StringArray::from(vec!["abc", "def", "ghi"])) as ArrayRef;
+        let result = rule.validate(&array);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 3); // All invalid, become null
+    }
+
+    #[test]
+    fn test_regex_match_valid_creation() {
+        let rule = RegexMatch::new("col".to_string(), r"^\d+$", None);
+        assert!(rule.is_ok());
+    }
+
+    #[test]
+    fn test_regex_match_invalid_regex() {
+        let rule = RegexMatch::new("col".to_string(), r"[", None);
+        assert!(rule.is_err());
+    }
+
+    #[test]
+    fn test_regex_match_validation_success() {
+        let rule = RegexMatch::new("col".to_string(), r"^\d+$", None).unwrap();
+        let array = Arc::new(StringArray::from(vec!["123", "456", "789"])) as ArrayRef;
+        let result = rule.validate(&array);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 0); // All match
+    }
+
+    #[test]
+    fn test_regex_match_validation_violations() {
+        let rule = RegexMatch::new("col".to_string(), r"^\d+$", None).unwrap();
+        let array = Arc::new(StringArray::from(vec!["123", "abc", "789"])) as ArrayRef;
+        let result = rule.validate(&array);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 1); // One violation
+    }
+
+    #[test]
+    fn test_regex_match_non_string_array() {
+        let rule = RegexMatch::new("col".to_string(), r"^\d+$", None).unwrap();
+        let array = Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef;
+        let result = rule.validate(&array);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_min_length_success() {
+        let rule = MinLength::new("col".to_string(), 3);
+        let array = Arc::new(StringArray::from(vec!["abc", "def", "ghi"])) as ArrayRef;
+        let result = rule.validate(&array);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 0); // All >= 3
+    }
+
+    #[test]
+    fn test_min_length_violations() {
+        let rule = MinLength::new("col".to_string(), 3);
+        let array = Arc::new(StringArray::from(vec!["ab", "def", "g"])) as ArrayRef;
+        let result = rule.validate(&array);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 2); // Two violations
+    }
+
+    #[test]
+    fn test_min_length_with_nulls() {
+        let rule = MinLength::new("col".to_string(), 3);
+        let array = Arc::new(StringArray::from(vec![Some("ab"), None, Some("def")])) as ArrayRef;
+        let result = rule.validate(&array);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 2); // Null counts as violation
+    }
+
+    #[test]
+    fn test_min_length_non_string() {
+        let rule = MinLength::new("col".to_string(), 3);
+        let array = Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef;
+        let result = rule.validate(&array);
+        assert!(result.is_err());
+    }
+
+    // CaseCheck tests - placeholder since implementation is incomplete
+    #[test]
+    #[should_panic(expected = "not yet implemented")]
+    fn test_case_check_lower() {
+        let rule = CaseCheck::new("col".to_string(), "lower").unwrap();
+        let array = Arc::new(StringArray::from(vec!["abc", "def"])) as ArrayRef;
+        let _ = rule.validate(&array); // Will panic due to todo!()
     }
 }

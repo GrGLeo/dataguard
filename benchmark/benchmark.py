@@ -6,12 +6,11 @@ import sys
 sys.path.append("benchmark")
 from dataguard import Validator
 
-csv_path = "benchmark/products_large.csv"
 
 
 def benchmark_pandas(csv_path, num_runs):
     times = []
-    for _ in range(num_runs):
+    for i in range(num_runs):
         start = time.time()
         df = pd.read_csv(csv_path)
         # Check type of Category as string (all CSV columns are strings)
@@ -29,8 +28,13 @@ def benchmark_validator(csv_path, num_runs):
     builder = validator.add_column_rule("Category")
     builder.type_check("string")
     builder.regex_match(r"^Home & Kitchen$", None)
+
+    builder = validator.add_column_rule("Currency")
+    builder.type_check("string")
+    builder.min_length(3)
+
     times = []
-    for _ in range(num_runs):
+    for i in range(num_runs):
         start = time.time()
         error_count = validator.validate_csv(csv_path)
         end = time.time()
@@ -43,7 +47,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "-n", "--runs", type=int, default=10, help="Number of benchmark runs"
     )
+    parser.add_argument(
+        "-s", "--size", type=str, default="_small", help="Size of csv file to use, small, medium or large"
+    )
     args = parser.parse_args()
+
+    csv_path = f"benchmark/products{arg.size}.csv"
 
     print(f"Running {args.runs} times each")
 

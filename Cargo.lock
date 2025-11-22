@@ -397,6 +397,7 @@ name = "dataguard"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "arrow-string",
  "pyo3",
  "rayon",
  "regex",
