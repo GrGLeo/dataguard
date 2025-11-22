@@ -9,12 +9,13 @@ use std::{
         Arc, Mutex,
         atomic::{AtomicUsize, Ordering},
     },
+    time::Instant,
 };
 
 use pyo3::{exceptions::PyIOError, prelude::*};
 use rayon::prelude::*;
 
-use crate::{column_builder::ColumnBuilder, reader::read_csv, types::RuleMap};
+use crate::{column_builder::ColumnBuilder, reader::read_csv_parallel, types::RuleMap};
 
 #[pyclass]
 struct Validator {
@@ -38,7 +39,11 @@ impl Validator {
     }
 
     fn validate_csv(&mut self, path: &str) -> PyResult<usize> {
-        if let Ok(batches) = read_csv(path) {
+        let start = Instant::now();
+        if let Ok(batches) = read_csv_parallel(path) {
+            let read_duration = start.elapsed();
+            eprintln!("CSV reading took {:?}", read_duration);
+            let validation_start = Instant::now();
             let validation_rules = self.rules.lock().unwrap();
             let error_count = AtomicUsize::new(0);
             batches.par_iter().for_each(|batch| {
@@ -54,6 +59,8 @@ impl Validator {
                     }
                 }
             });
+            let validation_duration = validation_start.elapsed();
+            eprintln!("Validation took {:?}", validation_duration);
             Ok(error_count.load(Ordering::Relaxed))
         } else {
             Err(PyErr::new::<PyIOError, _>("Failed to load CSV"))
