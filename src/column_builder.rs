@@ -5,7 +5,7 @@ use arrow::datatypes::DataType;
 use pyo3::{exceptions::PyValueError, prelude::*};
 
 use crate::{
-    rules::{RegexMatch, TypeCheck},
+    rules::{RegexMatch, TypeCheck, StringLengthCheck},
     types::RuleMap,
 };
 
@@ -87,13 +87,20 @@ impl ColumnBuilder {
         Ok(slf)
     }
 
-    fn min_length<'py>(
+    /// Add a string length check validation rule for the column.
+    ///
+    /// Args:
+    ///     length (int): The length to compare against.
+    ///     operator (str): The comparison operator ("lt", "le", "gt", "ge").
+    ///
+    /// Returns:
+    ///     ColumnBuilder: Self for method chaining.
+    fn string_length_check<'py>(
         slf: PyRefMut<'py, Self>,
-        min_length: usize
+        length: usize,
+        operator: &str
     ) -> PyResult<PyRefMut<'py, Self>> {
-        use crate::rules::MinLength;
-
-        let rule = MinLength::new(slf.column.clone(), min_length);
+        let rule = StringLengthCheck::new(slf.column.clone(), length, operator)?;
         {
             let mut mapper = slf.rules_map.lock().unwrap();
             mapper

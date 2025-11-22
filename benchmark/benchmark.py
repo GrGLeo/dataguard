@@ -7,7 +7,6 @@ sys.path.append("benchmark")
 from dataguard import Validator
 
 
-
 def benchmark_pandas(csv_path, num_runs):
     times = []
     for i in range(num_runs):
@@ -16,7 +15,10 @@ def benchmark_pandas(csv_path, num_runs):
         # Check type of Category as string (all CSV columns are strings)
         assert df["Category"].dtype == "object", "Category should be string type"
         # Count rows where Category is not 'Home & Kitchen'
-        invalid_count = (df["Category"] != "Home & Kitchen").sum()
+        category_invalid = (df["Category"] != "Home & Kitchen").sum()
+        # Count rows where Currency length is less than 3
+        currency_invalid = (df["Currency"].str.len() < 3).sum()
+        invalid_count = category_invalid + currency_invalid
         end = time.time()
         times.append(end - start)
     return sum(times) / len(times), invalid_count
@@ -31,7 +33,7 @@ def benchmark_validator(csv_path, num_runs):
 
     builder = validator.add_column_rule("Currency")
     builder.type_check("string")
-    builder.min_length(3)
+    builder.string_length_check(3, "lt")
 
     times = []
     for i in range(num_runs):
@@ -48,11 +50,15 @@ if __name__ == "__main__":
         "-n", "--runs", type=int, default=10, help="Number of benchmark runs"
     )
     parser.add_argument(
-        "-s", "--size", type=str, default="_small", help="Size of csv file to use, small, medium or large"
+        "-s",
+        "--size",
+        type=str,
+        default="small",
+        help="Size of csv file to use, small, medium or large",
     )
     args = parser.parse_args()
 
-    csv_path = f"benchmark/products{arg.size}.csv"
+    csv_path = f"benchmark/products_{args.size}.csv"
 
     print(f"Running {args.runs} times each")
 

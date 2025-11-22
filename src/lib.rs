@@ -15,6 +15,7 @@ use std::{
 #[cfg(feature = "python")]
 use pyo3::{exceptions::PyIOError, prelude::*};
 use rayon::prelude::*;
+#[cfg(feature = "python")]
 use crate::column_builder::ColumnBuilder;
 use crate::{reader::read_csv_parallel, types::RuleMap};
 

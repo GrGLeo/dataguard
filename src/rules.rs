@@ -138,26 +138,50 @@ impl Rule for CaseCheck {
     }
 }
 
-pub struct MinLength {
-    column: String,
-    min_length: usize,
+enum Operator {
+    Gt,
+    Lt,
+    Ge,
+    Le,
 }
 
-impl MinLength {
-    pub fn new(column: String, min_length: usize) -> Self {
-        Self { column, min_length }
+pub struct StringLengthCheck {
+    column: String,
+    length: usize,
+    operator: Operator,
+}
+
+impl StringLengthCheck {
+    pub fn new(column: String, length: usize, op: &str) -> Result<Self, RuleError> {
+        let operator = match op {
+            "lt" | "lesser" => Operator::Lt,
+            "le" => Operator::Le,
+            "gt" | "greater" => Operator::Gt,
+            "ge" => Operator::Ge,
+            _ => {
+                return Err(RuleError::ValidationError(format!(
+                    "operator: '{}' not recognized",
+                    op
+                )));
+            }
+        };
+        Ok(Self {
+            column,
+            length,
+            operator,
+        })
     }
 }
 
-impl Rule for MinLength {
+impl Rule for StringLengthCheck {
     fn name(&self) -> &str {
-        "MinLength"
+        "StringLengthCheck"
     }
 
     fn validate(&self, array: &ArrayRef) -> Result<usize, RuleError> {
         if array.data_type() != &DataType::Utf8 {
             return Err(RuleError::ValidationError(format!(
-                "MinLength applied to a non-string column '{}'",
+                "StringLengthCheck applied to a non-string column '{}'",
                 self.column
             )));
         }
@@ -170,7 +194,7 @@ impl Rule for MinLength {
                         .downcast_ref::<Int32Array>()
                         .ok_or_else(|| {
                             RuleError::ValidationError(format!(
-                                "MinLength applied to a non-string column '{}'",
+                                "StringLengthCheck applied to a non-string column '{}'",
                                 self.column
                             ))
                         })?;
@@ -178,10 +202,29 @@ impl Rule for MinLength {
                 for value in len_array.iter() {
                     match value {
                         Some(i) => {
-                            if i < self.min_length as i32 {
-                                counter += 1;
-                            }
-                        }
+                            match self.operator {
+                                Operator::Lt => {
+                                    if i < self.length as i32 {
+                                        counter += 1;
+                                    }
+                                }
+                                Operator::Le => {
+                                    if i <= self.length as i32 {
+                                        counter += 1;
+                                    }
+                                }
+                                Operator::Gt => {
+                                    if i > self.length as i32 {
+                                        counter += 1;
+                                    }
+                                }
+                                Operator::Ge => {
+                                    if i >= self.length as i32 {
+                                        counter += 1;
+                                    }
+                                }
+                             }
+                         }
                         None => counter += 1,
                     }
                 }
@@ -264,38 +307,56 @@ mod tests {
     }
 
     #[test]
-    fn test_min_length_success() {
-        let rule = MinLength::new("col".to_string(), 3);
+    fn test_string_length_lt_success() {
+        let rule = StringLengthCheck::new("col".to_string(), 3, "lt").unwrap();
         let array = Arc::new(StringArray::from(vec!["abc", "def", "ghi"])) as ArrayRef;
         let result = rule.validate(&array);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 0); // All >= 3
+        assert_eq!(result.unwrap(), 0); // None < 3
     }
 
     #[test]
-    fn test_min_length_violations() {
-        let rule = MinLength::new("col".to_string(), 3);
+    fn test_string_length_lt_violations() {
+        let rule = StringLengthCheck::new("col".to_string(), 3, "lt").unwrap();
         let array = Arc::new(StringArray::from(vec!["ab", "def", "g"])) as ArrayRef;
         let result = rule.validate(&array);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 2); // Two violations
+        assert_eq!(result.unwrap(), 2); // "ab" and "g" < 3
     }
 
     #[test]
-    fn test_min_length_with_nulls() {
-        let rule = MinLength::new("col".to_string(), 3);
+    fn test_string_length_lt_with_nulls() {
+        let rule = StringLengthCheck::new("col".to_string(), 3, "lt").unwrap();
         let array = Arc::new(StringArray::from(vec![Some("ab"), None, Some("def")])) as ArrayRef;
         let result = rule.validate(&array);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 2); // Null counts as violation
+        assert_eq!(result.unwrap(), 2); // "ab" < 3 and null
     }
 
     #[test]
-    fn test_min_length_non_string() {
-        let rule = MinLength::new("col".to_string(), 3);
+    fn test_string_length_lt_non_string() {
+        let rule = StringLengthCheck::new("col".to_string(), 3, "lt").unwrap();
         let array = Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef;
         let result = rule.validate(&array);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_string_length_ge_success() {
+        let rule = StringLengthCheck::new("col".to_string(), 3, "ge").unwrap();
+        let array = Arc::new(StringArray::from(vec!["abc", "def", "ghi"])) as ArrayRef;
+        let result = rule.validate(&array);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 3); // All >= 3
+    }
+
+    #[test]
+    fn test_string_length_ge_violations() {
+        let rule = StringLengthCheck::new("col".to_string(), 3, "ge").unwrap();
+        let array = Arc::new(StringArray::from(vec!["ab", "def", "g"])) as ArrayRef;
+        let result = rule.validate(&array);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 1); // Only "def" >= 3
     }
 
     // CaseCheck tests - placeholder since implementation is incomplete
