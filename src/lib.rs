@@ -5,7 +5,7 @@ pub mod report;
 pub mod rules;
 pub mod types;
 
-use crate::columns::{string_column::StringColumnBuilder, Column};
+use crate::columns::{Column, string_column::StringColumnBuilder};
 use crate::reader::read_csv_parallel;
 use crate::report::ValidationReport;
 use crate::rules::core::Rule as RuleEnum;
@@ -97,8 +97,8 @@ impl Validator {
     ///     int: The number of validation errors found.
     fn validate_csv(&mut self, path: &str, print_report: bool) -> PyResult<usize> {
         let start = Instant::now();
-        let batches =
-            read_csv_parallel(path).map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
+        let batches = read_csv_parallel(path)
+            .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
         let read_duration = start.elapsed();
         eprintln!("CSV reading took {:?}", read_duration);
         let validation_start = Instant::now();
@@ -117,17 +117,14 @@ impl Validator {
                         if let Ok(col_index) = batch.schema().index_of(name) {
                             let array = batch.column(col_index);
 
-                            // KEY OPTIMIZATION: Cast ONCE here.
                             if let Some(string_array) = array.as_any().downcast_ref::<StringArray>()
                             {
                                 // Loop through the typed StringRules
                                 for rule in rules {
                                     // Pass the already-casted array to each rule
                                     if let Ok(count) = rule.validate(string_array, name.clone()) {
-                                        if count > 0 {
-                                            error_count.fetch_add(count, Ordering::Relaxed);
-                                            report.record_result(name, rule.name(), count);
-                                        }
+                                        error_count.fetch_add(count, Ordering::Relaxed);
+                                        report.record_result(name, rule.name(), count);
                                     }
                                 }
                             } else {

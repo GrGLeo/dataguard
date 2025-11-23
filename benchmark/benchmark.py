@@ -27,14 +27,12 @@ def benchmark_pandas(csv_path, num_runs):
 def benchmark_validator(csv_path, num_runs):
     # Define column rules using the new API
     category_col = (
-        string_column("Category")
-        .with_regex(r"^Home & Kitchen$", None)
-        .build()
+        string_column("Category").with_regex(r"^Home & Kitchen$", None).build()
     )
 
     currency_col = (
         string_column("Currency")
-        .with_min_length(min=3) # Less than 3 means max length of 2
+        .with_min_length(min=3)  # Less than 3 means max length of 2
         .build()
     )
 

@@ -1,5 +1,5 @@
 use arrow::{
-    array::{Array, Int64Array, StringArray},
+    array::{Array, Int32Array, Int64Array, StringArray},
     compute,
     datatypes::DataType,
 };
@@ -69,7 +69,7 @@ impl StringRule for StringLengthCheck {
                 let len_array =
                     dyn_array
                         .as_any()
-                        .downcast_ref::<Int64Array>()
+                        .downcast_ref::<Int32Array>()
                         .ok_or_else(|| {
                             RuleError::ValidationError(format!(
                                 "StringLengthCheck applied to a non-string column '{}'",
@@ -81,12 +81,12 @@ impl StringRule for StringLengthCheck {
                     match value {
                         Some(i) => {
                             if let Some(min) = self.min {
-                                if i < min as i64 {
+                                if i < min as i32 {
                                     counter += 1
                                 }
                             }
                             if let Some(max) = self.max {
-                                if i > max as i64 {
+                                if i > max as i32 {
                                     counter += 1
                                 }
                             }
@@ -133,5 +133,4 @@ impl StringRule for RegexMatch {
 }
 
 #[cfg(test)]
-mod tests {
-}
+mod tests {}
