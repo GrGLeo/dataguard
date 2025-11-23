@@ -55,8 +55,9 @@ else:
 # print(configured_rules)
 ```
 
-With the print_report set to True the validate_csv also output a table report:
-+----------+-------------------+-------------+---------+
+With `print_report` set to True the `validate_csv` method also output a table report:
+```
++----------+-------------------+-------------+---------+ 
 | Column   | Rule              | Error Count | % Error |
 +----------+-------------------+-------------+---------+
 | Category | RegexMatch        | 1941312     | 97.07%  |
@@ -67,7 +68,7 @@ With the print_report set to True the validate_csv also output a table report:
 +----------+-------------------+-------------+---------+
 | Currency | TypeCheck         | 0           | 0.00%   |
 +----------+-------------------+-------------+---------+
-
+```
 
 ## Roadmap
 
@@ -80,7 +81,7 @@ This project is still in its early phase. Here's what we have planned for the ne
   - Enumeration checks
 
 - **String Column Rules**:
-  - `isin`: check if a value is in a given set of words (e.g., "SEND", "ORDERED", "RECEIVED").
+  - `isin`: check if all value in the array is in a given set of words (e.g., "SEND", "ORDERED", "RECEIVED").
 
 - **Declarative Rules**:
   - We are working on a `TOML` based configuration file to declare the rules that should be applied to a validation. This will allow you to define your validation rules in a simple and readable format.
