@@ -1,77 +1,77 @@
-use arrow_string::length::length;
-use pyo3::{exceptions::PyValueError, prelude::*};
+use super::Column;
+use crate::{errors::RuleError, rules::core::Rule};
+use pyo3::prelude::*;
 use regex::Regex;
 
-use crate::{columns::{Column, ColumnBuilder}, errors::RuleError, rules::{Operator, RegexMatch, Rule, StringLengthCheck}};
-
-
-#[cfg(feature = "python")]
-#[pyclass]
+#[pyclass(name = "StringColumnBuilder")]
 pub struct StringColumnBuilder {
-    column_name: String,
-    min_length: Option<u32>,
-    max_length: Option<u32>,
-    regex_pattern: Option<String>,
-    regex_flag: Option<String>,
+    name: String,
+    rules: Vec<Rule>,
 }
 
-#[cfg(feature = "python")]
-impl StringColumnBuilder {
-    pub fn new(column_name: &str) -> Self {
-        Self {
-            column_name: column_name.to_string(),
-            min_length: None,
-            max_length: None,
-            regex_pattern: None,
-            regex_flag: None,
-        }
-    }
-}
-
-#[cfg(feature = "python")]
 #[pymethods]
 impl StringColumnBuilder {
-    fn with_min_length<'py>(mut slf: PyRefMut<'py, Self>, min: u32) -> PyResult<PyRefMut<'py, Self>> {
-        slf.min_length = Some(min);
-        Ok(slf)
+    #[new]
+    pub fn new(name: String) -> Self {
+        Self {
+            name,
+            rules: Vec::new(),
+        }
     }
 
-    fn with_max_length<'py>(mut slf: PyRefMut<'py, Self>, max: u32) -> PyResult<PyRefMut<'py, Self>> {
-        slf.max_length = Some(max);
-        Ok(slf)
+    /// Add a rule to check that the length of a string is comprised between a min and a max.
+    pub fn with_length_between(
+        &mut self,
+        min: Option<usize>,
+        max: Option<usize>,
+    ) -> PyResult<Self> {
+        self.rules.push(Rule::StringLength { min, max });
+        Ok(self.clone())
     }
 
-    fn with_length_between<'py>(mut slf: PyRefMut<'py, Self>,min:u32, max: u32) -> PyResult<PyRefMut<'py, Self>> {
-        slf.min_length = Some(min);
-        slf.max_length = Some(max);
-        Ok(slf)
+    /// Add a rule to check the minimun length required for a string to be valid.
+    pub fn with_min_length(&mut self, min: usize) -> PyResult<Self> {
+        self.rules.push(Rule::StringLength {
+            min: Some(min),
+            max: None,
+        });
+        Ok(self.clone())
     }
 
-    fn with_regex<'py>(mut slf: PyRefMut<'py, Self>,pattern: &str, flag: Option<&str>) -> PyResult<PyRefMut<'py, Self>> {
+    /// Add a rule to check the maximum length required for a string to be valid.
+    pub fn with_max_length(&mut self, max: usize) -> PyResult<Self> {
+        self.rules.push(Rule::StringLength {
+            min: None,
+            max: Some(max),
+        });
+        Ok(self.clone())
+    }
+
+    /// Add a rule to match a string against a regex pattern.
+    pub fn with_regex(&mut self, pattern: &str, flag: Option<&str>) -> PyResult<Self> {
         let _ = Regex::new(pattern).map_err(|e| {
-            RuleError::ValidationError(format!("Invalid regex: '{}' : '{}'", pattern, e))
+            RuleError::ValidationError(format!("Invalid regex pattern: '{}': '{}'", pattern, e))
         })?;
-
         let flag = flag.map(|f| f.to_string());
+        self.rules.push(Rule::StringRegex {
+            pattern: pattern.to_string(),
+            flag,
+        });
+        Ok(self.clone())
+    }
 
-        slf.regex_pattern = Some(pattern.to_string());
-        slf.regex_flag = flag;
-        Ok(slf)
+    /// Build the Column object.
+    pub fn build(&self) -> Column {
+        Column::new(self.name.clone(), "string".to_string(), self.rules.clone())
     }
 }
 
-impl ColumnBuilder for StringColumnBuilder {
-    fn build(self) -> Column {
-        let mut rules: Vec<Box<dyn Rule>> = Vec::new();
-        if let Some(min) = self.min_length {
-            rules.push(Box::new(StringLengthCheck::new(self.column_name.clone(), min as usize, Operator::Lt)));
+// pyo3 requires a `clone` implementation for `with_` methods to return `Self`
+impl Clone for StringColumnBuilder {
+    fn clone(&self) -> Self {
+        Self {
+            name: self.name.clone(),
+            rules: self.rules.clone(),
         }
-        if let Some(max) = self.max_length {
-            rules.push(Box::new(StringLengthCheck::new(self.column_name.clone(), max as usize, Operator::Gt)));
-        }
-        if let Some(pattern) = self.regex_pattern {
-            rules.push(Box::new(RegexMatch::new(self.column_name.clone(), pattern, self.regex_flag)));
-        }
-        Column::new(self.column_name, rules)
     }
 }

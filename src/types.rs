@@ -1,5 +1,3 @@
-use std::collections::HashMap;
+pub type Batch = arrow::record_batch::RecordBatch;
+pub type Batches = Vec<Batch>;
 
-use crate::rules::Rule;
-
-pub type RuleMap = HashMap<String, Vec<Box<dyn Rule + Send + Sync>>>;

@@ -4,7 +4,7 @@ import argparse
 import sys
 
 sys.path.append("benchmark")
-from dataguard import Validator
+from dataguard import Validator, string_column
 
 
 def benchmark_pandas(csv_path, num_runs):
@@ -25,15 +25,21 @@ def benchmark_pandas(csv_path, num_runs):
 
 
 def benchmark_validator(csv_path, num_runs):
-    validator = Validator()
-    # Add type check rule for 'Category' as string and regex match for 'Home & Kitchen'
-    builder = validator.add_column_rule("Category")
-    builder.type_check("string")
-    builder.regex_match(r"^Home & Kitchen$", None)
+    # Define column rules using the new API
+    category_col = (
+        string_column("Category")
+        .with_regex(r"^Home & Kitchen$", None)
+        .build()
+    )
 
-    builder = validator.add_column_rule("Currency")
-    builder.type_check("string")
-    builder.string_length_check(3, "lt")
+    currency_col = (
+        string_column("Currency")
+        .with_min_length(min=3) # Less than 3 means max length of 2
+        .build()
+    )
+
+    validator = Validator()
+    validator.commit([category_col, currency_col])
 
     times = []
     for i in range(num_runs):
