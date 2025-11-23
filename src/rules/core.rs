@@ -12,6 +12,10 @@ pub enum Rule {
         pattern: String,
         flag: Option<String>,
     },
+    IntegerRange {
+        min: Option<usize>,
+        max: Option<usize>,
+    },
 }
 
 #[pymethods]

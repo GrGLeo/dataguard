@@ -5,6 +5,8 @@ pub mod report;
 pub mod rules;
 pub mod types;
 
+#[cfg(feature = "python")]
+use crate::columns::integer_column::IntegerColumnBuilder;
 use crate::columns::{Column, string_column::StringColumnBuilder};
 use crate::reader::read_csv_parallel;
 use crate::report::ValidationReport;
@@ -77,6 +79,9 @@ impl Validator {
                                     }
                                     RuleEnum::StringRegex { pattern, flag } => {
                                         Box::new(RegexMatch::new(pattern, flag))
+                                    }
+                                    _ => {
+                                        todo!()
                                     }
                                 }
                             })
@@ -204,6 +209,19 @@ fn string_column(name: String) -> PyResult<StringColumnBuilder> {
     Ok(StringColumnBuilder::new(name))
 }
 
+/// Creates a builder for defining rules on a integer column.
+///
+/// Args:
+///     name (str): The name of the column.
+///
+/// Returns:
+///     IntegerColumnBuilder: A builder object for chaining rules.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn integer_column(name: String) -> PyResult<IntegerColumnBuilder> {
+    Ok(IntegerColumnBuilder::new(name))
+}
+
 /// DataGuard: A high-performance CSV validation library.
 #[cfg(feature = "python")]
 #[pyo3::pymodule]
@@ -212,6 +230,7 @@ fn dataguard(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Column>()?;
     m.add_class::<StringColumnBuilder>()?;
     m.add_function(wrap_pyfunction!(string_column, m)?)?;
+    m.add_function(wrap_pyfunction!(integer_column, m)?)?;
     Ok(())
 }
 
@@ -246,9 +265,12 @@ mod tests {
         assert_eq!(rules.len(), 2);
         assert_eq!(
             rules.get("col1").unwrap(),
-            &vec!["StringLengthCheck".to_string()]
+            &vec!["TypeCheck".to_string(), "StringLengthCheck".to_string()]
         );
-        assert_eq!(rules.get("col2").unwrap(), &vec!["RegexMatch".to_string()]);
+        assert_eq!(
+            rules.get("col2").unwrap(),
+            &vec!["TypeCheck".to_string(), "RegexMatch".to_string()]
+        );
 
         // 4. Check internal executable types (not directly testable from outside,
         // but get_rules success implies the transformation worked)

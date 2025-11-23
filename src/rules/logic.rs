@@ -20,7 +20,7 @@ pub trait IntegerRule: Send + Sync {
     /// Returns the name of the rule.
     fn name(&self) -> &'static str;
     /// Validates an Arrow `Array`.
-    fn validate(&self, array: &Int64Array) -> Result<usize, RuleError>;
+    fn validate(&self, array: &Int64Array, column: String) -> Result<usize, RuleError>;
 }
 
 pub struct TypeCheck {
@@ -135,6 +135,45 @@ impl StringRule for RegexMatch {
     }
 }
 
+pub struct IntegerRange {
+    min: Option<usize>,
+    max: Option<usize>,
+}
+
+impl IntegerRange {
+    pub fn new(min: Option<usize>, max: Option<usize>) -> Self {
+        Self { min, max }
+    }
+}
+
+impl IntegerRule for IntegerRange {
+    fn name(&self) -> &'static str {
+        "IntegerRange"
+    }
+
+    fn validate(&self, array: &Int64Array, _column: String) -> Result<usize, RuleError> {
+        let mut counter: usize = 0;
+        for value in array.iter() {
+            match value {
+                Some(i) => {
+                    if let Some(min) = self.min
+                        && i < min as i64
+                    {
+                        counter += 1
+                    }
+                    if let Some(max) = self.max
+                        && i > max as i64
+                    {
+                        counter += 1
+                    }
+                }
+                None => counter += 1,
+            }
+        }
+        Ok(counter)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -203,6 +242,51 @@ mod tests {
         assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 1);
     }
 
-    // New tests for IntegerRule and TypeCheck if they were implemented and active.
-    // However, they are not part of StringRule.
+    #[test]
+    fn test_min_range_integer_with_null() {
+        let rule = IntegerRange::new(Some(5), None);
+        let array = Int64Array::from(vec![Some(1), Some(6), Some(3), Some(2), None]);
+        // We expect 4 errors here index 0, 2, 3, 4
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 4);
+    }
+
+    #[test]
+    fn test_min_range_integer() {
+        let rule = IntegerRange::new(Some(5), None);
+        let array = Int64Array::from(vec![Some(7), Some(6), Some(5), Some(2), Some(4)]);
+        // We expect 2 errors here index 3, 4
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
+    }
+
+    #[test]
+    fn test_max_range_integer_with_null() {
+        let rule = IntegerRange::new(None, Some(5));
+        let array = Int64Array::from(vec![Some(1), Some(6), Some(3), Some(2), None]);
+        // We expect 2 errors here index 1, 4
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
+    }
+
+    #[test]
+    fn test_max_range_integer() {
+        let rule = IntegerRange::new(None, Some(5));
+        let array = Int64Array::from(vec![Some(7), Some(6), Some(5), Some(2), Some(4)]);
+        // We expect 2 errors here index 0, 1
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
+    }
+
+    #[test]
+    fn test_range_between_integer_with_null() {
+        let rule = IntegerRange::new(Some(2), Some(4));
+        let array = Int64Array::from(vec![Some(1), Some(4), Some(6), Some(3), Some(2), None]);
+        // We expect 3 errors here: 0, 2, 5
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 3);
+    }
+
+    #[test]
+    fn test_range_between_integer() {
+        let rule = IntegerRange::new(Some(2), Some(4));
+        let array = Int64Array::from(vec![Some(7), Some(6), Some(5), Some(2), Some(4)]);
+        // We expect 2 errors here index 0, 1, 2
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 3);
+    }
 }

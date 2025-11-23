@@ -1,6 +1,7 @@
 use crate::rules::core::Rule;
 use pyo3::prelude::*;
 
+pub mod integer_column;
 pub mod string_column;
 
 #[pyclass(name = "Column")]
