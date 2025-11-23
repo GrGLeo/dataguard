@@ -38,7 +38,7 @@ def benchmark_validator(csv_path, num_runs):
     times = []
     for i in range(num_runs):
         start = time.time()
-        error_count = validator.validate_csv(csv_path)
+        error_count = validator.validate_csv(csv_path, print_report=True)
         end = time.time()
         times.append(end - start)
     return sum(times) / len(times), error_count

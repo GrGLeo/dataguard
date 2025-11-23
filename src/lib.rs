@@ -3,6 +3,7 @@ pub mod errors;
 pub mod reader;
 pub mod rules;
 pub mod types;
+pub mod columns;
 pub mod report; // Add report module
 use std::{
     collections::HashMap,
@@ -17,13 +18,14 @@ use std::{
 use pyo3::{exceptions::PyIOError, prelude::*};
 use rayon::prelude::*;
 #[cfg(feature = "python")]
-use crate::column_builder::ColumnBuilder;
+use crate::columns::{Column};
 use crate::{reader::read_csv_parallel, types::RuleMap, report::ValidationReport}; // Import ValidationReport
 
 #[cfg(feature = "python")]
 #[pyclass]
 struct Validator {
     rules: Arc<Mutex<RuleMap>>,
+    column_rules: Vec<Column>,
 }
 
 #[cfg(feature = "python")]
@@ -34,6 +36,7 @@ impl Validator {
     fn new() -> Self {
         Self {
             rules: Arc::new(Mutex::new(HashMap::new())),
+            column_rules: Vec::new(),
         }
     }
 
@@ -44,11 +47,8 @@ impl Validator {
     ///
     /// Returns:
     ///     ColumnBuilder: A builder object to add validation rules for the column.
-    fn add_column_rule(&self, column_name: &str) -> PyResult<ColumnBuilder> {
-        Ok(ColumnBuilder::new(
-            column_name.to_string(),
-            Arc::clone(&self.rules),
-        ))
+    fn commit(&mut self, columns: Vec<Column>) {
+        self.column_rules = columns;
     }
 
     /// Validate a CSV file against the defined rules.

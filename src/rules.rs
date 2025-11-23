@@ -48,18 +48,12 @@ pub struct RegexMatch {
 }
 
 impl RegexMatch {
-    pub fn new(column: String, pattern: &str, flag: Option<&str>) -> Result<Self, RuleError> {
-        // We validate the Regex at creation
-        let _ = Regex::new(pattern).map_err(|e| {
-            RuleError::ValidationError(format!("Invalid regex: '{}' : '{}'", pattern, e))
-        })?;
-
-        let flag = flag.map(|f| f.to_string());
-        Ok(Self {
+    pub fn new(column: String, pattern: String, flag: Option<String>) -> Self {
+        Self {
             column,
-            pattern: pattern.to_string(),
+            pattern,
             flag,
-        })
+        }
     }
 }
 
@@ -138,11 +132,9 @@ impl Rule for CaseCheck {
     }
 }
 
-enum Operator {
+pub enum Operator {
     Gt,
     Lt,
-    Ge,
-    Le,
 }
 
 pub struct StringLengthCheck {
@@ -152,24 +144,12 @@ pub struct StringLengthCheck {
 }
 
 impl StringLengthCheck {
-    pub fn new(column: String, length: usize, op: &str) -> Result<Self, RuleError> {
-        let operator = match op {
-            "lt" | "lesser" => Operator::Lt,
-            "le" => Operator::Le,
-            "gt" | "greater" => Operator::Gt,
-            "ge" => Operator::Ge,
-            _ => {
-                return Err(RuleError::ValidationError(format!(
-                    "operator: '{}' not recognized",
-                    op
-                )));
-            }
-        };
-        Ok(Self {
+    pub fn new(column: String, length: usize, op: Operator) -> Self {
+        Self {
             column,
             length,
-            operator,
-        })
+            operator: op,
+        }
     }
 }
 
