@@ -7,6 +7,12 @@ pub struct ValidationReport {
     total_rows: AtomicUsize,
 }
 
+impl Default for ValidationReport {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ValidationReport {
     pub fn new() -> Self {
         Self {

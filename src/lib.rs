@@ -9,8 +9,9 @@ use crate::columns::{Column, string_column::StringColumnBuilder};
 use crate::reader::read_csv_parallel;
 use crate::report::ValidationReport;
 use crate::rules::core::Rule as RuleEnum;
-use crate::rules::logic::{RegexMatch, StringLengthCheck, StringRule};
+use crate::rules::logic::{RegexMatch, StringLengthCheck, StringRule, TypeCheck};
 use arrow::array::StringArray;
+use arrow::datatypes::DataType;
 use pyo3::{exceptions::PyIOError, prelude::*};
 use rayon::prelude::*;
 use std::collections::HashMap;
@@ -22,6 +23,7 @@ enum ExecutableColumn {
     String {
         name: String,
         rules: Vec<Box<dyn StringRule>>,
+        type_check: TypeCheck,
     },
     // Future column types like Integer would be another variant here
 }
@@ -30,6 +32,13 @@ enum ExecutableColumn {
 #[pyclass(name = "Validator")]
 struct Validator {
     executable_columns: Vec<ExecutableColumn>,
+}
+
+#[cfg(feature = "python")]
+impl Default for Validator {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[cfg(feature = "python")]
@@ -75,8 +84,9 @@ impl Validator {
 
                         // Return the constructed ExecutableColumn variant, wrapped in Some
                         Some(ExecutableColumn::String {
-                            name: col.name,
+                            name: col.name.clone(),
                             rules: executable_rules,
+                            type_check: TypeCheck::new(col.name, DataType::Utf8),
                         })
                     }
                     // Add other column types here in the future
@@ -112,28 +122,39 @@ impl Validator {
             for executable_col in &self.executable_columns {
                 // KEY CHANGE: Match on the ExecutableColumn enum
                 match executable_col {
-                    ExecutableColumn::String { name, rules } => {
+                    ExecutableColumn::String {
+                        name,
+                        rules,
+                        type_check,
+                    } => {
                         if let Ok(col_index) = batch.schema().index_of(name) {
                             let array = batch.column(col_index);
 
-                            if let Some(string_array) = array.as_any().downcast_ref::<StringArray>()
-                            {
-                                // Loop through the typed StringRules
-                                for rule in rules {
-                                    // Pass the already-casted array to each rule
-                                    if let Ok(count) = rule.validate(string_array, name.clone()) {
-                                        if count > 0 {
-                                            eprintln!("rule error count: {}", count);
-                                            error_count.fetch_add(count, Ordering::Relaxed);
-                                            report.record_result(name, rule.name(), count);
+                            match type_check.validate(array.as_ref()) {
+                                Ok((errors, casted_array)) => {
+                                    error_count.fetch_add(errors, Ordering::Relaxed);
+                                    report.record_result(name, type_check.name(), errors);
+
+                                    if let Some(string_array) =
+                                        casted_array.as_any().downcast_ref::<StringArray>()
+                                    {
+                                        for rule in rules {
+                                            if let Ok(count) =
+                                                rule.validate(string_array, name.clone())
+                                            {
+                                                error_count.fetch_add(count, Ordering::Relaxed);
+                                                report.record_result(name, rule.name(), count);
+                                            }
                                         }
                                     }
                                 }
-                            } else {
-                                // Handle type mismatch error: all rows are considered errors.
-                                let count = array.len();
-                                error_count.fetch_add(count, Ordering::Relaxed);
-                                report.record_result(name, "TypeMismatch", count);
+                                Err(_) => {
+                                    // TypeCheck validation itself failed, meaning the cast was not possible.
+                                    // All rows are considered errors.
+                                    let count = array.len();
+                                    error_count.fetch_add(count, Ordering::Relaxed);
+                                    report.record_result(name, type_check.name(), count);
+                                }
                             }
                         }
                     } // Add other ExecutableColumn variants here
@@ -159,8 +180,9 @@ impl Validator {
         for column in &self.executable_columns {
             // KEY CHANGE: Match to access the data inside the enum variant
             match column {
-                ExecutableColumn::String { name, rules } => {
-                    let rule_names = rules.iter().map(|r| r.name().to_string()).collect();
+                ExecutableColumn::String { name, rules, .. } => {
+                    let mut rule_names = vec!["TypeCheck".to_string()];
+                    rule_names.extend(rules.iter().map(|r| r.name().to_string()));
                     result.insert(name.clone(), rule_names);
                 }
             }

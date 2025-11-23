@@ -4,6 +4,7 @@ use arrow::{
     datatypes::DataType,
 };
 use arrow_string::length::length;
+use std::sync::Arc;
 
 use crate::errors::RuleError;
 
@@ -36,11 +37,13 @@ impl TypeCheck {
         "TypeCheck"
     }
 
-    pub fn validate(&self, array: &dyn Array) -> Result<usize, &'static str> {
-        if let Ok(casted_array) = compute::cast(array, &self.expected) {
-            Ok(casted_array.null_count())
-        } else {
-            Err("Failed to cast to expected Type")
+    pub fn validate(&self, array: &dyn Array) -> Result<(usize, Arc<dyn Array>), RuleError> {
+        match compute::cast(array, &self.expected) {
+            Ok(casted_array) => {
+                let errors = casted_array.null_count() - array.null_count();
+                Ok((errors, casted_array))
+            }
+            Err(e) => Err(RuleError::TypeCastError(self.column.clone(), e.to_string())),
         }
     }
 }
@@ -80,16 +83,15 @@ impl StringRule for StringLengthCheck {
                 for value in len_array.iter() {
                     match value {
                         Some(i) => {
-                            eprintln!("value: {}", i);
-                            if let Some(min) = self.min {
-                                if i < min as i32 {
-                                    counter += 1
-                                }
+                            if let Some(min) = self.min
+                                && i < min as i32
+                            {
+                                counter += 1
                             }
-                            if let Some(max) = self.max {
-                                if i > max as i32 {
-                                    counter += 1
-                                }
+                            if let Some(max) = self.max
+                                && i > max as i32
+                            {
+                                counter += 1
                             }
                         }
                         None => counter += 1,
@@ -97,7 +99,7 @@ impl StringRule for StringLengthCheck {
                 }
                 Ok(counter as usize)
             }
-            Err(e) => return Err(RuleError::ArrowError(e)),
+            Err(e) => Err(RuleError::ArrowError(e)),
         }
     }
 }
