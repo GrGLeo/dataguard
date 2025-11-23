@@ -516,6 +516,7 @@ dependencies = [
  "arrow-string",
  "criterion",
  "dashmap",
+ "once_cell",
  "prettytable-rs",
  "pyo3",
  "rayon",
