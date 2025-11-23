@@ -218,7 +218,7 @@ fn dataguard(m: &Bound<'_, PyModule>) -> PyResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs::{self, File};
+    use std::fs::File;
     use std::io::Write;
     use tempfile::tempdir;
 
@@ -254,14 +254,22 @@ mod tests {
         // but get_rules success implies the transformation worked)
         assert_eq!(validator.executable_columns.len(), 2);
         match &validator.executable_columns[0] {
-            ExecutableColumn::String { name, rules } => {
+            ExecutableColumn::String {
+                name,
+                rules,
+                type_check: _,
+            } => {
                 assert_eq!(name, "col1");
                 assert_eq!(rules.len(), 1);
                 assert_eq!(rules[0].name(), "StringLengthCheck");
             }
         }
         match &validator.executable_columns[1] {
-            ExecutableColumn::String { name, rules } => {
+            ExecutableColumn::String {
+                name,
+                rules,
+                type_check: _,
+            } => {
                 assert_eq!(name, "col2");
                 assert_eq!(rules.len(), 1);
                 assert_eq!(rules[0].name(), "RegexMatch");

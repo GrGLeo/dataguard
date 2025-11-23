@@ -24,3 +24,4 @@ python = ["pyo3"]
 
 [dev-dependencies]
 tempfile = "3.0"
+criterion = "0.7.0"
