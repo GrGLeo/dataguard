@@ -11,7 +11,7 @@ use crate::report::ValidationReport;
 use crate::rules::core::Rule as RuleEnum;
 use crate::rules::logic::{RegexMatch, StringLengthCheck, StringRule};
 use arrow::array::StringArray;
-use pyo3::prelude::*;
+use pyo3::{exceptions::PyIOError, prelude::*};
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -97,8 +97,7 @@ impl Validator {
     ///     int: The number of validation errors found.
     fn validate_csv(&mut self, path: &str, print_report: bool) -> PyResult<usize> {
         let start = Instant::now();
-        let batches = read_csv_parallel(path)
-            .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
+        let batches = read_csv_parallel(path).map_err(|e| PyIOError::new_err(e.to_string()))?;
         let read_duration = start.elapsed();
         eprintln!("CSV reading took {:?}", read_duration);
         let validation_start = Instant::now();
@@ -123,8 +122,11 @@ impl Validator {
                                 for rule in rules {
                                     // Pass the already-casted array to each rule
                                     if let Ok(count) = rule.validate(string_array, name.clone()) {
-                                        error_count.fetch_add(count, Ordering::Relaxed);
-                                        report.record_result(name, rule.name(), count);
+                                        if count > 0 {
+                                            eprintln!("rule error count: {}", count);
+                                            error_count.fetch_add(count, Ordering::Relaxed);
+                                            report.record_result(name, rule.name(), count);
+                                        }
                                     }
                                 }
                             } else {
@@ -189,4 +191,103 @@ fn dataguard(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<StringColumnBuilder>()?;
     m.add_function(wrap_pyfunction!(string_column, m)?)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::{self, File};
+    use std::io::Write;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_builder_commit_and_get_rules() {
+        // 1. Create builders and build Column DTOs
+        let col1 = string_column("col1".to_string())
+            .unwrap()
+            .with_length_between(Some(1), Some(10)) // Changed
+            .unwrap()
+            .build();
+
+        let col2 = string_column("col2".to_string())
+            .unwrap()
+            .with_regex("^[a-z]+$", None) // Changed
+            .unwrap()
+            .build();
+
+        // 2. Create a validator and commit the columns
+        let mut validator = Validator::new();
+        validator.commit(vec![col1, col2]).unwrap();
+
+        // 3. Check the internal state via get_rules()
+        let rules = validator.get_rules().unwrap();
+        assert_eq!(rules.len(), 2);
+        assert_eq!(
+            rules.get("col1").unwrap(),
+            &vec!["StringLengthCheck".to_string()]
+        );
+        assert_eq!(rules.get("col2").unwrap(), &vec!["RegexMatch".to_string()]);
+
+        // 4. Check internal executable types (not directly testable from outside,
+        // but get_rules success implies the transformation worked)
+        assert_eq!(validator.executable_columns.len(), 2);
+        match &validator.executable_columns[0] {
+            ExecutableColumn::String { name, rules } => {
+                assert_eq!(name, "col1");
+                assert_eq!(rules.len(), 1);
+                assert_eq!(rules[0].name(), "StringLengthCheck");
+            }
+        }
+        match &validator.executable_columns[1] {
+            ExecutableColumn::String { name, rules } => {
+                assert_eq!(name, "col2");
+                assert_eq!(rules.len(), 1);
+                assert_eq!(rules[0].name(), "RegexMatch");
+            }
+        }
+    }
+
+    #[test]
+    fn test_validate_csv_end_to_end() {
+        // 1. Setup: Create a temporary CSV file
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("test.csv");
+        let mut file = File::create(&file_path).unwrap();
+        writeln!(file, "product_id,description,price").unwrap();
+        writeln!(file, "p1,short,10.0").unwrap(); // desc length fail (<6)
+        writeln!(file, "p2,a good description,20.0").unwrap(); // ok
+        writeln!(file, "p3,invalid-char!,30.0").unwrap(); // desc regex fail (! is invalid)
+        writeln!(file, "p4,another good one,40.0").unwrap(); // ok
+        writeln!(file, "p5,,50.0").unwrap(); // desc length fail ("" < 6)
+        writeln!(file, "p6,12345,60.0").unwrap(); // desc regex fail (numbers not allowed)
+
+        // 2. Create column rules
+        let desc_col = string_column("description".to_string())
+            .unwrap()
+            .with_regex("^[a-z ]+$", None) // Changed
+            .unwrap()
+            .with_min_length(6) // Changed
+            .unwrap()
+            .build();
+
+        // 3. Commit to validator
+        let mut validator = Validator::new();
+        validator.commit(vec![desc_col]).unwrap();
+
+        // 4. Run validation
+        let error_count = validator
+            .validate_csv(file_path.to_str().unwrap(), false)
+            .unwrap();
+
+        // 5. Assert results
+        // Expected errors:
+        // - "short": pass | fail
+        // - "a good description": pass | pass
+        // - "invalid-char!": fail | pass
+        // - "": fail | fail
+        // - "12345": fail | fail
+        assert_eq!(error_count, 6);
+
+        // The tempdir will be automatically cleaned up when `dir` goes out of scope.
+    }
 }
