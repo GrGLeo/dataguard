@@ -4,7 +4,7 @@ import argparse
 import sys
 
 sys.path.append("benchmark")
-from dataguard import Validator
+from dataguard import Validator, string_column
 
 
 def benchmark_pandas(csv_path, num_runs):
@@ -12,12 +12,17 @@ def benchmark_pandas(csv_path, num_runs):
     for i in range(num_runs):
         start = time.time()
         df = pd.read_csv(csv_path)
+        end_read = time.time() - start
+        print(f"Read: {end_read:.6f}")
+        start_valid = time.time()
         # Check type of Category as string (all CSV columns are strings)
         assert df["Category"].dtype == "object", "Category should be string type"
         # Count rows where Category is not 'Home & Kitchen'
         category_invalid = (df["Category"] != "Home & Kitchen").sum()
         # Count rows where Currency length is less than 3
         currency_invalid = (df["Currency"].str.len() < 3).sum()
+        end_valid = time.time() - start_valid
+        print(f"Validation: {end_valid:.6f}")
         invalid_count = category_invalid + currency_invalid
         end = time.time()
         times.append(end - start)
@@ -25,20 +30,24 @@ def benchmark_pandas(csv_path, num_runs):
 
 
 def benchmark_validator(csv_path, num_runs):
-    validator = Validator()
-    # Add type check rule for 'Category' as string and regex match for 'Home & Kitchen'
-    builder = validator.add_column_rule("Category")
-    builder.type_check("string")
-    builder.regex_match(r"^Home & Kitchen$", None)
+    # Define column rules using the new API
+    category_col = (
+        string_column("Category").with_regex(r"^Home & Kitchen$", None).build()
+    )
 
-    builder = validator.add_column_rule("Currency")
-    builder.type_check("string")
-    builder.string_length_check(3, "lt")
+    currency_col = (
+        string_column("Currency")
+        .with_min_length(min=3)  # Less than 3 means max length of 2
+        .build()
+    )
+
+    validator = Validator()
+    validator.commit([category_col, currency_col])
 
     times = []
     for i in range(num_runs):
         start = time.time()
-        error_count = validator.validate_csv(csv_path)
+        error_count = validator.validate_csv(csv_path, print_report=False)
         end = time.time()
         times.append(end - start)
     return sum(times) / len(times), error_count
