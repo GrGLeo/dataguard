@@ -1,8 +1,9 @@
 use arrow::{
     array::{Array, Int32Array, Int64Array, StringArray},
-    compute,
+    compute::{self, concat},
     datatypes::DataType,
 };
+use arrow_ord::cmp::lt;
 use arrow_string::length::length;
 use std::sync::Arc;
 
@@ -174,6 +175,39 @@ impl IntegerRule for IntegerRange {
     }
 }
 
+#[derive(Default)]
+pub struct Monotonicity {}
+
+impl Monotonicity {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl IntegerRule for Monotonicity {
+    fn name(&self) -> &'static str {
+        "Monotonicity"
+    }
+
+    fn validate(&self, array: &Int64Array, _column: String) -> Result<usize, RuleError> {
+        if array.len() <= 1 {
+            return Ok(0);
+        };
+        let predecessor = Int64Array::from(vec![i64::MIN]);
+        let original_slice = array.slice(0, array.len() - 1);
+        let shifted_array = match concat(&[&predecessor, &original_slice]) {
+            Ok(arr) => arr,
+            Err(e) => return Err(RuleError::ArrowError(e)),
+        };
+        let comparaison = match lt(&array, &shifted_array) {
+            Ok(res) => res,
+            Err(e) => return Err(RuleError::ArrowError(e)),
+        };
+        let violation = comparaison.true_count();
+        Ok(violation)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -288,5 +322,19 @@ mod tests {
         let array = Int64Array::from(vec![Some(7), Some(6), Some(5), Some(2), Some(4)]);
         // We expect 2 errors here index 0, 1, 2
         assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 3);
+    }
+
+    #[test]
+    fn test_monotonicity_valid() {
+        let rule = Monotonicity {};
+        let array = Int64Array::from(vec![1, 5, 5, 10]);
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_monotonicity_violation() {
+        let rule = Monotonicity {};
+        let array = Int64Array::from(vec![1, 5, 4, 3, 10]);
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
     }
 }

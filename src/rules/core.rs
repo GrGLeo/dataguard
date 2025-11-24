@@ -16,6 +16,7 @@ pub enum Rule {
         min: Option<usize>,
         max: Option<usize>,
     },
+    Monotonicity {},
 }
 
 #[pymethods]

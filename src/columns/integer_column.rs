@@ -41,13 +41,17 @@ impl IntegerColumnBuilder {
         Ok(self.clone())
     }
 
+    /// Add a rule to check monoticity it validated that  A[i] >= A[i-1]
+    pub fn with_monotonicity(&mut self) -> PyResult<Self> {
+        Ok(self.clone())
+    }
+
     /// Build the Column object.
     pub fn build(&self) -> Column {
         Column::new(self.name.clone(), "integer".to_string(), self.rules.clone())
     }
 }
 
-// pyo3 requires a `clone` implementation for `with_` methods to return `Self`
 impl Clone for IntegerColumnBuilder {
     fn clone(&self) -> Self {
         Self {

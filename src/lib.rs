@@ -330,13 +330,19 @@ mod tests {
             .unwrap()
             .build();
 
+        let col3 = integer_column("col3".to_string())
+            .unwrap()
+            .with_range(Some(2), Some(5)) // Changed
+            .unwrap()
+            .build();
+
         // 2. Create a validator and commit the columns
         let mut validator = Validator::new();
-        validator.commit(vec![col1, col2]).unwrap();
+        validator.commit(vec![col1, col2, col3]).unwrap();
 
         // 3. Check the internal state via get_rules()
         let rules = validator.get_rules().unwrap();
-        assert_eq!(rules.len(), 2);
+        assert_eq!(rules.len(), 3);
         assert_eq!(
             rules.get("col1").unwrap(),
             &vec!["TypeCheck".to_string(), "StringLengthCheck".to_string()]
@@ -345,10 +351,14 @@ mod tests {
             rules.get("col2").unwrap(),
             &vec!["TypeCheck".to_string(), "RegexMatch".to_string()]
         );
+        assert_eq!(
+            rules.get("col3").unwrap(),
+            &vec!["TypeCheck".to_string(), "IntegerRange".to_string()]
+        );
 
         // 4. Check internal executable types (not directly testable from outside,
         // but get_rules success implies the transformation worked)
-        assert_eq!(validator.executable_columns.len(), 2);
+        assert_eq!(validator.executable_columns.len(), 3);
         match &validator.executable_columns[0] {
             ExecutableColumn::String {
                 name,
@@ -358,6 +368,9 @@ mod tests {
                 assert_eq!(name, "col1");
                 assert_eq!(rules.len(), 1);
                 assert_eq!(rules[0].name(), "StringLengthCheck");
+            }
+            ExecutableColumn::Integer { .. } => {
+                assert!(false)
             }
         }
         match &validator.executable_columns[1] {
@@ -369,6 +382,23 @@ mod tests {
                 assert_eq!(name, "col2");
                 assert_eq!(rules.len(), 1);
                 assert_eq!(rules[0].name(), "RegexMatch");
+            }
+            ExecutableColumn::Integer { .. } => {
+                assert!(false)
+            }
+        }
+        match &validator.executable_columns[2] {
+            ExecutableColumn::String { .. } => {
+                assert!(false)
+            }
+            ExecutableColumn::Integer {
+                name,
+                rules,
+                type_check: _,
+            } => {
+                assert_eq!(name, "col3");
+                assert_eq!(rules.len(), 1);
+                assert_eq!(rules[0].name(), "IntegerRange");
             }
         }
     }
