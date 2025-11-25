@@ -18,13 +18,13 @@ impl IntegerColumnBuilder {
     }
 
     /// Add a rule to check that the length of a string is comprised between a min and a max.
-    pub fn with_range(&mut self, min: Option<usize>, max: Option<usize>) -> PyResult<Self> {
+    pub fn between(&mut self, min: Option<usize>, max: Option<usize>) -> PyResult<Self> {
         self.rules.push(Rule::IntegerRange { min, max });
         Ok(self.clone())
     }
 
     /// Add a rule to check the minimun length required for a string to be valid.
-    pub fn with_min(&mut self, min: usize) -> PyResult<Self> {
+    pub fn min(&mut self, min: usize) -> PyResult<Self> {
         self.rules.push(Rule::IntegerRange {
             min: Some(min),
             max: None,
@@ -33,7 +33,7 @@ impl IntegerColumnBuilder {
     }
 
     /// Add a rule to check the maximum length required for a string to be valid.
-    pub fn with_max(&mut self, max: usize) -> PyResult<Self> {
+    pub fn max(&mut self, max: usize) -> PyResult<Self> {
         self.rules.push(Rule::IntegerRange {
             min: None,
             max: Some(max),
@@ -41,8 +41,15 @@ impl IntegerColumnBuilder {
         Ok(self.clone())
     }
 
-    /// Add a rule to check monoticity it validated that  A[i] >= A[i-1]
-    pub fn with_monotonicity(&mut self) -> PyResult<Self> {
+    /// Add a rule to check monoticity it is valide if  A[i] >= A[i-1]
+    pub fn is_monotonically_increasing(&mut self) -> PyResult<Self> {
+        self.rules.push(Rule::Monotonicity { asc: true });
+        Ok(self.clone())
+    }
+
+    /// Add a rule to check monoticity it is valide if  A[i] <= A[i-1]
+    pub fn is_monotonically_decreasing(&mut self) -> PyResult<Self> {
+        self.rules.push(Rule::Monotonicity { asc: false });
         Ok(self.clone())
     }
 

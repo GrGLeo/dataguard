@@ -3,7 +3,7 @@ use arrow::{
     compute::{self, concat},
     datatypes::DataType,
 };
-use arrow_ord::cmp::lt;
+use arrow_ord::cmp::{gt, lt};
 use arrow_string::length::length;
 use std::sync::Arc;
 
@@ -175,12 +175,19 @@ impl IntegerRule for IntegerRange {
     }
 }
 
-#[derive(Default)]
-pub struct Monotonicity {}
+pub struct Monotonicity {
+    asc: bool,
+}
 
 impl Monotonicity {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(asc: bool) -> Self {
+        Self { asc }
+    }
+}
+
+impl Default for Monotonicity {
+    fn default() -> Self {
+        Self { asc: true }
     }
 }
 
@@ -193,15 +200,25 @@ impl IntegerRule for Monotonicity {
         if array.len() <= 1 {
             return Ok(0);
         };
-        let predecessor = Int64Array::from(vec![i64::MIN]);
+        let predecessor = match self.asc {
+            true => Int64Array::from(vec![i64::MIN]),
+            false => Int64Array::from(vec![i64::MAX]),
+        };
+
         let original_slice = array.slice(0, array.len() - 1);
         let shifted_array = match concat(&[&predecessor, &original_slice]) {
             Ok(arr) => arr,
             Err(e) => return Err(RuleError::ArrowError(e)),
         };
-        let comparaison = match lt(&array, &shifted_array) {
-            Ok(res) => res,
-            Err(e) => return Err(RuleError::ArrowError(e)),
+        let comparaison = match self.asc {
+            true => match lt(&array, &shifted_array) {
+                Ok(res) => res,
+                Err(e) => return Err(RuleError::ArrowError(e)),
+            },
+            false => match gt(&array, &shifted_array) {
+                Ok(res) => res,
+                Err(e) => return Err(RuleError::ArrowError(e)),
+            },
         };
         let violation = comparaison.true_count();
         Ok(violation)
@@ -325,16 +342,32 @@ mod tests {
     }
 
     #[test]
-    fn test_monotonicity_valid() {
-        let rule = Monotonicity {};
+    fn test_monotonicity_asc_valid() {
+        let rule = Monotonicity::default();
         let array = Int64Array::from(vec![1, 5, 5, 10]);
         assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 0);
     }
 
     #[test]
-    fn test_monotonicity_violation() {
-        let rule = Monotonicity {};
+    fn test_monotonicity_asc_violation() {
+        let rule = Monotonicity::default();
         let array = Int64Array::from(vec![1, 5, 4, 3, 10]);
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
+    }
+
+    #[test]
+    fn test_monotonicity_desc_valid() {
+        let rule = Monotonicity::new(false);
+        //
+        //
+        let array = Int64Array::from(vec![10, 5, 5, 1]);
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_monotonicity_desc_violation() {
+        let rule = Monotonicity::new(false);
+        let array = Int64Array::from(vec![10, 3, 4, 5, 1]);
         assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
     }
 }

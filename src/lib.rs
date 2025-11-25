@@ -12,7 +12,7 @@ use crate::reader::read_csv_parallel;
 use crate::report::ValidationReport;
 use crate::rules::core::Rule as RuleEnum;
 use crate::rules::logic::{
-    IntegerRange, IntegerRule, RegexMatch, StringLengthCheck, StringRule, TypeCheck,
+    IntegerRange, IntegerRule, Monotonicity, RegexMatch, StringLengthCheck, StringRule, TypeCheck,
 };
 use arrow::array::{Int64Array, StringArray};
 use arrow::datatypes::DataType;
@@ -110,6 +110,9 @@ impl Validator {
                                 match r {
                                     RuleEnum::IntegerRange { min, max } => {
                                         Box::new(IntegerRange::new(min, max))
+                                    }
+                                    RuleEnum::Monotonicity { asc } => {
+                                        Box::new(Monotonicity::new(asc))
                                     }
                                     _ => {
                                         todo!()
@@ -332,7 +335,7 @@ mod tests {
 
         let col3 = integer_column("col3".to_string())
             .unwrap()
-            .with_range(Some(2), Some(5)) // Changed
+            .between(Some(2), Some(5)) // Changed
             .unwrap()
             .build();
 
