@@ -1,6 +1,6 @@
 use arrow::{
     array::{Array, Int32Array, Int64Array, StringArray},
-    compute::{self, concat},
+    compute::{self},
     datatypes::DataType,
 };
 use arrow_ord::cmp::{gt, lt};
@@ -200,27 +200,16 @@ impl IntegerRule for Monotonicity {
         if array.len() <= 1 {
             return Ok(0);
         };
-        let predecessor = match self.asc {
-            true => Int64Array::from(vec![i64::MIN]),
-            false => Int64Array::from(vec![i64::MAX]),
-        };
-
-        let original_slice = array.slice(0, array.len() - 1);
-        let shifted_array = match concat(&[&predecessor, &original_slice]) {
-            Ok(arr) => arr,
-            Err(e) => return Err(RuleError::ArrowError(e)),
-        };
+        let predecessor = array.slice(0, array.len() - 1);
+        let successor = array.slice(1, array.len() - 1);
+        // Here we can unwrap as we know that the input array is Int64
+        let predecessor_array = predecessor.as_any().downcast_ref::<Int64Array>().unwrap();
+        let successor_array = successor.as_any().downcast_ref::<Int64Array>().unwrap();
         let comparaison = match self.asc {
-            true => match lt(&array, &shifted_array) {
-                Ok(res) => res,
-                Err(e) => return Err(RuleError::ArrowError(e)),
-            },
-            false => match gt(&array, &shifted_array) {
-                Ok(res) => res,
-                Err(e) => return Err(RuleError::ArrowError(e)),
-            },
+            true => lt(successor_array, predecessor_array),
+            false => gt(successor_array, predecessor_array),
         };
-        let violation = comparaison.true_count();
+        let violation = comparaison.map_err(RuleError::ArrowError)?.true_count();
         Ok(violation)
     }
 }
