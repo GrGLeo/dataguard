@@ -1,8 +1,9 @@
 use arrow::{
     array::{Array, Int32Array, Int64Array, StringArray},
-    compute,
+    compute::{self},
     datatypes::DataType,
 };
+use arrow_ord::cmp::{gt, lt};
 use arrow_string::length::length;
 use std::sync::Arc;
 
@@ -20,7 +21,7 @@ pub trait IntegerRule: Send + Sync {
     /// Returns the name of the rule.
     fn name(&self) -> &'static str;
     /// Validates an Arrow `Array`.
-    fn validate(&self, array: &Int64Array) -> Result<usize, RuleError>;
+    fn validate(&self, array: &Int64Array, column: String) -> Result<usize, RuleError>;
 }
 
 pub struct TypeCheck {
@@ -135,6 +136,84 @@ impl StringRule for RegexMatch {
     }
 }
 
+pub struct IntegerRange {
+    min: Option<i64>,
+    max: Option<i64>,
+}
+
+impl IntegerRange {
+    pub fn new(min: Option<i64>, max: Option<i64>) -> Self {
+        Self { min, max }
+    }
+}
+
+impl IntegerRule for IntegerRange {
+    fn name(&self) -> &'static str {
+        "IntegerRange"
+    }
+
+    fn validate(&self, array: &Int64Array, _column: String) -> Result<usize, RuleError> {
+        let mut counter: usize = 0;
+        for value in array.iter() {
+            match value {
+                Some(i) => {
+                    if let Some(min) = self.min
+                        && i < min
+                    {
+                        counter += 1
+                    }
+                    if let Some(max) = self.max
+                        && i > max
+                    {
+                        counter += 1
+                    }
+                }
+                None => counter += 1,
+            }
+        }
+        Ok(counter)
+    }
+}
+
+pub struct Monotonicity {
+    asc: bool,
+}
+
+impl Monotonicity {
+    pub fn new(asc: bool) -> Self {
+        Self { asc }
+    }
+}
+
+impl Default for Monotonicity {
+    fn default() -> Self {
+        Self { asc: true }
+    }
+}
+
+impl IntegerRule for Monotonicity {
+    fn name(&self) -> &'static str {
+        "Monotonicity"
+    }
+
+    fn validate(&self, array: &Int64Array, _column: String) -> Result<usize, RuleError> {
+        if array.len() <= 1 {
+            return Ok(0);
+        };
+        let predecessor = array.slice(0, array.len() - 1);
+        let successor = array.slice(1, array.len() - 1);
+        // Here we can unwrap as we know that the input array is Int64
+        let predecessor_array = predecessor.as_any().downcast_ref::<Int64Array>().unwrap();
+        let successor_array = successor.as_any().downcast_ref::<Int64Array>().unwrap();
+        let comparaison = match self.asc {
+            true => lt(successor_array, predecessor_array),
+            false => gt(successor_array, predecessor_array),
+        };
+        let violation = comparaison.map_err(RuleError::ArrowError)?.true_count();
+        Ok(violation)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -203,6 +282,113 @@ mod tests {
         assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 1);
     }
 
-    // New tests for IntegerRule and TypeCheck if they were implemented and active.
-    // However, they are not part of StringRule.
+    #[test]
+    fn test_min_range_integer_with_null() {
+        let rule = IntegerRange::new(Some(5), None);
+        let array = Int64Array::from(vec![Some(1), Some(6), Some(3), Some(2), None]);
+        // We expect 4 errors here index 0, 2, 3, 4
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 4);
+    }
+
+    #[test]
+    fn test_min_range_integer() {
+        let rule = IntegerRange::new(Some(5), None);
+        let array = Int64Array::from(vec![Some(7), Some(6), Some(5), Some(2), Some(4)]);
+        // We expect 2 errors here index 3, 4
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
+    }
+
+    #[test]
+    fn test_max_range_integer_with_null() {
+        let rule = IntegerRange::new(None, Some(5));
+        let array = Int64Array::from(vec![Some(1), Some(6), Some(3), Some(2), None]);
+        // We expect 2 errors here index 1, 4
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
+    }
+
+    #[test]
+    fn test_max_range_integer() {
+        let rule = IntegerRange::new(None, Some(5));
+        let array = Int64Array::from(vec![Some(7), Some(6), Some(5), Some(2), Some(4)]);
+        // We expect 2 errors here index 0, 1
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
+    }
+
+    #[test]
+    fn test_range_between_integer_with_null() {
+        let rule = IntegerRange::new(Some(2), Some(4));
+        let array = Int64Array::from(vec![Some(1), Some(4), Some(6), Some(3), Some(2), None]);
+        // We expect 3 errors here: 0, 2, 5
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 3);
+    }
+
+    #[test]
+    fn test_range_between_integer() {
+        let rule = IntegerRange::new(Some(2), Some(4));
+        let array = Int64Array::from(vec![Some(7), Some(6), Some(5), Some(2), Some(4)]);
+        // We expect 2 errors here index 0, 1, 2
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 3);
+    }
+
+    #[test]
+    fn test_monotonicity_asc_valid() {
+        let rule = Monotonicity::default();
+        let array = Int64Array::from(vec![1, 5, 5, 10]);
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_monotonicity_asc_violation() {
+        let rule = Monotonicity::default();
+        let array = Int64Array::from(vec![1, 5, 4, 3, 10]);
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
+    }
+
+    #[test]
+    fn test_monotonicity_desc_valid() {
+        let rule = Monotonicity::new(false);
+        //
+        //
+        let array = Int64Array::from(vec![10, 5, 5, 1]);
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_monotonicity_desc_violation() {
+        let rule = Monotonicity::new(false);
+        let array = Int64Array::from(vec![10, 3, 4, 5, 1]);
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
+    }
+
+    #[test]
+    fn test_is_positive() {
+        let rule = IntegerRange::new(Some(1), None);
+        let array = Int64Array::from(vec![Some(1), Some(0), Some(5), Some(-2), None]);
+        // 0, -2, None should be violations
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 3);
+    }
+
+    #[test]
+    fn test_is_negative() {
+        let rule = IntegerRange::new(None, Some(-1i64));
+        let array = Int64Array::from(vec![Some(-1), Some(0), Some(-5), Some(2), None]);
+        // 0, 2, None should be violations
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 3);
+    }
+
+    #[test]
+    fn test_is_non_positive() {
+        let rule = IntegerRange::new(None, Some(0));
+        let array = Int64Array::from(vec![Some(-1), Some(0), Some(5), Some(-2), None]);
+        // 5, None should be violations
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
+    }
+
+    #[test]
+    fn test_is_non_negative() {
+        let rule = IntegerRange::new(Some(0), None);
+        let array = Int64Array::from(vec![Some(1), Some(0), Some(5), Some(-2), None]);
+        // -2, None should be violations
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
+    }
 }

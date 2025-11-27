@@ -5,12 +5,16 @@ pub mod report;
 pub mod rules;
 pub mod types;
 
+#[cfg(feature = "python")]
+use crate::columns::integer_column::IntegerColumnBuilder;
 use crate::columns::{Column, string_column::StringColumnBuilder};
 use crate::reader::read_csv_parallel;
 use crate::report::ValidationReport;
 use crate::rules::core::Rule as RuleEnum;
-use crate::rules::logic::{RegexMatch, StringLengthCheck, StringRule, TypeCheck};
-use arrow::array::StringArray;
+use crate::rules::logic::{
+    IntegerRange, IntegerRule, Monotonicity, RegexMatch, StringLengthCheck, StringRule, TypeCheck,
+};
+use arrow::array::{Int64Array, StringArray};
 use arrow::datatypes::DataType;
 use pyo3::{exceptions::PyIOError, prelude::*};
 use rayon::prelude::*;
@@ -26,6 +30,11 @@ enum ExecutableColumn {
         type_check: TypeCheck,
     },
     // Future column types like Integer would be another variant here
+    Integer {
+        name: String,
+        rules: Vec<Box<dyn IntegerRule>>,
+        type_check: TypeCheck,
+    },
 }
 
 #[cfg(feature = "python")]
@@ -78,6 +87,9 @@ impl Validator {
                                     RuleEnum::StringRegex { pattern, flag } => {
                                         Box::new(RegexMatch::new(pattern, flag))
                                     }
+                                    _ => {
+                                        todo!()
+                                    }
                                 }
                             })
                             .collect();
@@ -87,6 +99,33 @@ impl Validator {
                             name: col.name.clone(),
                             rules: executable_rules,
                             type_check: TypeCheck::new(col.name, DataType::Utf8),
+                        })
+                    }
+                    "integer" => {
+                        let executable_rules: Vec<Box<dyn IntegerRule>> = col
+                            .rules
+                            .into_iter()
+                            .map(|r| -> Box<dyn IntegerRule> {
+                                // Match on the RuleEnum from Python
+                                match r {
+                                    RuleEnum::IntegerRange { min, max } => {
+                                        Box::new(IntegerRange::new(min, max))
+                                    }
+                                    RuleEnum::Monotonicity { asc } => {
+                                        Box::new(Monotonicity::new(asc))
+                                    }
+                                    _ => {
+                                        todo!()
+                                    }
+                                }
+                            })
+                            .collect();
+
+                        // Return the constructed ExecutableColumn variant, wrapped in Some
+                        Some(ExecutableColumn::Integer {
+                            name: col.name.clone(),
+                            rules: executable_rules,
+                            type_check: TypeCheck::new(col.name, DataType::Int64),
                         })
                     }
                     // Add other column types here in the future
@@ -157,7 +196,45 @@ impl Validator {
                                 }
                             }
                         }
-                    } // Add other ExecutableColumn variants here
+                    }
+                    ExecutableColumn::Integer {
+                        name,
+                        rules,
+                        type_check,
+                    } => {
+                        if let Ok(col_index) = batch.schema().index_of(name) {
+                            let array = batch.column(col_index);
+
+                            match type_check.validate(array.as_ref()) {
+                                Ok((errors, casted_array)) => {
+                                    error_count.fetch_add(errors, Ordering::Relaxed);
+                                    report.record_result(name, type_check.name(), errors);
+
+                                    if let Some(integer_array) =
+                                        casted_array.as_any().downcast_ref::<Int64Array>()
+                                    {
+                                        for rule in rules {
+                                            if let Ok(count) =
+                                                rule.validate(integer_array, name.clone())
+                                            {
+                                                error_count.fetch_add(count, Ordering::Relaxed);
+                                                report.record_result(name, rule.name(), count);
+                                            }
+                                        }
+                                    } else {
+                                        println!("Failed downcast");
+                                    }
+                                }
+                                Err(_) => {
+                                    // TypeCheck validation itself failed, meaning the cast was not possible.
+                                    // All rows are considered errors.
+                                    let count = array.len();
+                                    error_count.fetch_add(count, Ordering::Relaxed);
+                                    report.record_result(name, type_check.name(), count);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         });
@@ -185,6 +262,11 @@ impl Validator {
                     rule_names.extend(rules.iter().map(|r| r.name().to_string()));
                     result.insert(name.clone(), rule_names);
                 }
+                ExecutableColumn::Integer { name, rules, .. } => {
+                    let mut rule_names = vec!["TypeCheck".to_string()];
+                    rule_names.extend(rules.iter().map(|r| r.name().to_string()));
+                    result.insert(name.clone(), rule_names);
+                }
             }
         }
         Ok(result)
@@ -204,6 +286,19 @@ fn string_column(name: String) -> PyResult<StringColumnBuilder> {
     Ok(StringColumnBuilder::new(name))
 }
 
+/// Creates a builder for defining rules on a integer column.
+///
+/// Args:
+///     name (str): The name of the column.
+///
+/// Returns:
+///     IntegerColumnBuilder: A builder object for chaining rules.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn integer_column(name: String) -> PyResult<IntegerColumnBuilder> {
+    Ok(IntegerColumnBuilder::new(name))
+}
+
 /// DataGuard: A high-performance CSV validation library.
 #[cfg(feature = "python")]
 #[pyo3::pymodule]
@@ -212,6 +307,7 @@ fn dataguard(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Column>()?;
     m.add_class::<StringColumnBuilder>()?;
     m.add_function(wrap_pyfunction!(string_column, m)?)?;
+    m.add_function(wrap_pyfunction!(integer_column, m)?)?;
     Ok(())
 }
 
@@ -237,22 +333,35 @@ mod tests {
             .unwrap()
             .build();
 
+        let col3 = integer_column("col3".to_string())
+            .unwrap()
+            .between(Some(2), Some(5)) // Changed to i64 literals
+            .unwrap()
+            .build();
+
         // 2. Create a validator and commit the columns
         let mut validator = Validator::new();
-        validator.commit(vec![col1, col2]).unwrap();
+        validator.commit(vec![col1, col2, col3]).unwrap();
 
         // 3. Check the internal state via get_rules()
         let rules = validator.get_rules().unwrap();
-        assert_eq!(rules.len(), 2);
+        assert_eq!(rules.len(), 3);
         assert_eq!(
             rules.get("col1").unwrap(),
-            &vec!["StringLengthCheck".to_string()]
+            &vec!["TypeCheck".to_string(), "StringLengthCheck".to_string()]
         );
-        assert_eq!(rules.get("col2").unwrap(), &vec!["RegexMatch".to_string()]);
+        assert_eq!(
+            rules.get("col2").unwrap(),
+            &vec!["TypeCheck".to_string(), "RegexMatch".to_string()]
+        );
+        assert_eq!(
+            rules.get("col3").unwrap(),
+            &vec!["TypeCheck".to_string(), "IntegerRange".to_string()]
+        );
 
         // 4. Check internal executable types (not directly testable from outside,
         // but get_rules success implies the transformation worked)
-        assert_eq!(validator.executable_columns.len(), 2);
+        assert_eq!(validator.executable_columns.len(), 3);
         match &validator.executable_columns[0] {
             ExecutableColumn::String {
                 name,
@@ -262,6 +371,9 @@ mod tests {
                 assert_eq!(name, "col1");
                 assert_eq!(rules.len(), 1);
                 assert_eq!(rules[0].name(), "StringLengthCheck");
+            }
+            ExecutableColumn::Integer { .. } => {
+                assert!(false)
             }
         }
         match &validator.executable_columns[1] {
@@ -273,6 +385,23 @@ mod tests {
                 assert_eq!(name, "col2");
                 assert_eq!(rules.len(), 1);
                 assert_eq!(rules[0].name(), "RegexMatch");
+            }
+            ExecutableColumn::Integer { .. } => {
+                assert!(false)
+            }
+        }
+        match &validator.executable_columns[2] {
+            ExecutableColumn::String { .. } => {
+                assert!(false)
+            }
+            ExecutableColumn::Integer {
+                name,
+                rules,
+                type_check: _,
+            } => {
+                assert_eq!(name, "col3");
+                assert_eq!(rules.len(), 1);
+                assert_eq!(rules[0].name(), "IntegerRange");
             }
         }
     }

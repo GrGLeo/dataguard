@@ -12,6 +12,13 @@ pub enum Rule {
         pattern: String,
         flag: Option<String>,
     },
+    IntegerRange {
+        min: Option<i64>,
+        max: Option<i64>,
+    },
+    Monotonicity {
+        asc: bool,
+    },
 }
 
 #[pymethods]

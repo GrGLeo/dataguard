@@ -4,7 +4,7 @@ import argparse
 import sys
 
 sys.path.append("benchmark")
-from dataguard import Validator, string_column
+from dataguard import Validator, string_column, integer_column
 
 
 def benchmark_pandas(csv_path, num_runs):
@@ -19,11 +19,17 @@ def benchmark_pandas(csv_path, num_runs):
         assert df["Category"].dtype == "object", "Category should be string type"
         # Count rows where Category is not 'Home & Kitchen'
         category_invalid = (df["Category"] != "Home & Kitchen").sum()
-        # Count rows where Currency length is less than 3
-        currency_invalid = (df["Currency"].str.len() < 3).sum()
+        # Count rows where Currency length is at least 3
+        currency_invalid = (df["Currency"].str.len() >= 3).sum()
+        # Count rows where Price is at least 30
+        price_invalid = (df["Price"] >= 30).sum()
+        # Count rows where Index is not monotonically increasing
+        index_invalid = (df["Index"].diff() < 0).iloc[1:].sum()
         end_valid = time.time() - start_valid
         print(f"Validation: {end_valid:.6f}")
-        invalid_count = category_invalid + currency_invalid
+        invalid_count = (
+            category_invalid + currency_invalid + price_invalid + index_invalid
+        )
         end = time.time()
         times.append(end - start)
     return sum(times) / len(times), invalid_count
@@ -37,12 +43,26 @@ def benchmark_validator(csv_path, num_runs):
 
     currency_col = (
         string_column("Currency")
-        .with_min_length(min=3)  # Less than 3 means max length of 2
+        .with_min_length(
+            min=3
+        )  # min_length of 3 means that string.len() < 3 is invalid
+        .build()
+    )
+
+    price_col = (
+        integer_column("Price")
+        .min(min=30)  # Price lesser than 30 are invalid
+        .build()
+    )
+
+    index_col = (
+        integer_column("Index")
+        .is_monotonically_increasing()  # Column is increasing
         .build()
     )
 
     validator = Validator()
-    validator.commit([category_col, currency_col])
+    validator.commit([category_col, currency_col, price_col, index_col])
 
     times = []
     for i in range(num_runs):
