@@ -518,6 +518,7 @@ dependencies = [
  "arrow-string",
  "criterion",
  "dashmap",
+ "num-traits",
  "once_cell",
  "prettytable-rs",
  "pyo3",

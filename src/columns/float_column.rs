@@ -1,14 +1,14 @@
 use crate::{columns::Column, rules::core::Rule};
 use pyo3::prelude::*;
 
-#[pyclass(name = "IntegerColumnBuilder")]
-pub struct IntegerColumnBuilder {
+#[pyclass(name = "FloatColumnBuilder")]
+pub struct FloatColumnBuilder {
     name: String,
     rules: Vec<Rule>,
 }
 
 #[pymethods]
-impl IntegerColumnBuilder {
+impl FloatColumnBuilder {
     #[new]
     pub fn new(name: String) -> Self {
         Self {
@@ -18,28 +18,25 @@ impl IntegerColumnBuilder {
     }
 
     /// Add a rule to check that the length of a string is comprised between a min and a max.
-    pub fn between(&mut self, min: Option<i64>, max: Option<i64>) -> PyResult<Self> {
-        self.rules.push(Rule::NumericRange {
-            min: min.map(|v| v as f64),
-            max: max.map(|v| v as f64),
-        });
+    pub fn between(&mut self, min: Option<f64>, max: Option<f64>) -> PyResult<Self> {
+        self.rules.push(Rule::NumericRange { min, max });
         Ok(self.clone())
     }
 
     /// Add a rule to check the minimun length required for a string to be valid.
-    pub fn min(&mut self, min: i64) -> PyResult<Self> {
+    pub fn min(&mut self, min: f64) -> PyResult<Self> {
         self.rules.push(Rule::NumericRange {
-            min: Some(min as f64),
+            min: Some(min),
             max: None,
         });
         Ok(self.clone())
     }
 
     /// Add a rule to check the maximum length required for a string to be valid.
-    pub fn max(&mut self, max: i64) -> PyResult<Self> {
+    pub fn max(&mut self, max: f64) -> PyResult<Self> {
         self.rules.push(Rule::NumericRange {
             min: None,
-            max: Some(max as f64),
+            max: Some(max),
         });
         Ok(self.clone())
     }
@@ -47,7 +44,7 @@ impl IntegerColumnBuilder {
     /// Add a rule to check that all values are strictly positive (> 0).
     pub fn is_positive(&mut self) -> PyResult<Self> {
         self.rules.push(Rule::NumericRange {
-            min: Some(1.0),
+            min: Some(0.0), // Strictly greater than 0
             max: None,
         });
         Ok(self.clone())
@@ -57,7 +54,7 @@ impl IntegerColumnBuilder {
     pub fn is_negative(&mut self) -> PyResult<Self> {
         self.rules.push(Rule::NumericRange {
             min: None,
-            max: Some(-1.0),
+            max: Some(0.0), // Strictly less than 0
         });
         Ok(self.clone())
     }
@@ -94,11 +91,11 @@ impl IntegerColumnBuilder {
 
     /// Build the Column object.
     pub fn build(&self) -> Column {
-        Column::new(self.name.clone(), "integer".to_string(), self.rules.clone())
+        Column::new(self.name.clone(), "float".to_string(), self.rules.clone())
     }
 }
 
-impl Clone for IntegerColumnBuilder {
+impl Clone for FloatColumnBuilder {
     fn clone(&self) -> Self {
         Self {
             name: self.name.clone(),
