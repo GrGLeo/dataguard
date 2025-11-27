@@ -137,12 +137,12 @@ impl StringRule for RegexMatch {
 }
 
 pub struct IntegerRange {
-    min: Option<usize>,
-    max: Option<usize>,
+    min: Option<i64>,
+    max: Option<i64>,
 }
 
 impl IntegerRange {
-    pub fn new(min: Option<usize>, max: Option<usize>) -> Self {
+    pub fn new(min: Option<i64>, max: Option<i64>) -> Self {
         Self { min, max }
     }
 }
@@ -158,12 +158,12 @@ impl IntegerRule for IntegerRange {
             match value {
                 Some(i) => {
                     if let Some(min) = self.min
-                        && i < min as i64
+                        && i < min
                     {
                         counter += 1
                     }
                     if let Some(max) = self.max
-                        && i > max as i64
+                        && i > max
                     {
                         counter += 1
                     }
@@ -357,6 +357,38 @@ mod tests {
     fn test_monotonicity_desc_violation() {
         let rule = Monotonicity::new(false);
         let array = Int64Array::from(vec![10, 3, 4, 5, 1]);
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
+    }
+
+    #[test]
+    fn test_is_positive() {
+        let rule = IntegerRange::new(Some(1), None);
+        let array = Int64Array::from(vec![Some(1), Some(0), Some(5), Some(-2), None]);
+        // 0, -2, None should be violations
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 3);
+    }
+
+    #[test]
+    fn test_is_negative() {
+        let rule = IntegerRange::new(None, Some(-1i64));
+        let array = Int64Array::from(vec![Some(-1), Some(0), Some(-5), Some(2), None]);
+        // 0, 2, None should be violations
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 3);
+    }
+
+    #[test]
+    fn test_is_non_positive() {
+        let rule = IntegerRange::new(None, Some(0));
+        let array = Int64Array::from(vec![Some(-1), Some(0), Some(5), Some(-2), None]);
+        // 5, None should be violations
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
+    }
+
+    #[test]
+    fn test_is_non_negative() {
+        let rule = IntegerRange::new(Some(0), None);
+        let array = Int64Array::from(vec![Some(1), Some(0), Some(5), Some(-2), None]);
+        // -2, None should be violations
         assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
     }
 }

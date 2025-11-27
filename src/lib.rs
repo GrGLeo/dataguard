@@ -335,7 +335,7 @@ mod tests {
 
         let col3 = integer_column("col3".to_string())
             .unwrap()
-            .between(Some(2), Some(5)) // Changed
+            .between(Some(2), Some(5)) // Changed to i64 literals
             .unwrap()
             .build();
 

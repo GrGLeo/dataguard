@@ -18,13 +18,13 @@ impl IntegerColumnBuilder {
     }
 
     /// Add a rule to check that the length of a string is comprised between a min and a max.
-    pub fn between(&mut self, min: Option<usize>, max: Option<usize>) -> PyResult<Self> {
+    pub fn between(&mut self, min: Option<i64>, max: Option<i64>) -> PyResult<Self> {
         self.rules.push(Rule::IntegerRange { min, max });
         Ok(self.clone())
     }
 
     /// Add a rule to check the minimun length required for a string to be valid.
-    pub fn min(&mut self, min: usize) -> PyResult<Self> {
+    pub fn min(&mut self, min: i64) -> PyResult<Self> {
         self.rules.push(Rule::IntegerRange {
             min: Some(min),
             max: None,
@@ -33,10 +33,46 @@ impl IntegerColumnBuilder {
     }
 
     /// Add a rule to check the maximum length required for a string to be valid.
-    pub fn max(&mut self, max: usize) -> PyResult<Self> {
+    pub fn max(&mut self, max: i64) -> PyResult<Self> {
         self.rules.push(Rule::IntegerRange {
             min: None,
             max: Some(max),
+        });
+        Ok(self.clone())
+    }
+
+    /// Add a rule to check that all values are strictly positive (> 0).
+    pub fn is_positive(&mut self) -> PyResult<Self> {
+        self.rules.push(Rule::IntegerRange {
+            min: Some(1),
+            max: None,
+        });
+        Ok(self.clone())
+    }
+
+    /// Add a rule to check that all values are strictly negative (< 0).
+    pub fn is_negative(&mut self) -> PyResult<Self> {
+        self.rules.push(Rule::IntegerRange {
+            min: None,
+            max: Some(-1),
+        });
+        Ok(self.clone())
+    }
+
+    /// Add a rule to check that all values are non-positive (<= 0).
+    pub fn is_non_positive(&mut self) -> PyResult<Self> {
+        self.rules.push(Rule::IntegerRange {
+            min: None,
+            max: Some(0),
+        });
+        Ok(self.clone())
+    }
+
+    /// Add a rule to check that all values are non-negative (>= 0).
+    pub fn is_non_negative(&mut self) -> PyResult<Self> {
+        self.rules.push(Rule::IntegerRange {
+            min: Some(0),
+            max: None,
         });
         Ok(self.clone())
     }

@@ -13,8 +13,8 @@ pub enum Rule {
         flag: Option<String>,
     },
     IntegerRange {
-        min: Option<usize>,
-        max: Option<usize>,
+        min: Option<i64>,
+        max: Option<i64>,
     },
     Monotonicity {
         asc: bool,
