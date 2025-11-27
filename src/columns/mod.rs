@@ -1,6 +1,7 @@
 use crate::rules::core::Rule;
 use pyo3::prelude::*;
 
+pub mod float_column;
 pub mod integer_column;
 pub mod string_column;
 

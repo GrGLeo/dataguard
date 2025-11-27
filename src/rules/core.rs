@@ -12,9 +12,9 @@ pub enum Rule {
         pattern: String,
         flag: Option<String>,
     },
-    IntegerRange {
-        min: Option<i64>,
-        max: Option<i64>,
+    NumericRange {
+        min: Option<f64>,
+        max: Option<f64>,
     },
     Monotonicity {
         asc: bool,
