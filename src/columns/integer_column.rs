@@ -17,7 +17,7 @@ impl IntegerColumnBuilder {
         }
     }
 
-    /// Add a rule to check that the length of a string is comprised between a min and a max.
+    /// Add a rule to check that the value is comprised between a min and a max.
     pub fn between(&mut self, min: Option<i64>, max: Option<i64>) -> PyResult<Self> {
         self.rules.push(Rule::NumericRange {
             min: min.map(|v| v as f64),
@@ -26,7 +26,7 @@ impl IntegerColumnBuilder {
         Ok(self.clone())
     }
 
-    /// Add a rule to check the minimun length required for a string to be valid.
+    /// Add a rule to check the minimun value required to be valid.
     pub fn min(&mut self, min: i64) -> PyResult<Self> {
         self.rules.push(Rule::NumericRange {
             min: Some(min as f64),
@@ -35,7 +35,7 @@ impl IntegerColumnBuilder {
         Ok(self.clone())
     }
 
-    /// Add a rule to check the maximum length required for a string to be valid.
+    /// Add a rule to check the maximum value required to be valid.
     pub fn max(&mut self, max: i64) -> PyResult<Self> {
         self.rules.push(Rule::NumericRange {
             min: None,

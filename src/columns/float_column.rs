@@ -17,13 +17,13 @@ impl FloatColumnBuilder {
         }
     }
 
-    /// Add a rule to check that the length of a string is comprised between a min and a max.
+    /// Add a rule to check that the value is comprised between a min and a max.
     pub fn between(&mut self, min: Option<f64>, max: Option<f64>) -> PyResult<Self> {
         self.rules.push(Rule::NumericRange { min, max });
         Ok(self.clone())
     }
 
-    /// Add a rule to check the minimun length required for a string to be valid.
+    /// Add a rule to check the minimun value required to be valid.
     pub fn min(&mut self, min: f64) -> PyResult<Self> {
         self.rules.push(Rule::NumericRange {
             min: Some(min),
@@ -32,7 +32,7 @@ impl FloatColumnBuilder {
         Ok(self.clone())
     }
 
-    /// Add a rule to check the maximum length required for a string to be valid.
+    /// Add a rule to check the maximum value required to be valid.
     pub fn max(&mut self, max: f64) -> PyResult<Self> {
         self.rules.push(Rule::NumericRange {
             min: None,
