@@ -6,7 +6,7 @@ use arrow::{
 use arrow_array::{ArrowNumericType, PrimitiveArray};
 use arrow_ord::cmp::{gt, lt};
 use arrow_string::length::length;
-use num_traits::Num; // Added
+use num_traits::Num;
 use std::{fmt::Debug, marker::PhantomData, sync::Arc};
 
 use crate::errors::RuleError;
