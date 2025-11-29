@@ -91,7 +91,12 @@ impl FloatColumnBuilder {
 
     /// Build the Column object.
     pub fn build(&self) -> Column {
-        Column::new(self.name.clone(), "float".to_string(), self.rules.clone())
+        Column::new(
+            self.name.clone(),
+            "float".to_string(),
+            self.rules.clone(),
+            None,
+        )
     }
 }
 

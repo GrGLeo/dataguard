@@ -19,6 +19,7 @@ pub enum Rule {
     Monotonicity {
         asc: bool,
     },
+    Unicity {},
 }
 
 #[pymethods]

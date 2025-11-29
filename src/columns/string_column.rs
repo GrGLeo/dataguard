@@ -7,6 +7,7 @@ use regex::Regex;
 pub struct StringColumnBuilder {
     name: String,
     rules: Vec<Rule>,
+    unicity: Option<Rule>,
 }
 
 #[pymethods]
@@ -16,7 +17,14 @@ impl StringColumnBuilder {
         Self {
             name,
             rules: Vec::new(),
+            unicity: None,
         }
+    }
+
+    /// Add a rule to check that value are unique. Count the row with duplicates.
+    pub fn is_unique(&mut self) -> PyResult<Self> {
+        self.unicity = Some(Rule::Unicity {});
+        Ok(self.clone())
     }
 
     /// Add a rule to check that the length of a string is comprised between a min and a max.
@@ -112,7 +120,12 @@ impl StringColumnBuilder {
 
     /// Build the Column object.
     pub fn build(&self) -> Column {
-        Column::new(self.name.clone(), "string".to_string(), self.rules.clone())
+        Column::new(
+            self.name.clone(),
+            "string".to_string(),
+            self.rules.clone(),
+            self.unicity.clone(),
+        )
     }
 }
 
@@ -122,6 +135,7 @@ impl Clone for StringColumnBuilder {
         Self {
             name: self.name.clone(),
             rules: self.rules.clone(),
+            unicity: self.unicity.clone(),
         }
     }
 }

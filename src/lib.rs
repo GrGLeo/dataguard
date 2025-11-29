@@ -4,6 +4,7 @@ pub mod reader;
 pub mod report;
 pub mod rules;
 pub mod types;
+pub mod utils;
 
 #[cfg(feature = "python")]
 use crate::columns::float_column::FloatColumnBuilder;
@@ -13,7 +14,7 @@ use crate::columns::{Column, string_column::StringColumnBuilder};
 use crate::reader::read_csv_parallel;
 use crate::report::ValidationReport;
 use crate::rules::core::Rule as RuleEnum;
-use crate::rules::generic_rules::TypeCheck;
+use crate::rules::generic_rules::{TypeCheck, UnicityCheck};
 use crate::rules::numeric_rules::{Monotonicity, NumericRule, Range};
 use crate::rules::string_rules::{RegexMatch, StringLengthCheck, StringRule};
 use arrow::array::StringArray;
@@ -30,6 +31,7 @@ enum ExecutableColumn {
         name: String,
         rules: Vec<Box<dyn StringRule>>,
         type_check: TypeCheck,
+        unicity: Option<UnicityCheck>,
     },
     Integer {
         name: String,
@@ -101,10 +103,13 @@ impl Validator {
                             .collect();
 
                         // Return the constructed ExecutableColumn variant, wrapped in Some
+                        // For unicity, the option should always be a Unicity RuleEnum so we do not
+                        // match on it
                         Some(ExecutableColumn::String {
                             name: col.name.clone(),
                             rules: executable_rules,
                             type_check: TypeCheck::new(col.name, DataType::Utf8),
+                            unicity: col.unicity.map(|_r| UnicityCheck {}),
                         })
                     }
                     "integer" => {
@@ -199,6 +204,7 @@ impl Validator {
                         name,
                         rules,
                         type_check,
+                        unicity: _,
                     } => {
                         if let Ok(col_index) = batch.schema().index_of(name) {
                             let array = batch.column(col_index);
