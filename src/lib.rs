@@ -13,9 +13,9 @@ use crate::columns::{Column, string_column::StringColumnBuilder};
 use crate::reader::read_csv_parallel;
 use crate::report::ValidationReport;
 use crate::rules::core::Rule as RuleEnum;
-use crate::rules::logic::{
-    Monotonicity, NumericRule, Range, RegexMatch, StringLengthCheck, StringRule, TypeCheck,
-};
+use crate::rules::generic_rules::TypeCheck;
+use crate::rules::numeric_rules::{Monotonicity, NumericRule, Range};
+use crate::rules::string_rules::{RegexMatch, StringLengthCheck, StringRule};
 use arrow::array::StringArray;
 use arrow::datatypes::{DataType, Float64Type, Int64Type};
 use pyo3::{exceptions::PyIOError, prelude::*};
