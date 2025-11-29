@@ -57,7 +57,7 @@ else:
 
 With `print_report` set to True the `validate_csv` method also output a table report:
 ```
-+----------+-------------------+-------------+---------+ 
++----------+-------------------+-------------+---------+
 | Column   | Rule              | Error Count | % Error |
 +----------+-------------------+-------------+---------+
 | Category | RegexMatch        | 1941312     | 97.07%  |
@@ -75,9 +75,6 @@ With `print_report` set to True the `validate_csv` method also output a table re
 This project is still in its early phase. Here's what we have planned for the near future:
 
 - **Integer Column Rules**:
-  - `min`, `max`, `between`
-  - Monotonicity checks
-  - Sign checks (`positive`, `negative`)
   - Enumeration checks
 
 - **String Column Rules**:

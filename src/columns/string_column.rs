@@ -60,6 +60,56 @@ impl StringColumnBuilder {
         Ok(self.clone())
     }
 
+    /// Add a rule to check if a string contains only numeric characters.
+    pub fn is_numeric(&mut self) -> PyResult<Self> {
+        self.with_regex(r"^\d+$", None)
+    }
+
+    /// Add a rule to check if a string contains only alphabetic characters.
+    pub fn is_alpha(&mut self) -> PyResult<Self> {
+        self.with_regex(r"^[a-zA-Z]+$", None)
+    }
+
+    /// Add a rule to check if a string contains only alphanumeric characters.
+    pub fn is_alphanumeric(&mut self) -> PyResult<Self> {
+        self.with_regex(r"^[a-zA-Z0-9]+$", None)
+    }
+
+    /// Add a rule to check if a string is lowercase.
+    /// This rule checks that there are no uppercase letters in the string.
+    /// Non-alphabetic characters are ignored.
+    pub fn is_lowercase(&mut self) -> PyResult<Self> {
+        self.with_regex(r"^[^A-Z]*$", None)
+    }
+
+    /// Add a rule to check if a string is uppercase.
+    /// This rule checks that there are no lowercase letters in the string.
+    /// Non-alphabetic characters are ignored.
+    pub fn is_uppercase(&mut self) -> PyResult<Self> {
+        self.with_regex(r"^[^a-z]*$", None)
+    }
+
+    /// Add a rule to check if a string is a valid URL.
+    pub fn is_url(&mut self) -> PyResult<Self> {
+        self.with_regex(r"^(https?|ftp)://[^\s/$.?#].[^\s]*$", None)
+    }
+
+    /// Add a rule to check if a string is a valid email address (simple check).
+    pub fn is_email(&mut self) -> PyResult<Self> {
+        self.with_regex(
+            r"^[a-zA-Z0-9._%+-]+@(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$",
+            None,
+        )
+    }
+
+    /// Add a rule to check if a string is a valid UUID.
+    pub fn is_uuid(&mut self) -> PyResult<Self> {
+        self.with_regex(
+            r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            None,
+        )
+    }
+
     /// Build the Column object.
     pub fn build(&self) -> Column {
         Column::new(self.name.clone(), "string".to_string(), self.rules.clone())
