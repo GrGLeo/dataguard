@@ -6,7 +6,7 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader, Read, Seek, SeekFrom};
 use std::sync::Arc;
 
-const BATCH: usize = 1_000_000; // Increased from 256K
+const BATCH: usize = 256_000; // Increased from 256K
 const MIN_CHUNK_SIZE: u64 = 50 * 1024 * 1024; // 50MB minimum per chunk
 
 pub fn read_csv_parallel(path: &str) -> Result<Vec<Arc<RecordBatch>>, io::Error> {

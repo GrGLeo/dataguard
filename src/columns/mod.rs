@@ -14,16 +14,19 @@ pub struct Column {
     pub column_type: String, // Using a simple String is easier for PyO3 interop
     #[pyo3(get)]
     pub rules: Vec<Rule>,
+    #[pyo3(get)]
+    pub unicity: Option<Rule>,
 }
 
 #[pymethods]
 impl Column {
     #[new]
-    pub fn new(name: String, column_type: String, rules: Vec<Rule>) -> Self {
+    pub fn new(name: String, column_type: String, rules: Vec<Rule>, unicity: Option<Rule>) -> Self {
         Self {
             name,
             column_type,
             rules,
+            unicity,
         }
     }
 }

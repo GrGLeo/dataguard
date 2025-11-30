@@ -94,7 +94,12 @@ impl IntegerColumnBuilder {
 
     /// Build the Column object.
     pub fn build(&self) -> Column {
-        Column::new(self.name.clone(), "integer".to_string(), self.rules.clone())
+        Column::new(
+            self.name.clone(),
+            "integer".to_string(),
+            self.rules.clone(),
+            None,
+        )
     }
 }
 
