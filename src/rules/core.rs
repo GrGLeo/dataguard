@@ -12,6 +12,9 @@ pub enum Rule {
         pattern: String,
         flag: Option<String>,
     },
+    StringMembers {
+        members: Vec<String>,
+    },
     NumericRange {
         min: Option<f64>,
         max: Option<f64>,

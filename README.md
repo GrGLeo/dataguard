@@ -10,10 +10,11 @@ DataGuard is a high-performance data validation library, written in Rust with Py
 
 ## Performance
 
-DataGuard is built for speed. In our benchmarks, we've observed significant performance improvements compared to validating data with Pandas:
+DataGuard is built for speed. Its significant performance improvements compared to traditional methods are a result of two key optimizations: **parallel CSV reading** and **optimized data validation logic**. In our benchmarks, we've observed:
 
-- **1.8x faster** for a 2 million row CSV.
-- **3.6x faster** for a 20 million row CSV.
+- **2.21x faster** for a 200 thousand row CSV.
+- **7.19x faster** for a 2 million row CSV.
+- **8.35x faster** for a 20 million row CSV.
 
 ## Usage
 

@@ -1,10 +1,13 @@
+use std::collections::HashSet;
+
 use arrow::{
     array::{Int32Array, StringArray},
     compute::{self},
 };
 use arrow_string::length::length;
+use xxhash_rust::xxh3::xxh3_64;
 
-use crate::errors::RuleError;
+use crate::{errors::RuleError, utils::hasher::Xxh3Builder};
 
 /// A trait for defining validation rules on Arrow arrays.
 pub trait StringRule: Send + Sync {
@@ -101,6 +104,46 @@ impl StringRule for RegexMatch {
     }
 }
 
+pub struct IsInCheck {
+    members: HashSet<u64, Xxh3Builder>,
+}
+
+impl IsInCheck {
+    pub fn new(members: Vec<String>) -> Self {
+        let mut hashset = HashSet::with_hasher(Xxh3Builder);
+        members.into_iter().for_each(|m| {
+            let hash = xxh3_64(m.as_bytes());
+            let _ = hashset.insert(hash);
+        });
+        Self { members: hashset }
+    }
+}
+
+impl StringRule for IsInCheck {
+    fn name(&self) -> &'static str {
+        "IsIn"
+    }
+
+    fn validate(&self, array: &StringArray, _column: String) -> Result<usize, RuleError> {
+        let errors = array
+            .iter()
+            .map(|v| {
+                if let Some(s) = v {
+                    let s_hash = xxh3_64(s.as_bytes());
+                    if !self.members.contains(&s_hash) {
+                        1
+                    } else {
+                        0
+                    }
+                } else {
+                    1
+                }
+            })
+            .sum();
+        Ok(errors)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -167,5 +210,45 @@ mod tests {
             Some("aBc"), // ok
         ]);
         assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 1);
+    }
+
+    #[test]
+    fn test_is_in_check_basic() {
+        let members = vec!["apple".to_string(), "banana".to_string()];
+        let rule = IsInCheck::new(members);
+        let array = StringArray::from(vec![
+            Some("apple"),
+            Some("banana"),
+            Some("orange"), // Not in members
+            None,           // Null value
+            Some(""),       // Empty string
+        ]);
+        // Expected errors: "orange", None, "" (3 errors)
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 3);
+    }
+
+    #[test]
+    fn test_is_in_check_case_sensitivity() {
+        let members = vec!["apple".to_string()];
+        let rule = IsInCheck::new(members);
+        let array = StringArray::from(vec![
+            Some("apple"),
+            Some("Apple"), // Different case, not in members
+        ]);
+        // Expected errors: "Apple" (1 error)
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 1);
+    }
+
+    #[test]
+    fn test_is_in_check_empty_members() {
+        let members: Vec<String> = vec![];
+        let rule = IsInCheck::new(members);
+        let array = StringArray::from(vec![
+            Some("apple"),  // Not in empty members
+            Some("banana"), // Not in empty members
+            None,           // Null value
+        ]);
+        // Expected errors: "apple", "banana", None (3 errors)
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 3);
     }
 }

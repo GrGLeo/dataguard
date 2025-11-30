@@ -55,6 +55,11 @@ impl StringColumnBuilder {
         Ok(self.clone())
     }
 
+    pub fn is_in(&mut self, members: Vec<String>) -> PyResult<Self> {
+        self.rules.push(Rule::StringMembers { members });
+        Ok(self.clone())
+    }
+
     /// Add a rule to match a string against a regex pattern.
     pub fn with_regex(&mut self, pattern: &str, flag: Option<&str>) -> PyResult<Self> {
         let _ = Regex::new(pattern).map_err(|e| {

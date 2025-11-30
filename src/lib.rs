@@ -6,418 +6,14 @@ pub mod rules;
 pub mod types;
 pub mod utils;
 
+pub mod validator;
+
 #[cfg(feature = "python")]
 use crate::columns::float_column::FloatColumnBuilder;
 #[cfg(feature = "python")]
 use crate::columns::integer_column::IntegerColumnBuilder;
 use crate::columns::{Column, string_column::StringColumnBuilder};
-use crate::reader::read_csv_parallel;
-use crate::report::ValidationReport;
-use crate::rules::core::Rule as RuleEnum;
-use crate::rules::generic_rules::{TypeCheck, UnicityCheck};
-use crate::rules::numeric_rules::{Monotonicity, NumericRule, Range};
-use crate::rules::string_rules::{RegexMatch, StringLengthCheck, StringRule};
-use crate::utils::hasher::Xxh3Builder;
-use arrow::array::{Array, StringArray};
-use arrow::datatypes::{DataType, Float64Type, Int64Type};
-use pyo3::{exceptions::PyIOError, prelude::*};
-use rayon::prelude::*;
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::Instant;
-
-/// An internal enum to hold the compiled, logic-bearing validation rules for each column type.
-enum ExecutableColumn {
-    String {
-        name: String,
-        rules: Vec<Box<dyn StringRule>>,
-        type_check: TypeCheck,
-        unicity: Option<UnicityCheck>,
-    },
-    Integer {
-        name: String,
-        rules: Vec<Box<dyn NumericRule<Int64Type>>>,
-        type_check: TypeCheck,
-    },
-    Float {
-        name: String,
-        rules: Vec<Box<dyn NumericRule<Float64Type>>>,
-        type_check: TypeCheck,
-    },
-}
-
-#[cfg(feature = "python")]
-#[pyclass(name = "Validator")]
-struct Validator {
-    executable_columns: Vec<ExecutableColumn>,
-}
-
-#[cfg(feature = "python")]
-impl Default for Validator {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[cfg(feature = "python")]
-#[pymethods]
-impl Validator {
-    /// Create a new Validator instance.
-    #[new]
-    fn new() -> Self {
-        Self {
-            executable_columns: Vec::new(),
-        }
-    }
-
-    /// Compiles and commits a list of column configurations to the validator.
-    /// This method transforms the simple `Column` data objects into executable
-    /// validation rules.
-    ///
-    /// Args:
-    ///     columns (list[Column]): A list of configured Column objects from Python.
-    fn commit(&mut self, columns: Vec<Column>) -> PyResult<()> {
-        // We use filter_map to iterate, transform, and filter out any unhandled types in one pass.
-        self.executable_columns = columns
-            .into_iter()
-            .filter_map(|col| {
-                // The match statement is now an expression that returns a value.
-                match col.column_type.as_str() {
-                    "string" => {
-                        let executable_rules: Vec<Box<dyn StringRule>> = col
-                            .rules
-                            .into_iter()
-                            .map(|r| -> Box<dyn StringRule> {
-                                // Match on the RuleEnum from Python
-                                match r {
-                                    RuleEnum::StringLength { min, max } => {
-                                        Box::new(StringLengthCheck::new(min, max))
-                                    }
-                                    RuleEnum::StringRegex { pattern, flag } => {
-                                        Box::new(RegexMatch::new(pattern, flag))
-                                    }
-                                    _ => {
-                                        todo!()
-                                    }
-                                }
-                            })
-                            .collect();
-
-                        // Return the constructed ExecutableColumn variant, wrapped in Some
-                        // For unicity, the option should always be a Unicity RuleEnum so we do not
-                        // match on it
-                        Some(ExecutableColumn::String {
-                            name: col.name.clone(),
-                            rules: executable_rules,
-                            type_check: TypeCheck::new(col.name, DataType::Utf8),
-                            unicity: col.unicity.map(|_r| UnicityCheck {}),
-                        })
-                    }
-                    "integer" => {
-                        let executable_rules: Vec<Box<dyn NumericRule<Int64Type>>> = col
-                            .rules
-                            .into_iter()
-                            .map(|r| -> Box<dyn NumericRule<Int64Type>> {
-                                // Match on the RuleEnum from Python
-                                match r {
-                                    RuleEnum::NumericRange { min, max } => {
-                                        Box::new(Range::<i64>::new(
-                                            min.map(|v| v as i64),
-                                            max.map(|v| v as i64),
-                                        ))
-                                    }
-                                    RuleEnum::Monotonicity { asc } => {
-                                        Box::new(Monotonicity::<i64>::new(asc))
-                                    }
-                                    _ => {
-                                        todo!()
-                                    }
-                                }
-                            })
-                            .collect();
-
-                        // Return the constructed ExecutableColumn variant, wrapped in Some
-                        Some(ExecutableColumn::Integer {
-                            name: col.name.clone(),
-                            rules: executable_rules,
-                            type_check: TypeCheck::new(col.name, DataType::Int64),
-                        })
-                    }
-                    "float" => {
-                        let executable_rules: Vec<Box<dyn NumericRule<Float64Type>>> = col
-                            .rules
-                            .into_iter()
-                            .map(|r| -> Box<dyn NumericRule<Float64Type>> {
-                                match r {
-                                    RuleEnum::NumericRange { min, max } => {
-                                        Box::new(Range::<f64>::new(min, max))
-                                    }
-                                    RuleEnum::Monotonicity { asc } => {
-                                        Box::new(Monotonicity::<f64>::new(asc))
-                                    }
-                                    _ => {
-                                        todo!()
-                                    }
-                                }
-                            })
-                            .collect();
-
-                        Some(ExecutableColumn::Float {
-                            name: col.name.clone(),
-                            rules: executable_rules,
-                            type_check: TypeCheck::new(col.name, DataType::Float64),
-                        })
-                    }
-                    // Add other column types here in the future
-                    _ => None, // Ignore unknown column types
-                }
-            })
-            .collect();
-        Ok(())
-    }
-
-    /// Validate a CSV file against the committed rules.
-    ///
-    /// Args:
-    ///     path (str): Path to the CSV file to validate.
-    ///     print_report (bool): Whether to print the validation report.
-    ///
-    /// Returns:
-    ///     int: The number of validation errors found.
-    fn validate_csv(&mut self, path: &str, print_report: bool) -> PyResult<usize> {
-        let start = Instant::now();
-        let batches = read_csv_parallel(path).map_err(|e| PyIOError::new_err(e.to_string()))?;
-        let read_duration = start.elapsed();
-        eprintln!("CSV reading took {:?}", read_duration);
-        let validation_start = Instant::now();
-
-        let error_count = AtomicUsize::new(0);
-        let report = ValidationReport::new();
-
-        let total_rows: usize = batches.iter().map(|batch| batch.num_rows()).sum();
-        report.set_total_rows(total_rows);
-
-        // We run each column sequentially
-        // This might be slower than running batch -> col
-        // But easier to compute column data
-        for executable_col in &self.executable_columns {
-            match executable_col {
-                ExecutableColumn::String {
-                    name,
-                    rules,
-                    type_check,
-                    unicity,
-                } => {
-                    if let Some(uni_rule) = unicity {
-                        let global_hash = batches
-                            .par_iter()
-                            .map(|batch| {
-                                let mut local_hash = HashSet::with_hasher(Xxh3Builder);
-                                if let Ok(col_index) = batch.schema().index_of(name) {
-                                    let array = batch.column(col_index);
-                                    match type_check.validate(array.as_ref()) {
-                                        Ok((errors, casted_array)) => {
-                                            error_count.fetch_add(errors, Ordering::Relaxed);
-                                            report.record_result(name, type_check.name(), errors);
-
-                                            if let Some(string_array) =
-                                                casted_array.as_any().downcast_ref::<StringArray>()
-                                            {
-                                                local_hash = uni_rule.validate(string_array);
-                                                for rule in rules {
-                                                    if let Ok(count) =
-                                                        rule.validate(string_array, name.clone())
-                                                    {
-                                                        error_count
-                                                            .fetch_add(count, Ordering::Relaxed);
-                                                        report.record_result(
-                                                            name,
-                                                            rule.name(),
-                                                            count,
-                                                        );
-                                                    }
-                                                }
-                                                local_hash
-                                            } else {
-                                                local_hash
-                                            }
-                                        }
-                                        Err(_) => {
-                                            // TypeCheck validation itself failed, meaning the cast was not possible.
-                                            // All rows are considered errors.
-                                            let count = array.len();
-                                            error_count.fetch_add(count, Ordering::Relaxed);
-                                            report.record_result(name, type_check.name(), count);
-                                            local_hash
-                                        }
-                                    }
-                                } else {
-                                    local_hash
-                                }
-                            })
-                            .reduce(
-                                || HashSet::with_hasher(Xxh3Builder),
-                                |mut set_a, set_b| {
-                                    set_a.extend(set_b.iter());
-                                    set_a
-                                },
-                            );
-                        let duplicates = total_rows.saturating_sub(global_hash.len());
-                        report.record_result(name, uni_rule.name(), duplicates);
-                    } else {
-                        batches.par_iter().for_each(|batch| {
-                            if let Ok(col_index) = batch.schema().index_of(name) {
-                                let array = batch.column(col_index);
-                                match type_check.validate(array.as_ref()) {
-                                    Ok((errors, casted_array)) => {
-                                        error_count.fetch_add(errors, Ordering::Relaxed);
-                                        report.record_result(name, type_check.name(), errors);
-
-                                        if let Some(string_array) =
-                                            casted_array.as_any().downcast_ref::<StringArray>()
-                                        {
-                                            for rule in rules {
-                                                if let Ok(count) =
-                                                    rule.validate(string_array, name.clone())
-                                                {
-                                                    error_count.fetch_add(count, Ordering::Relaxed);
-                                                    report.record_result(name, rule.name(), count);
-                                                }
-                                            }
-                                        }
-                                    }
-                                    Err(_) => {
-                                        // TypeCheck validation itself failed, meaning the cast was not possible.
-                                        // All rows are considered errors.
-                                        let count = array.len();
-                                        error_count.fetch_add(count, Ordering::Relaxed);
-                                        report.record_result(name, type_check.name(), count);
-                                    }
-                                }
-                            }
-                        });
-                    }
-                }
-                ExecutableColumn::Integer {
-                    name,
-                    rules,
-                    type_check,
-                } => {
-                    batches.par_iter().for_each(|batch| {
-                        if let Ok(col_index) = batch.schema().index_of(name) {
-                            let array = batch.column(col_index);
-                            match type_check.validate(array.as_ref()) {
-                                Ok((errors, casted_array)) => {
-                                    error_count.fetch_add(errors, Ordering::Relaxed);
-                                    report.record_result(name, type_check.name(), errors);
-
-                                    if let Some(integer_array) = casted_array
-                                        .as_any()
-                                        .downcast_ref::<arrow::array::PrimitiveArray<
-                                        Int64Type,
-                                    >>(
-                                    ) {
-                                        for rule in rules {
-                                            if let Ok(count) =
-                                                rule.validate(integer_array, name.clone())
-                                            {
-                                                error_count.fetch_add(count, Ordering::Relaxed);
-                                                report.record_result(name, rule.name(), count);
-                                            }
-                                        }
-                                    } else {
-                                        println!("Failed downcast for integer column");
-                                    }
-                                }
-                                Err(_) => {
-                                    // TypeCheck validation itself failed, meaning the cast was not possible.
-                                    // All rows are considered errors.
-                                    let count = array.len();
-                                    error_count.fetch_add(count, Ordering::Relaxed);
-                                    report.record_result(name, type_check.name(), count);
-                                }
-                            }
-                        }
-                    })
-                }
-                ExecutableColumn::Float {
-                    name,
-                    rules,
-                    type_check,
-                } => batches.par_iter().for_each(|batch| {
-                    if let Ok(col_index) = batch.schema().index_of(name) {
-                        let array = batch.column(col_index);
-
-                        match type_check.validate(array.as_ref()) {
-                            Ok((errors, casted_array)) => {
-                                error_count.fetch_add(errors, Ordering::Relaxed);
-                                report.record_result(name, type_check.name(), errors);
-
-                                if let Some(float_array) = casted_array
-                                    .as_any()
-                                    .downcast_ref::<arrow::array::PrimitiveArray<Float64Type>>(
-                                ) {
-                                    for rule in rules {
-                                        if let Ok(count) = rule.validate(float_array, name.clone())
-                                        {
-                                            error_count.fetch_add(count, Ordering::Relaxed);
-                                            report.record_result(name, rule.name(), count);
-                                        }
-                                    }
-                                } else {
-                                    println!("Failed downcast for float column");
-                                }
-                            }
-                            Err(_) => {
-                                let count = array.len();
-                                error_count.fetch_add(count, Ordering::Relaxed);
-                                report.record_result(name, type_check.name(), count);
-                            }
-                        }
-                    }
-                }),
-            }
-        }
-        let validation_duration = validation_start.elapsed();
-        eprintln!("Validation took {:?}", validation_duration);
-
-        if print_report {
-            println!("{}", report.generate_report());
-        }
-
-        Ok(error_count.load(Ordering::Relaxed))
-    }
-
-    /// Get a summary of the configured columns and their rules.
-    ///
-    /// Returns:
-    ///     dict: A dictionary of the configured columns.
-    fn get_rules(&self) -> PyResult<HashMap<String, Vec<String>>> {
-        let mut result = HashMap::new();
-        for column in &self.executable_columns {
-            // KEY CHANGE: Match to access the data inside the enum variant
-            match column {
-                ExecutableColumn::String { name, rules, .. } => {
-                    let mut rule_names = vec!["TypeCheck".to_string()];
-                    rule_names.extend(rules.iter().map(|r| r.name().to_string()));
-                    result.insert(name.clone(), rule_names);
-                }
-                ExecutableColumn::Integer { name, rules, .. } => {
-                    let mut rule_names = vec!["TypeCheck".to_string()];
-                    rule_names.extend(rules.iter().map(|r| r.name().to_string()));
-                    result.insert(name.clone(), rule_names);
-                }
-                ExecutableColumn::Float { name, rules, .. } => {
-                    let mut rule_names = vec!["TypeCheck".to_string()];
-                    rule_names.extend(rules.iter().map(|r| r.name().to_string()));
-                    result.insert(name.clone(), rule_names);
-                }
-            }
-        }
-        Ok(result)
-    }
-}
+use pyo3::prelude::*;
 
 /// Creates a builder for defining rules on a string column.
 ///
@@ -462,7 +58,7 @@ fn float_column(name: String) -> PyResult<FloatColumnBuilder> {
 #[cfg(feature = "python")]
 #[pyo3::pymodule]
 fn dataguard(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<Validator>()?;
+    m.add_class::<validator::Validator>()?;
     m.add_class::<Column>()?;
     m.add_class::<StringColumnBuilder>()?;
     m.add_class::<IntegerColumnBuilder>()?;
@@ -475,6 +71,7 @@ fn dataguard(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
 #[cfg(test)]
 mod tests {
+    use super::validator::Validator;
     use super::*;
     use std::fs::File;
     use std::io::Write;
@@ -520,63 +117,6 @@ mod tests {
             rules.get("col3").unwrap(),
             &vec!["TypeCheck".to_string(), "NumericRange".to_string()]
         );
-
-        // 4. Check internal executable types (not directly testable from outside,
-        // but get_rules success implies the transformation worked)
-        assert_eq!(validator.executable_columns.len(), 3);
-        match &validator.executable_columns[0] {
-            ExecutableColumn::String {
-                name,
-                rules,
-                type_check: _,
-                unicity: _,
-            } => {
-                assert_eq!(name, "col1");
-                assert_eq!(rules.len(), 1);
-                assert_eq!(rules[0].name(), "StringLengthCheck");
-            }
-            ExecutableColumn::Integer { .. } => {
-                assert!(false, "Expected String ExecutableColumn, got Integer")
-            }
-            ExecutableColumn::Float { .. } => {
-                assert!(false, "Expected String ExecutableColumn, got Float")
-            }
-        }
-        match &validator.executable_columns[1] {
-            ExecutableColumn::String {
-                name,
-                rules,
-                type_check: _,
-                unicity: _,
-            } => {
-                assert_eq!(name, "col2");
-                assert_eq!(rules.len(), 1);
-                assert_eq!(rules[0].name(), "RegexMatch");
-            }
-            ExecutableColumn::Integer { .. } => {
-                assert!(false, "Expected String ExecutableColumn, got Integer")
-            }
-            ExecutableColumn::Float { .. } => {
-                assert!(false, "Expected String ExecutableColumn, got Float")
-            }
-        }
-        match &validator.executable_columns[2] {
-            ExecutableColumn::String { .. } => {
-                assert!(false, "Expected Integer ExecutableColumn, got String")
-            }
-            ExecutableColumn::Integer {
-                name,
-                rules,
-                type_check: _,
-            } => {
-                assert_eq!(name, "col3");
-                assert_eq!(rules.len(), 1);
-                assert_eq!(rules[0].name(), "NumericRange");
-            }
-            ExecutableColumn::Float { .. } => {
-                assert!(false, "Expected Integer ExecutableColumn, got Float")
-            }
-        }
     }
 
     #[test]
@@ -710,7 +250,6 @@ mod tests {
 
     #[test]
     fn test_float_monotonicity_asc_valid() {
-        use arrow::array::Float64Array;
         let col = float_column("col1".to_string())
             .unwrap()
             .is_monotonically_increasing()
@@ -725,21 +264,45 @@ mod tests {
             &vec!["TypeCheck".to_string(), "Monotonicity".to_string()]
         );
 
-        // Test validation logic directly (using a dummy array for now)
-        let rule_exec =
-            if let ExecutableColumn::Float { rules, .. } = &validator.executable_columns[0] {
-                &rules[0]
-            } else {
-                panic!("Expected Float ExecutableColumn");
-            };
+        // Test with valid data
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("asc_valid.csv");
+        let mut file = File::create(&file_path).unwrap();
+        writeln!(file, "col1").unwrap();
+        writeln!(file, "1.0").unwrap();
+        writeln!(file, "2.0").unwrap();
+        writeln!(file, "2.0").unwrap();
+        writeln!(file, "3.0").unwrap();
 
-        let array = Float64Array::from(vec![Some(1.0), Some(2.0), Some(2.0), Some(3.0)]);
-        assert_eq!(rule_exec.validate(&array, "col1".to_string()).unwrap(), 0);
+        let error_count = validator
+            .validate_csv(file_path.to_str().unwrap(), false)
+            .unwrap();
+        assert_eq!(error_count, 0);
+
+        // Test with invalid data
+        let file_path_invalid = dir.path().join("asc_invalid.csv");
+        let mut file_invalid = File::create(&file_path_invalid).unwrap();
+        writeln!(file_invalid, "col1").unwrap();
+        writeln!(file_invalid, "1.0").unwrap();
+        writeln!(file_invalid, "3.0").unwrap();
+        writeln!(file_invalid, "2.0").unwrap(); // <-- invalid
+        writeln!(file_invalid, "4.0").unwrap();
+
+        let col_invalid = float_column("col1".to_string())
+            .unwrap()
+            .is_monotonically_increasing()
+            .unwrap()
+            .build();
+        let mut validator_invalid = Validator::new();
+        validator_invalid.commit(vec![col_invalid]).unwrap();
+        let error_count_invalid = validator_invalid
+            .validate_csv(file_path_invalid.to_str().unwrap(), false)
+            .unwrap();
+        assert_eq!(error_count_invalid, 1);
     }
 
     #[test]
     fn test_float_monotonicity_desc_valid() {
-        use arrow::array::Float64Array;
         let col = float_column("col1".to_string())
             .unwrap()
             .is_monotonically_decreasing()
@@ -754,15 +317,40 @@ mod tests {
             &vec!["TypeCheck".to_string(), "Monotonicity".to_string()]
         );
 
-        // Test validation logic directly
-        let rule_exec =
-            if let ExecutableColumn::Float { rules, .. } = &validator.executable_columns[0] {
-                &rules[0]
-            } else {
-                panic!("Expected Float ExecutableColumn");
-            };
+        // Test with valid data
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("desc_valid.csv");
+        let mut file = File::create(&file_path).unwrap();
+        writeln!(file, "col1").unwrap();
+        writeln!(file, "3.0").unwrap();
+        writeln!(file, "2.0").unwrap();
+        writeln!(file, "2.0").unwrap();
+        writeln!(file, "1.0").unwrap();
 
-        let array = Float64Array::from(vec![Some(3.0), Some(2.0), Some(2.0), Some(1.0)]);
-        assert_eq!(rule_exec.validate(&array, "col1".to_string()).unwrap(), 0);
+        let error_count = validator
+            .validate_csv(file_path.to_str().unwrap(), false)
+            .unwrap();
+        assert_eq!(error_count, 0);
+
+        // Test with invalid data
+        let file_path_invalid = dir.path().join("desc_invalid.csv");
+        let mut file_invalid = File::create(&file_path_invalid).unwrap();
+        writeln!(file_invalid, "col1").unwrap();
+        writeln!(file_invalid, "4.0").unwrap();
+        writeln!(file_invalid, "2.0").unwrap();
+        writeln!(file_invalid, "3.0").unwrap(); // <-- invalid
+        writeln!(file_invalid, "1.0").unwrap();
+
+        let col_invalid = float_column("col1".to_string())
+            .unwrap()
+            .is_monotonically_decreasing()
+            .unwrap()
+            .build();
+        let mut validator_invalid = Validator::new();
+        validator_invalid.commit(vec![col_invalid]).unwrap();
+        let error_count_invalid = validator_invalid
+            .validate_csv(file_path_invalid.to_str().unwrap(), false)
+            .unwrap();
+        assert_eq!(error_count_invalid, 1);
     }
 }
