@@ -4,7 +4,7 @@ use crate::report::ValidationReport;
 use crate::rules::core::Rule as RuleEnum;
 use crate::rules::generic_rules::{TypeCheck, UnicityCheck};
 use crate::rules::numeric_rules::{Monotonicity, NumericRule, Range};
-use crate::rules::string_rules::{RegexMatch, StringLengthCheck, StringRule};
+use crate::rules::string_rules::{IsInCheck, RegexMatch, StringLengthCheck, StringRule};
 use crate::utils::hasher::Xxh3Builder;
 use arrow::array::{Array, PrimitiveArray, StringArray};
 use arrow::datatypes::{DataType, Float64Type, Int64Type};
@@ -69,6 +69,9 @@ impl Validator {
                                     }
                                     RuleEnum::StringRegex { pattern, flag } => {
                                         Box::new(RegexMatch::new(pattern, flag))
+                                    }
+                                    RuleEnum::StringMembers { members } => {
+                                        Box::new(IsInCheck::new(members))
                                     }
                                     _ => {
                                         todo!()
@@ -314,6 +317,7 @@ impl Validator {
                     },
                 );
             let duplicates = total_rows.saturating_sub(global_hash.len());
+            error_count.fetch_add(duplicates, Ordering::Relaxed);
             report.record_result(name, uni_rule.name(), duplicates);
         } else {
             batches.par_iter().for_each(|batch| {

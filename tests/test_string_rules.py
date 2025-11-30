@@ -1,7 +1,5 @@
 import dataguard
 import pandas as pd
-import pytest
-from pathlib import Path
 
 
 def test_is_numeric(tmp_path):
@@ -224,6 +222,33 @@ def test_is_uuid(tmp_path):
 
     validator = dataguard.Validator()
     col = dataguard.string_column("uuid_col").is_uuid().build()
+    validator.commit([col])
+
+    error_count = validator.validate_csv(str(csv_path), print_report=False)
+    assert error_count == expected_errors
+
+
+def test_is_in_check(tmp_path):
+    data = {
+        "fruit_col": [
+            "apple",
+            "banana",
+            "orange",
+            "grape",  # Not in allowed_values
+            "Apple",  # Different case, not in allowed_values
+            "",  # Empty string, not in allowed_values
+            None,  # Null, not in allowed_values
+        ]
+    }
+    # Expected errors: "grape", "Apple", "", None
+    expected_errors = 4
+    allowed_values = ["apple", "banana", "orange"]
+
+    csv_path = tmp_path / "test.csv"
+    pd.DataFrame(data).to_csv(csv_path, index=False)
+
+    validator = dataguard.Validator()
+    col = dataguard.string_column("fruit_col").is_in(allowed_values).build()
     validator.commit([col])
 
     error_count = validator.validate_csv(str(csv_path), print_report=False)
