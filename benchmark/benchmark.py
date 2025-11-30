@@ -4,7 +4,7 @@ import argparse
 import sys
 
 sys.path.append("benchmark")
-from dataguard import Validator, string_column, integer_column
+from dataguard import Validator, string_column
 
 
 def benchmark_pandas(csv_path, num_runs):
@@ -15,21 +15,26 @@ def benchmark_pandas(csv_path, num_runs):
         end_read = time.time() - start
         print(f"Read: {end_read:.6f}")
         start_valid = time.time()
-        # Check type of Category as string (all CSV columns are strings)
-        assert df["Category"].dtype == "object", "Category should be string type"
-        # Count rows where Category is not 'Home & Kitchen'
-        category_invalid = (df["Category"] != "Home & Kitchen").sum()
-        # Count rows where Currency length is at least 3
-        currency_invalid = (df["Currency"].str.len() >= 3).sum()
-        # Count rows where Price is at least 30
-        price_invalid = (df["Price"] >= 30).sum()
-        # Count rows where Index is not monotonically increasing
-        index_invalid = (df["Index"].diff() < 0).iloc[1:].sum()
+        # # Check type of Category as string (all CSV columns are strings)
+        # assert df["Category"].dtype == "object", "Category should be string type"
+        # # Count rows where Category is not 'Home & Kitchen'
+        # category_invalid = (df["Category"] != "Home & Kitchen").sum()
+        # # Count rows where Currency length is at least 3
+        # currency_invalid = (df["Currency"].str.len() >= 3).sum()
+        # # Count rows where Price is at least 30
+        # price_invalid = (df["Price"] >= 30).sum()
+        # # Count rows where Index is not monotonically increasing
+        # index_invalid = (df["Index"].diff() < 0).iloc[1:].sum()
+
+        # Check for unicity
+        index_unique_invalid = df["Index"].duplicated().sum()
+
         end_valid = time.time() - start_valid
         print(f"Validation: {end_valid:.6f}")
-        invalid_count = (
-            category_invalid + currency_invalid + price_invalid + index_invalid
-        )
+        # invalid_count = (
+        #     category_invalid + currency_invalid + price_invalid + index_invalid
+        # )
+        invalid_count = index_unique_invalid
         end = time.time()
         times.append(end - start)
     return sum(times) / len(times), invalid_count
@@ -37,32 +42,32 @@ def benchmark_pandas(csv_path, num_runs):
 
 def benchmark_validator(csv_path, num_runs):
     # Define column rules using the new API
-    category_col = (
-        string_column("Category").with_regex(r"^Home & Kitchen$", None).build()
-    )
+    # category_col = (
+    #     string_column("Category").with_regex(r"^Home & Kitchen$", None).build()
+    # )
 
-    currency_col = (
-        string_column("Currency")
-        .with_min_length(
-            min=3
-        )  # min_length of 3 means that string.len() < 3 is invalid
-        .build()
-    )
+    # currency_col = (
+    #     string_column("Currency")
+    #     .with_min_length(
+    #         min=3
+    #     )  # min_length of 3 means that string.len() < 3 is invalid
+    #     .build()
+    # )
 
-    price_col = (
-        integer_column("Price")
-        .min(min=30)  # Price lesser than 30 are invalid
-        .build()
-    )
+    # price_col = (
+    #     integer_column("Price")
+    #     .min(min=30)  # Price lesser than 30 are invalid
+    #     .build()
+    # )
 
     index_col = (
-        integer_column("Index")
-        .is_monotonically_increasing()  # Column is increasing
+        string_column("Index")
+        .is_unique()  # Column is unique
         .build()
     )
 
     validator = Validator()
-    validator.commit([category_col, currency_col, price_col, index_col])
+    validator.commit([index_col])
 
     times = []
     for i in range(num_runs):

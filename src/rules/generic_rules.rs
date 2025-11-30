@@ -38,6 +38,12 @@ impl TypeCheck {
 #[derive(Clone)]
 pub struct UnicityCheck {}
 
+impl Default for UnicityCheck {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl UnicityCheck {
     pub fn new() -> Self {
         Self {}
@@ -52,7 +58,7 @@ impl UnicityCheck {
         array: &StringArray,
         dash: &DashSet<u64, Xxh3Builder>,
     ) -> Result<(), RuleError> {
-        let mut local_hash = HashSet::with_hasher(Xxh3Builder::default());
+        let mut local_hash = HashSet::with_hasher(Xxh3Builder);
         array.iter().for_each(|v_option| {
             if let Some(v) = v_option {
                 let hash = xxh3_64(v.as_bytes());

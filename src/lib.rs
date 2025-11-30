@@ -17,8 +17,10 @@ use crate::rules::core::Rule as RuleEnum;
 use crate::rules::generic_rules::{TypeCheck, UnicityCheck};
 use crate::rules::numeric_rules::{Monotonicity, NumericRule, Range};
 use crate::rules::string_rules::{RegexMatch, StringLengthCheck, StringRule};
-use arrow::array::StringArray;
+use crate::utils::hasher::Xxh3Builder;
+use arrow::array::{Array, StringArray};
 use arrow::datatypes::{DataType, Float64Type, Int64Type};
+use dashmap::DashSet;
 use pyo3::{exceptions::PyIOError, prelude::*};
 use rayon::prelude::*;
 use std::collections::HashMap;
@@ -196,55 +198,95 @@ impl Validator {
         let total_rows: usize = batches.iter().map(|batch| batch.num_rows()).sum();
         report.set_total_rows(total_rows);
 
-        batches.par_iter().for_each(|batch| {
-            for executable_col in &self.executable_columns {
-                // KEY CHANGE: Match on the ExecutableColumn enum
-                match executable_col {
-                    ExecutableColumn::String {
-                        name,
-                        rules,
-                        type_check,
-                        unicity: _,
-                    } => {
-                        if let Ok(col_index) = batch.schema().index_of(name) {
-                            let array = batch.column(col_index);
+        // We run each column sequentially
+        // This might be slower than running batch -> col
+        // But easier to compute column data
+        for executable_col in &self.executable_columns {
+            match executable_col {
+                ExecutableColumn::String {
+                    name,
+                    rules,
+                    type_check,
+                    unicity,
+                } => {
+                    if let Some(uni_rule) = unicity {
+                        let dashset: DashSet<u64, Xxh3Builder> = DashSet::with_hasher(Xxh3Builder);
+                        batches.par_iter().for_each(|batch| {
+                            if let Ok(col_index) = batch.schema().index_of(name) {
+                                let array = batch.column(col_index);
+                                match type_check.validate(array.as_ref()) {
+                                    Ok((errors, casted_array)) => {
+                                        error_count.fetch_add(errors, Ordering::Relaxed);
+                                        report.record_result(name, type_check.name(), errors);
 
-                            match type_check.validate(array.as_ref()) {
-                                Ok((errors, casted_array)) => {
-                                    error_count.fetch_add(errors, Ordering::Relaxed);
-                                    report.record_result(name, type_check.name(), errors);
-
-                                    if let Some(string_array) =
-                                        casted_array.as_any().downcast_ref::<StringArray>()
-                                    {
-                                        for rule in rules {
-                                            if let Ok(count) =
-                                                rule.validate(string_array, name.clone())
-                                            {
-                                                error_count.fetch_add(count, Ordering::Relaxed);
-                                                report.record_result(name, rule.name(), count);
+                                        if let Some(string_array) =
+                                            casted_array.as_any().downcast_ref::<StringArray>()
+                                        {
+                                            let _ = uni_rule.validate(string_array, &dashset);
+                                            for rule in rules {
+                                                if let Ok(count) =
+                                                    rule.validate(string_array, name.clone())
+                                                {
+                                                    error_count.fetch_add(count, Ordering::Relaxed);
+                                                    report.record_result(name, rule.name(), count);
+                                                }
                                             }
                                         }
                                     }
-                                }
-                                Err(_) => {
-                                    // TypeCheck validation itself failed, meaning the cast was not possible.
-                                    // All rows are considered errors.
-                                    let count = array.len();
-                                    error_count.fetch_add(count, Ordering::Relaxed);
-                                    report.record_result(name, type_check.name(), count);
+                                    Err(_) => {
+                                        // TypeCheck validation itself failed, meaning the cast was not possible.
+                                        // All rows are considered errors.
+                                        let count = array.len();
+                                        error_count.fetch_add(count, Ordering::Relaxed);
+                                        report.record_result(name, type_check.name(), count);
+                                    }
                                 }
                             }
-                        }
+                        });
+                        let duplicates = total_rows.saturating_sub(dashset.len());
+                        report.record_result(name, uni_rule.name(), duplicates);
+                    } else {
+                        batches.par_iter().for_each(|batch| {
+                            if let Ok(col_index) = batch.schema().index_of(name) {
+                                let array = batch.column(col_index);
+                                match type_check.validate(array.as_ref()) {
+                                    Ok((errors, casted_array)) => {
+                                        error_count.fetch_add(errors, Ordering::Relaxed);
+                                        report.record_result(name, type_check.name(), errors);
+
+                                        if let Some(string_array) =
+                                            casted_array.as_any().downcast_ref::<StringArray>()
+                                        {
+                                            for rule in rules {
+                                                if let Ok(count) =
+                                                    rule.validate(string_array, name.clone())
+                                                {
+                                                    error_count.fetch_add(count, Ordering::Relaxed);
+                                                    report.record_result(name, rule.name(), count);
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Err(_) => {
+                                        // TypeCheck validation itself failed, meaning the cast was not possible.
+                                        // All rows are considered errors.
+                                        let count = array.len();
+                                        error_count.fetch_add(count, Ordering::Relaxed);
+                                        report.record_result(name, type_check.name(), count);
+                                    }
+                                }
+                            }
+                        });
                     }
-                    ExecutableColumn::Integer {
-                        name,
-                        rules,
-                        type_check,
-                    } => {
+                }
+                ExecutableColumn::Integer {
+                    name,
+                    rules,
+                    type_check,
+                } => {
+                    batches.par_iter().for_each(|batch| {
                         if let Ok(col_index) = batch.schema().index_of(name) {
                             let array = batch.column(col_index);
-
                             match type_check.validate(array.as_ref()) {
                                 Ok((errors, casted_array)) => {
                                     error_count.fetch_add(errors, Ordering::Relaxed);
@@ -277,49 +319,46 @@ impl Validator {
                                 }
                             }
                         }
-                    }
-                    ExecutableColumn::Float {
-                        name,
-                        rules,
-                        type_check,
-                    } => {
-                        if let Ok(col_index) = batch.schema().index_of(name) {
-                            let array = batch.column(col_index);
+                    })
+                }
+                ExecutableColumn::Float {
+                    name,
+                    rules,
+                    type_check,
+                } => batches.par_iter().for_each(|batch| {
+                    if let Ok(col_index) = batch.schema().index_of(name) {
+                        let array = batch.column(col_index);
 
-                            match type_check.validate(array.as_ref()) {
-                                Ok((errors, casted_array)) => {
-                                    error_count.fetch_add(errors, Ordering::Relaxed);
-                                    report.record_result(name, type_check.name(), errors);
+                        match type_check.validate(array.as_ref()) {
+                            Ok((errors, casted_array)) => {
+                                error_count.fetch_add(errors, Ordering::Relaxed);
+                                report.record_result(name, type_check.name(), errors);
 
-                                    if let Some(float_array) = casted_array
-                                        .as_any()
-                                        .downcast_ref::<arrow::array::PrimitiveArray<
-                                        Float64Type,
-                                    >>(
-                                    ) {
-                                        for rule in rules {
-                                            if let Ok(count) =
-                                                rule.validate(float_array, name.clone())
-                                            {
-                                                error_count.fetch_add(count, Ordering::Relaxed);
-                                                report.record_result(name, rule.name(), count);
-                                            }
+                                if let Some(float_array) = casted_array
+                                    .as_any()
+                                    .downcast_ref::<arrow::array::PrimitiveArray<Float64Type>>(
+                                ) {
+                                    for rule in rules {
+                                        if let Ok(count) = rule.validate(float_array, name.clone())
+                                        {
+                                            error_count.fetch_add(count, Ordering::Relaxed);
+                                            report.record_result(name, rule.name(), count);
                                         }
-                                    } else {
-                                        println!("Failed downcast for float column");
                                     }
+                                } else {
+                                    println!("Failed downcast for float column");
                                 }
-                                Err(_) => {
-                                    let count = array.len();
-                                    error_count.fetch_add(count, Ordering::Relaxed);
-                                    report.record_result(name, type_check.name(), count);
-                                }
+                            }
+                            Err(_) => {
+                                let count = array.len();
+                                error_count.fetch_add(count, Ordering::Relaxed);
+                                report.record_result(name, type_check.name(), count);
                             }
                         }
                     }
-                }
+                }),
             }
-        });
+        }
         let validation_duration = validation_start.elapsed();
         eprintln!("Validation took {:?}", validation_duration);
 
