@@ -38,3 +38,7 @@ harness = false
 [[bench]]
 name = "monotonicaly_bench"
 harness = false
+
+
+[lints.clippy]
+too_many_arguments = "allow"
