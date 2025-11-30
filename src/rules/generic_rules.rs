@@ -69,75 +69,93 @@ mod tests {
     use super::*;
     use rayon::prelude::*;
 
+    // DashSet and Arc are no longer directly used in tests for UnicityCheck
+    // as the validate method now returns a HashSet.
+
     #[test]
     fn test_unicity_sequential_happy() {
         let rule = UnicityCheck::new();
-        let dash = DashSet::with_hasher(Xxh3Builder::default());
         let array = StringArray::from(vec![Some("a"), Some("b"), Some("c")]);
 
-        let result = rule.validate(&array, &dash);
-        assert!(result.is_ok());
-        assert_eq!(dash.len(), 3);
+        let local_set = rule.validate(&array);
+        assert_eq!(local_set.len(), 3);
+        assert!(local_set.contains(&xxh3_64("a".as_bytes())));
+        assert!(local_set.contains(&xxh3_64("b".as_bytes())));
+        assert!(local_set.contains(&xxh3_64("c".as_bytes())));
     }
 
     #[test]
     fn test_unicity_parallel_happy() {
         let rule = UnicityCheck::new();
-        let dash = Arc::new(DashSet::with_hasher(Xxh3Builder::default()));
         let arrays = vec![
             StringArray::from(vec![Some("a"), Some("b"), Some("c")]),
             StringArray::from(vec![Some("d"), Some("e"), Some("f")]),
         ];
 
-        arrays.par_iter().for_each(|array| {
-            let result = rule.clone().validate(array, &dash);
-            assert!(result.is_ok());
-        });
+        let final_set = arrays
+            .par_iter()
+            .map(|array| rule.validate(array)) // Each map call returns a HashSet for its array
+            .reduce(
+                || HashSet::with_hasher(Xxh3Builder), // Identity for reduce
+                |mut acc_set, batch_set| {
+                    // Accumulator for reduce
+                    acc_set.extend(batch_set);
+                    acc_set
+                },
+            );
 
-        assert_eq!(dash.len(), 6);
+        assert_eq!(final_set.len(), 6);
+        assert!(final_set.contains(&xxh3_64("a".as_bytes())));
+        assert!(final_set.contains(&xxh3_64("b".as_bytes())));
+        assert!(final_set.contains(&xxh3_64("c".as_bytes())));
+        assert!(final_set.contains(&xxh3_64("d".as_bytes())));
+        assert!(final_set.contains(&xxh3_64("e".as_bytes())));
+        assert!(final_set.contains(&xxh3_64("f".as_bytes())));
     }
 
     #[test]
     fn test_unicity_sequential_with_duplicates() {
         let rule = UnicityCheck::new();
-        let dash = DashSet::with_hasher(Xxh3Builder::default());
-        // "a" is duplicated, total unique values are "a", "b", "c"
         let array = StringArray::from(vec![Some("a"), Some("b"), Some("a"), Some("c")]);
 
-        let result = rule.validate(&array, &dash);
-        assert!(result.is_ok());
-        assert_eq!(dash.len(), 3);
+        let local_set = rule.validate(&array);
+        assert_eq!(local_set.len(), 3); // "a", "b", "c" are unique
+        assert!(local_set.contains(&xxh3_64("a".as_bytes())));
+        assert!(local_set.contains(&xxh3_64("b".as_bytes())));
+        assert!(local_set.contains(&xxh3_64("c".as_bytes())));
     }
 
     #[test]
     fn test_unicity_parallel_with_duplicates() {
         let rule = UnicityCheck::new();
-        let dash = Arc::new(DashSet::with_hasher(Xxh3Builder::default()));
         let arrays = vec![
-            // Duplicates within this array: "a"
             StringArray::from(vec![Some("a"), Some("b"), Some("a")]),
-            // Duplicates across arrays: "b", and within this array: "c"
             StringArray::from(vec![Some("c"), Some("b"), Some("d"), Some("c")]),
         ];
 
-        arrays.par_iter().for_each(|array| {
-            let result = rule.clone().validate(array, &dash);
-            assert!(result.is_ok());
-        });
+        let final_set = arrays.par_iter().map(|array| rule.validate(array)).reduce(
+            || HashSet::with_hasher(Xxh3Builder),
+            |mut acc_set, batch_set| {
+                acc_set.extend(batch_set);
+                acc_set
+            },
+        );
 
-        // Total unique values should be "a", "b", "c", "d"
-        assert_eq!(dash.len(), 4);
+        assert_eq!(final_set.len(), 4); // "a", "b", "c", "d" are unique
+        assert!(final_set.contains(&xxh3_64("a".as_bytes())));
+        assert!(final_set.contains(&xxh3_64("b".as_bytes())));
+        assert!(final_set.contains(&xxh3_64("c".as_bytes())));
+        assert!(final_set.contains(&xxh3_64("d".as_bytes())));
     }
 
     #[test]
     fn test_unicity_with_nulls() {
         let rule = UnicityCheck::new();
-        let dash = DashSet::with_hasher(Xxh3Builder::default());
-        // Nulls should be ignored
         let array = StringArray::from(vec![Some("a"), None, Some("b"), None, Some("a")]);
 
-        let result = rule.validate(&array, &dash);
-        assert!(result.is_ok());
-        assert_eq!(dash.len(), 2);
+        let local_set = rule.validate(&array);
+        assert_eq!(local_set.len(), 2); // Nulls are ignored, "a", "b" are unique
+        assert!(local_set.contains(&xxh3_64("a".as_bytes())));
+        assert!(local_set.contains(&xxh3_64("b".as_bytes())));
     }
 }
