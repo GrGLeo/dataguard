@@ -55,6 +55,15 @@ impl StringColumnBuilder {
         Ok(self.clone())
     }
 
+    /// Add a rule to check that the length match exactly.
+    pub fn is_exact_length(&mut self, len: usize) -> PyResult<Self> {
+        self.rules.push(Rule::StringLength {
+            min: Some(len),
+            max: Some(len),
+        });
+        Ok(self.clone())
+    }
+
     pub fn is_in(&mut self, members: Vec<String>) -> PyResult<Self> {
         self.rules.push(Rule::StringMembers { members });
         Ok(self.clone())
