@@ -4,7 +4,6 @@ use arrow::{
     datatypes::DataType,
 };
 use arrow_array::StringArray;
-use dashmap::DashSet;
 use std::{collections::HashSet, sync::Arc};
 use xxhash_rust::xxh3::xxh3_64;
 
@@ -53,21 +52,15 @@ impl UnicityCheck {
         "UnicityCheck"
     }
 
-    pub fn validate(
-        &self,
-        array: &StringArray,
-        dash: &DashSet<u64, Xxh3Builder>,
-    ) -> Result<(), RuleError> {
+    pub fn validate(&self, array: &StringArray) -> HashSet<u64, Xxh3Builder> {
         let mut local_hash = HashSet::with_hasher(Xxh3Builder);
         array.iter().for_each(|v_option| {
             if let Some(v) = v_option {
                 let hash = xxh3_64(v.as_bytes());
-                if local_hash.insert(hash) {
-                    dash.insert(hash);
-                }
+                let _ = local_hash.insert(hash);
             }
         });
-        Ok(())
+        local_hash
     }
 }
 

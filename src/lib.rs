@@ -20,10 +20,10 @@ use crate::rules::string_rules::{RegexMatch, StringLengthCheck, StringRule};
 use crate::utils::hasher::Xxh3Builder;
 use arrow::array::{Array, StringArray};
 use arrow::datatypes::{DataType, Float64Type, Int64Type};
-use dashmap::DashSet;
 use pyo3::{exceptions::PyIOError, prelude::*};
 use rayon::prelude::*;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
@@ -210,40 +210,60 @@ impl Validator {
                     unicity,
                 } => {
                     if let Some(uni_rule) = unicity {
-                        let dashset: DashSet<u64, Xxh3Builder> = DashSet::with_hasher(Xxh3Builder);
-                        batches.par_iter().for_each(|batch| {
-                            if let Ok(col_index) = batch.schema().index_of(name) {
-                                let array = batch.column(col_index);
-                                match type_check.validate(array.as_ref()) {
-                                    Ok((errors, casted_array)) => {
-                                        error_count.fetch_add(errors, Ordering::Relaxed);
-                                        report.record_result(name, type_check.name(), errors);
+                        let global_hash = batches
+                            .par_iter()
+                            .map(|batch| {
+                                let mut local_hash = HashSet::with_hasher(Xxh3Builder);
+                                if let Ok(col_index) = batch.schema().index_of(name) {
+                                    let array = batch.column(col_index);
+                                    match type_check.validate(array.as_ref()) {
+                                        Ok((errors, casted_array)) => {
+                                            error_count.fetch_add(errors, Ordering::Relaxed);
+                                            report.record_result(name, type_check.name(), errors);
 
-                                        if let Some(string_array) =
-                                            casted_array.as_any().downcast_ref::<StringArray>()
-                                        {
-                                            let _ = uni_rule.validate(string_array, &dashset);
-                                            for rule in rules {
-                                                if let Ok(count) =
-                                                    rule.validate(string_array, name.clone())
-                                                {
-                                                    error_count.fetch_add(count, Ordering::Relaxed);
-                                                    report.record_result(name, rule.name(), count);
+                                            if let Some(string_array) =
+                                                casted_array.as_any().downcast_ref::<StringArray>()
+                                            {
+                                                local_hash = uni_rule.validate(string_array);
+                                                for rule in rules {
+                                                    if let Ok(count) =
+                                                        rule.validate(string_array, name.clone())
+                                                    {
+                                                        error_count
+                                                            .fetch_add(count, Ordering::Relaxed);
+                                                        report.record_result(
+                                                            name,
+                                                            rule.name(),
+                                                            count,
+                                                        );
+                                                    }
                                                 }
+                                                local_hash
+                                            } else {
+                                                local_hash
                                             }
                                         }
+                                        Err(_) => {
+                                            // TypeCheck validation itself failed, meaning the cast was not possible.
+                                            // All rows are considered errors.
+                                            let count = array.len();
+                                            error_count.fetch_add(count, Ordering::Relaxed);
+                                            report.record_result(name, type_check.name(), count);
+                                            local_hash
+                                        }
                                     }
-                                    Err(_) => {
-                                        // TypeCheck validation itself failed, meaning the cast was not possible.
-                                        // All rows are considered errors.
-                                        let count = array.len();
-                                        error_count.fetch_add(count, Ordering::Relaxed);
-                                        report.record_result(name, type_check.name(), count);
-                                    }
+                                } else {
+                                    local_hash
                                 }
-                            }
-                        });
-                        let duplicates = total_rows.saturating_sub(dashset.len());
+                            })
+                            .reduce(
+                                || HashSet::with_hasher(Xxh3Builder),
+                                |mut set_a, set_b| {
+                                    set_a.extend(set_b.iter());
+                                    set_a
+                                },
+                            );
+                        let duplicates = total_rows.saturating_sub(global_hash.len());
                         report.record_result(name, uni_rule.name(), duplicates);
                     } else {
                         batches.par_iter().for_each(|batch| {
@@ -509,6 +529,7 @@ mod tests {
                 name,
                 rules,
                 type_check: _,
+                unicity: _,
             } => {
                 assert_eq!(name, "col1");
                 assert_eq!(rules.len(), 1);
@@ -526,6 +547,7 @@ mod tests {
                 name,
                 rules,
                 type_check: _,
+                unicity: _,
             } => {
                 assert_eq!(name, "col2");
                 assert_eq!(rules.len(), 1);
