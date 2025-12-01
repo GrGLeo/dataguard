@@ -10,123 +10,138 @@ from .dataguard import (
 
 class Column:
     """
-    A class used to define rules on a column. This is a wrapper around the rust
-    column builders.
+    Base class for all column types.
     """
 
-    def __init__(self, name: str, dtype: str):
+    def __init__(self, name: str, builder):
         self.name = name
-        self.dtype = dtype
-        if dtype == "string":
-            self._builder = rust_string_column(name)
-        elif dtype == "integer":
-            self._builder = rust_integer_column(name)
-        elif dtype == "float":
-            self._builder = rust_float_column(name)
-        else:
-            raise ValueError(f"Unsupported dtype: {dtype}")
-
-    def with_regex(
-        self, pattern: str, name: Optional[str] = None
-    ) -> "Column":
-        self._builder = self._builder.with_regex(pattern, name)
-        return self
-
-    def with_min_length(self, min: int) -> "Column":
-        self._builder = self._builder.with_min_length(min)
-        return self
-
-    def with_max_length(self, max: int) -> "Column":
-        self._builder = self._builder.with_max_length(max)
-        return self
-
-    def with_length_between(
-        self, min: Optional[int], max: Optional[int]
-    ) -> "Column":
-        self._builder = self._builder.with_length_between(min, max)
-        return self
-
-    def min(self, min: Union[int, float]) -> "Column":
-        self._builder = self._builder.min(min)
-        return self
-
-    def max(self, max: Union[int, float]) -> "Column":
-        self._builder = self._builder.max(max)
-        return self
-
-    def between(
-        self, min: Optional[Union[int, float]], max: Optional[Union[int, float]]
-    ) -> "Column":
-        self._builder = self._builder.between(min, max)
-        return self
-
-    def is_positive(self) -> "Column":
-        self._builder = self._builder.is_positive()
-        return self
-
-    def is_negative(self) -> "Column":
-        self._builder = self._builder.is_negative()
-        return self
-
-    def is_non_positive(self) -> "Column":
-        self._builder = self._builder.is_non_positive()
-        return self
-
-    def is_non_negative(self) -> "Column":
-        self._builder = self._builder.is_non_negative()
-        return self
-
-    def is_monotonically_increasing(self) -> "Column":
-        self._builder = self._builder.is_monotonically_increasing()
-        return self
-
-    def is_monotonically_decreasing(self) -> "Column":
-        self._builder = self._builder.is_monotonically_decreasing()
-        return self
+        self._builder = builder
 
     def is_unique(self) -> "Column":
         self._builder = self._builder.is_unique()
         return self
 
-    def is_numeric(self) -> "Column":
-        self._builder = self._builder.is_numeric()
-        return self
-
-    def is_alpha(self) -> "Column":
-        self._builder = self._builder.is_alpha()
-        return self
-
-    def is_alphanumeric(self) -> "Column":
-        self._builder = self._builder.is_alphanumeric()
-        return self
-
-    def is_lowercase(self) -> "Column":
-        self._builder = self._builder.is_lowercase()
-        return self
-
-    def is_uppercase(self) -> "Column":
-        self._builder = self._builder.is_uppercase()
-        return self
-
-    def is_url(self) -> "Column":
-        self._builder = self._builder.is_url()
-        return self
-
-    def is_email(self) -> "Column":
-        self._builder = self._builder.is_email()
-        return self
-
-    def is_uuid(self) -> "Column":
-        self._builder = self._builder.is_uuid()
-        return self
-
-    def is_in(self, values: List[str]) -> "Column":
-        self._builder = self._builder.is_in(values)
-        return self
-
     def _build(self) -> RustColumn:
         """Calls the rust builder to create a rust Column object"""
         return self._builder.build()
+
+
+class StringColumn(Column):
+    """
+    A class used to define rules on a string column.
+    """
+
+    def with_regex(
+        self, pattern: str, name: Optional[str] = None
+    ) -> "StringColumn":
+        self._builder = self._builder.with_regex(pattern, name)
+        return self
+
+    def with_min_length(self, min: int) -> "StringColumn":
+        self._builder = self._builder.with_min_length(min)
+        return self
+
+    def with_max_length(self, max: int) -> "StringColumn":
+        self._builder = self._builder.with_max_length(max)
+        return self
+
+    def with_length_between(
+        self, min: Optional[int], max: Optional[int]
+    ) -> "StringColumn":
+        self._builder = self._builder.with_length_between(min, max)
+        return self
+
+    def is_numeric(self) -> "StringColumn":
+        self._builder = self._builder.is_numeric()
+        return self
+
+    def is_alpha(self) -> "StringColumn":
+        self._builder = self._builder.is_alpha()
+        return self
+
+    def is_alphanumeric(self) -> "StringColumn":
+        self._builder = self._builder.is_alphanumeric()
+        return self
+
+    def is_lowercase(self) -> "StringColumn":
+        self._builder = self._builder.is_lowercase()
+        return self
+
+    def is_uppercase(self) -> "StringColumn":
+        self._builder = self._builder.is_uppercase()
+        return self
+
+    def is_url(self) -> "StringColumn":
+        self._builder = self._builder.is_url()
+        return self
+
+    def is_email(self) -> "StringColumn":
+        self._builder = self._builder.is_email()
+        return self
+
+    def is_uuid(self) -> "StringColumn":
+        self._builder = self._builder.is_uuid()
+        return self
+
+    def is_in(self, values: List[str]) -> "StringColumn":
+        self._builder = self._builder.is_in(values)
+        return self
+
+
+class NumericColumn(Column):
+    """
+    A base class for numeric columns (integer and float).
+    """
+
+    def min(self, min: Union[int, float]) -> "NumericColumn":
+        self._builder = self._builder.min(min)
+        return self
+
+    def max(self, max: Union[int, float]) -> "NumericColumn":
+        self._builder = self._builder.max(max)
+        return self
+
+    def between(
+        self, min: Optional[Union[int, float]], max: Optional[Union[int, float]]
+    ) -> "NumericColumn":
+        self._builder = self._builder.between(min, max)
+        return self
+
+    def is_positive(self) -> "NumericColumn":
+        self._builder = self._builder.is_positive()
+        return self
+
+    def is_negative(self) -> "NumericColumn":
+        self._builder = self._builder.is_negative()
+        return self
+
+    def is_non_positive(self) -> "NumericColumn":
+        self._builder = self._builder.is_non_positive()
+        return self
+
+    def is_non_negative(self) -> "NumericColumn":
+        self._builder = self._builder.is_non_negative()
+        return self
+
+    def is_monotonically_increasing(self) -> "NumericColumn":
+        self._builder = self._builder.is_monotonically_increasing()
+        return self
+
+    def is_monotonically_decreasing(self) -> "NumericColumn":
+        self._builder = self._builder.is_monotonically_decreasing()
+        return self
+
+
+class IntegerColumn(NumericColumn):
+    """
+    A class used to define rules on an integer column.
+    """
+
+
+class FloatColumn(NumericColumn):
+    """
+    A class used to define rules on a float column.
+    """
 
 
 class Guard:
@@ -159,13 +174,13 @@ class Guard:
         return self._validator.validate_csv(path, print_report)
 
 
-def string_column(name: str) -> Column:
-    return Column(name, "string")
+def string_column(name: str) -> StringColumn:
+    return StringColumn(name, rust_string_column(name))
 
 
-def integer_column(name: str) -> Column:
-    return Column(name, "integer")
+def integer_column(name: str) -> IntegerColumn:
+    return IntegerColumn(name, rust_integer_column(name))
 
 
-def float_column(name: str) -> Column:
-    return Column(name, "float")
+def float_column(name: str) -> FloatColumn:
+    return FloatColumn(name, rust_float_column(name))
