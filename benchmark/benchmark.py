@@ -4,7 +4,7 @@ import argparse
 import sys
 
 sys.path.append("benchmark")
-from dataguard import Validator, string_column, integer_column
+from dataguard import Guard, string_column, integer_column
 
 
 def benchmark_pandas(csv_path, num_runs):
@@ -42,39 +42,32 @@ def benchmark_pandas(csv_path, num_runs):
 
 def benchmark_validator(csv_path, num_runs):
     # Define column rules using the new API
-    category_col = (
-        string_column("Category").with_regex(r"^Home & Kitchen$", None).build()
-    )
+    category_col = string_column("Category").with_regex(r"^Home & Kitchen$", None)
 
-    currency_col = (
-        string_column("Currency")
-        .with_min_length(
-            min=3
-        )  # min_length of 3 means that string.len() < 3 is invalid
-        .build()
-    )
+    currency_col = string_column("Currency").with_min_length(
+        min=3
+    )  # min_length of 3 means that string.len() < 3 is invalid
 
     price_col = (
         integer_column("Price")
         .min(min=30)  # Price lesser than 30 are invalid
-        .build()
     )
 
-    index_col = integer_column("Index").is_monotonically_increasing().build()
+    index_col = integer_column("Index").is_monotonically_increasing()
 
     # index_col = (
     #     string_column("Index")
     #     .is_unique()  # Column is unique
-    #     .build()
     # )
 
-    validator = Validator()
-    validator.commit([category_col, currency_col, price_col, index_col])
+    guard = Guard()
+    guard.add_columns([category_col, currency_col, price_col, index_col])
+    guard.commit()
 
     times = []
     for i in range(num_runs):
         start = time.time()
-        error_count = validator.validate_csv(csv_path, print_report=False)
+        error_count = guard.validate_csv(csv_path, print_report=False)
         end = time.time()
         times.append(end - start)
     return sum(times) / len(times), error_count

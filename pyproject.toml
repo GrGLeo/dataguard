@@ -19,3 +19,6 @@ dependencies = [
 benchmark = [
     "pandas",
 ]
+
+[tool.maturin]
+python-source = "python"
