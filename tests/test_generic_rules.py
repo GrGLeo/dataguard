@@ -11,12 +11,13 @@ def test_unicity(tmp_path):
     csv_path = tmp_path / "test.csv"
     pd.DataFrame(data).to_csv(csv_path, index=False)
 
-    validator = dataguard.Validator()
+    guard = dataguard.Guard()
     # Using integer_column, but unicity applies to any column type
-    col = dataguard.string_column("unique_col").is_unique().build()
-    validator.commit([col])
+    col = dataguard.string_column("unique_col").is_unique()
+    guard.add_column(col)
+    guard.commit()
 
-    error_count = validator.validate_csv(str(csv_path), print_report=False)
+    error_count = guard.validate_csv(str(csv_path), print_report=False)
     assert error_count == expected_errors
 
 
@@ -28,11 +29,12 @@ def test_unicity_all_unique_with_none(tmp_path):
     csv_path = tmp_path / "test.csv"
     pd.DataFrame(data).to_csv(csv_path, index=False)
 
-    validator = dataguard.Validator()
-    col = dataguard.string_column("unique_col").is_unique().build()
-    validator.commit([col])
+    guard = dataguard.Guard()
+    col = dataguard.string_column("unique_col").is_unique()
+    guard.add_column(col)
+    guard.commit()
 
-    error_count = validator.validate_csv(str(csv_path), print_report=False)
+    error_count = guard.validate_csv(str(csv_path), print_report=False)
     assert error_count == expected_errors
 
 
@@ -43,11 +45,12 @@ def test_unicity_all_unique(tmp_path):
     csv_path = tmp_path / "test.csv"
     pd.DataFrame(data).to_csv(csv_path, index=False)
 
-    validator = dataguard.Validator()
-    col = dataguard.string_column("unique_col").is_unique().build()
-    validator.commit([col])
+    guard = dataguard.Guard()
+    col = dataguard.string_column("unique_col").is_unique()
+    guard.add_column(col)
+    guard.commit()
 
-    error_count = validator.validate_csv(str(csv_path), print_report=False)
+    error_count = guard.validate_csv(str(csv_path), print_report=False)
     assert error_count == expected_errors
 
 
@@ -59,9 +62,10 @@ def test_unicity_all_duplicates(tmp_path):
     csv_path = tmp_path / "test.csv"
     pd.DataFrame(data).to_csv(csv_path, index=False)
 
-    validator = dataguard.Validator()
-    col = dataguard.string_column("unique_col").is_unique().build()
-    validator.commit([col])
+    guard = dataguard.Guard()
+    col = dataguard.string_column("unique_col").is_unique()
+    guard.add_column(col)
+    guard.commit()
 
-    error_count = validator.validate_csv(str(csv_path), print_report=False)
+    error_count = guard.validate_csv(str(csv_path), print_report=False)
     assert error_count == expected_errors

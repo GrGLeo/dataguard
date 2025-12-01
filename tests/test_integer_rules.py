@@ -13,11 +13,12 @@ def test_between_integer(tmp_path):
         csv_path, index=False
     )
 
-    validator = dataguard.Validator()
-    col = dataguard.integer_column("col").between(2, 5).build()
-    validator.commit([col])
+    guard = dataguard.Guard()
+    col = dataguard.integer_column("col").between(2, 5)
+    guard.add_column(col)
+    guard.commit()
 
-    error_count = validator.validate_csv(str(csv_path), print_report=False)
+    error_count = guard.validate_csv(str(csv_path), print_report=False)
     assert error_count == expected_errors
 
 
@@ -30,11 +31,12 @@ def test_min_integer(tmp_path):
         csv_path, index=False
     )
 
-    validator = dataguard.Validator()
-    col = dataguard.integer_column("col").min(3).build()
-    validator.commit([col])
+    guard = dataguard.Guard()
+    col = dataguard.integer_column("col").min(3)
+    guard.add_column(col)
+    guard.commit()
 
-    error_count = validator.validate_csv(str(csv_path), print_report=False)
+    error_count = guard.validate_csv(str(csv_path), print_report=False)
     assert error_count == expected_errors
 
 
@@ -47,11 +49,12 @@ def test_max_integer(tmp_path):
         csv_path, index=False
     )
 
-    validator = dataguard.Validator()
-    col = dataguard.integer_column("col").max(5).build()
-    validator.commit([col])
+    guard = dataguard.Guard()
+    col = dataguard.integer_column("col").max(5)
+    guard.add_column(col)
+    guard.commit()
 
-    error_count = validator.validate_csv(str(csv_path), print_report=False)
+    error_count = guard.validate_csv(str(csv_path), print_report=False)
     assert error_count == expected_errors
 
 
@@ -64,11 +67,12 @@ def test_is_positive_integer(tmp_path):
         csv_path, index=False
     )
 
-    validator = dataguard.Validator()
-    col = dataguard.integer_column("col").is_positive().build()
-    validator.commit([col])
+    guard = dataguard.Guard()
+    col = dataguard.integer_column("col").is_positive()
+    guard.add_column(col)
+    guard.commit()
 
-    error_count = validator.validate_csv(str(csv_path), print_report=False)
+    error_count = guard.validate_csv(str(csv_path), print_report=False)
     assert error_count == expected_errors
 
 
@@ -81,11 +85,12 @@ def test_is_negative_integer(tmp_path):
         csv_path, index=False
     )
 
-    validator = dataguard.Validator()
-    col = dataguard.integer_column("col").is_negative().build()
-    validator.commit([col])
+    guard = dataguard.Guard()
+    col = dataguard.integer_column("col").is_negative()
+    guard.add_column(col)
+    guard.commit()
 
-    error_count = validator.validate_csv(str(csv_path), print_report=False)
+    error_count = guard.validate_csv(str(csv_path), print_report=False)
     assert error_count == expected_errors
 
 
@@ -98,11 +103,12 @@ def test_is_non_positive_integer(tmp_path):
         csv_path, index=False
     )
 
-    validator = dataguard.Validator()
-    col = dataguard.integer_column("col").is_non_positive().build()
-    validator.commit([col])
+    guard = dataguard.Guard()
+    col = dataguard.integer_column("col").is_non_positive()
+    guard.add_column(col)
+    guard.commit()
 
-    error_count = validator.validate_csv(str(csv_path), print_report=False)
+    error_count = guard.validate_csv(str(csv_path), print_report=False)
     assert error_count == expected_errors
 
 
@@ -115,11 +121,12 @@ def test_is_non_negative_integer(tmp_path):
         csv_path, index=False
     )
 
-    validator = dataguard.Validator()
-    col = dataguard.integer_column("col").is_non_negative().build()
-    validator.commit([col])
+    guard = dataguard.Guard()
+    col = dataguard.integer_column("col").is_non_negative()
+    guard.add_column(col)
+    guard.commit()
 
-    error_count = validator.validate_csv(str(csv_path), print_report=False)
+    error_count = guard.validate_csv(str(csv_path), print_report=False)
     assert error_count == expected_errors
 
 
@@ -137,11 +144,12 @@ def test_is_monotonically_increasing_integer(tmp_path):
         csv_path, index=False
     )
 
-    validator = dataguard.Validator()
-    col = dataguard.integer_column("col").is_monotonically_increasing().build()
-    validator.commit([col])
+    guard = dataguard.Guard()
+    col = dataguard.integer_column("col").is_monotonically_increasing()
+    guard.add_column(col)
+    guard.commit()
 
-    error_count = validator.validate_csv(str(csv_path), print_report=False)
+    error_count = guard.validate_csv(str(csv_path), print_report=False)
     assert error_count == expected_errors
 
 
@@ -154,9 +162,10 @@ def test_is_monotonically_decreasing_integer(tmp_path):
         csv_path, index=False
     )
 
-    validator = dataguard.Validator()
-    col = dataguard.integer_column("col").is_monotonically_decreasing().build()
-    validator.commit([col])
+    guard = dataguard.Guard()
+    col = dataguard.integer_column("col").is_monotonically_decreasing()
+    guard.add_column(col)
+    guard.commit()
 
-    error_count = validator.validate_csv(str(csv_path), print_report=False)
+    error_count = guard.validate_csv(str(csv_path), print_report=False)
     assert error_count == expected_errors

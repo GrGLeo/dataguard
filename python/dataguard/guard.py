@@ -36,6 +36,10 @@ class Column:
         self._builder = self._builder.with_min_length(min)
         return self
 
+    def with_max_length(self, max: int) -> "Column":
+        self._builder = self._builder.with_max_length(max)
+        return self
+
     def with_length_between(
         self, min: Optional[int], max: Optional[int]
     ) -> "Column":
@@ -82,6 +86,42 @@ class Column:
 
     def is_unique(self) -> "Column":
         self._builder = self._builder.is_unique()
+        return self
+
+    def is_numeric(self) -> "Column":
+        self._builder = self._builder.is_numeric()
+        return self
+
+    def is_alpha(self) -> "Column":
+        self._builder = self._builder.is_alpha()
+        return self
+
+    def is_alphanumeric(self) -> "Column":
+        self._builder = self._builder.is_alphanumeric()
+        return self
+
+    def is_lowercase(self) -> "Column":
+        self._builder = self._builder.is_lowercase()
+        return self
+
+    def is_uppercase(self) -> "Column":
+        self._builder = self._builder.is_uppercase()
+        return self
+
+    def is_url(self) -> "Column":
+        self._builder = self._builder.is_url()
+        return self
+
+    def is_email(self) -> "Column":
+        self._builder = self._builder.is_email()
+        return self
+
+    def is_uuid(self) -> "Column":
+        self._builder = self._builder.is_uuid()
+        return self
+
+    def is_in(self, values: List[str]) -> "Column":
+        self._builder = self._builder.is_in(values)
         return self
 
     def _build(self) -> RustColumn:
