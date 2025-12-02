@@ -19,6 +19,20 @@ permissions:
   contents: read
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.x
+      - name: Install dependencies
+        run: pip install .[benchmark] pytest
+      - name: Run cargo test
+        run: cargo test
+      - name: Run pytest
+        run: pytest tests/
+
   linux:
     runs-on: ${{ matrix.platform.runner }}
     strategy:
