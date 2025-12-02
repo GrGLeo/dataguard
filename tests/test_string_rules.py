@@ -11,11 +11,12 @@ def test_is_numeric(tmp_path):
     csv_path = tmp_path / "test.csv"
     pd.DataFrame(data).to_csv(csv_path, index=False)
 
-    validator = dataguard.Validator()
-    col = dataguard.string_column("numeric_col").is_numeric().build()
-    validator.commit([col])
+    guard = dataguard.Guard()
+    col = dataguard.string_column("numeric_col").is_numeric()
+    guard.add_column(col)
+    guard.commit()
 
-    error_count = validator.validate_csv(str(csv_path), print_report=False)
+    error_count = guard.validate_csv(str(csv_path), print_report=False)
     assert error_count == expected_errors
 
 
@@ -26,11 +27,12 @@ def test_is_alpha(tmp_path):
     csv_path = tmp_path / "test.csv"
     pd.DataFrame(data).to_csv(csv_path, index=False)
 
-    validator = dataguard.Validator()
-    col = dataguard.string_column("alpha_col").is_alpha().build()
-    validator.commit([col])
+    guard = dataguard.Guard()
+    col = dataguard.string_column("alpha_col").is_alpha()
+    guard.add_column(col)
+    guard.commit()
 
-    error_count = validator.validate_csv(str(csv_path), print_report=False)
+    error_count = guard.validate_csv(str(csv_path), print_report=False)
     assert error_count == expected_errors
 
 
@@ -41,11 +43,12 @@ def test_is_alphanumeric(tmp_path):
     csv_path = tmp_path / "test.csv"
     pd.DataFrame(data).to_csv(csv_path, index=False)
 
-    validator = dataguard.Validator()
-    col = dataguard.string_column("alphanumeric_col").is_alphanumeric().build()
-    validator.commit([col])
+    guard = dataguard.Guard()
+    col = dataguard.string_column("alphanumeric_col").is_alphanumeric()
+    guard.add_column(col)
+    guard.commit()
 
-    error_count = validator.validate_csv(str(csv_path), print_report=False)
+    error_count = guard.validate_csv(str(csv_path), print_report=False)
     assert error_count == expected_errors
 
 
@@ -58,11 +61,12 @@ def test_is_lowercase(tmp_path):
     csv_path = tmp_path / "test.csv"
     pd.DataFrame(data).to_csv(csv_path, index=False)
 
-    validator = dataguard.Validator()
-    col = dataguard.string_column("lowercase_col").is_lowercase().build()
-    validator.commit([col])
+    guard = dataguard.Guard()
+    col = dataguard.string_column("lowercase_col").is_lowercase()
+    guard.add_column(col)
+    guard.commit()
 
-    error_count = validator.validate_csv(str(csv_path), print_report=False)
+    error_count = guard.validate_csv(str(csv_path), print_report=False)
     assert error_count == expected_errors
 
 
@@ -75,11 +79,12 @@ def test_is_uppercase(tmp_path):
     csv_path = tmp_path / "test.csv"
     pd.DataFrame(data).to_csv(csv_path, index=False)
 
-    validator = dataguard.Validator()
-    col = dataguard.string_column("uppercase_col").is_uppercase().build()
-    validator.commit([col])
+    guard = dataguard.Guard()
+    col = dataguard.string_column("uppercase_col").is_uppercase()
+    guard.add_column(col)
+    guard.commit()
 
-    error_count = validator.validate_csv(str(csv_path), print_report=False)
+    error_count = guard.validate_csv(str(csv_path), print_report=False)
     assert error_count == expected_errors
 
 
@@ -90,11 +95,12 @@ def test_with_length_between(tmp_path):
     csv_path = tmp_path / "test.csv"
     pd.DataFrame(data).to_csv(csv_path, index=False)
 
-    validator = dataguard.Validator()
-    col = dataguard.string_column("col").with_length_between(3, 5).build()
-    validator.commit([col])
+    guard = dataguard.Guard()
+    col = dataguard.string_column("col").with_length_between(3, 5)
+    guard.add_column(col)
+    guard.commit()
 
-    error_count = validator.validate_csv(str(csv_path), print_report=False)
+    error_count = guard.validate_csv(str(csv_path), print_report=False)
     assert error_count == expected_errors
 
 
@@ -105,11 +111,12 @@ def test_with_min_length(tmp_path):
     csv_path = tmp_path / "test.csv"
     pd.DataFrame(data).to_csv(csv_path, index=False)
 
-    validator = dataguard.Validator()
-    col = dataguard.string_column("col").with_min_length(3).build()
-    validator.commit([col])
+    guard = dataguard.Guard()
+    col = dataguard.string_column("col").with_min_length(3)
+    guard.add_column(col)
+    guard.commit()
 
-    error_count = validator.validate_csv(str(csv_path), print_report=False)
+    error_count = guard.validate_csv(str(csv_path), print_report=False)
     assert error_count == expected_errors
 
 
@@ -120,11 +127,12 @@ def test_with_max_length(tmp_path):
     csv_path = tmp_path / "test.csv"
     pd.DataFrame(data).to_csv(csv_path, index=False)
 
-    validator = dataguard.Validator()
-    col = dataguard.string_column("col").with_max_length(5).build()
-    validator.commit([col])
+    guard = dataguard.Guard()
+    col = dataguard.string_column("col").with_max_length(5)
+    guard.add_column(col)
+    guard.commit()
 
-    error_count = validator.validate_csv(str(csv_path), print_report=False)
+    error_count = guard.validate_csv(str(csv_path), print_report=False)
     assert error_count == expected_errors
 
 
@@ -135,11 +143,12 @@ def test_with_regex(tmp_path):
     csv_path = tmp_path / "test.csv"
     pd.DataFrame(data).to_csv(csv_path, index=False)
 
-    validator = dataguard.Validator()
-    col = dataguard.string_column("col").with_regex(r"^[A-Z]{3}-\d{3}$", None).build()
-    validator.commit([col])
+    guard = dataguard.Guard()
+    col = dataguard.string_column("col").with_regex(r"^[A-Z]{3}-\d{3}$", None)
+    guard.add_column(col)
+    guard.commit()
 
-    error_count = validator.validate_csv(str(csv_path), print_report=False)
+    error_count = guard.validate_csv(str(csv_path), print_report=False)
     assert error_count == expected_errors
 
 
@@ -163,11 +172,12 @@ def test_is_url(tmp_path):
     csv_path = tmp_path / "test.csv"
     pd.DataFrame(data).to_csv(csv_path, index=False)
 
-    validator = dataguard.Validator()
-    col = dataguard.string_column("url_col").is_url().build()
-    validator.commit([col])
+    guard = dataguard.Guard()
+    col = dataguard.string_column("url_col").is_url()
+    guard.add_column(col)
+    guard.commit()
 
-    error_count = validator.validate_csv(str(csv_path), print_report=False)
+    error_count = guard.validate_csv(str(csv_path), print_report=False)
     assert error_count == expected_errors
 
 
@@ -192,11 +202,12 @@ def test_is_email(tmp_path):
     csv_path = tmp_path / "test.csv"
     pd.DataFrame(data).to_csv(csv_path, index=False)
 
-    validator = dataguard.Validator()
-    col = dataguard.string_column("email_col").is_email().build()
-    validator.commit([col])
+    guard = dataguard.Guard()
+    col = dataguard.string_column("email_col").is_email()
+    guard.add_column(col)
+    guard.commit()
 
-    error_count = validator.validate_csv(str(csv_path), print_report=False)
+    error_count = guard.validate_csv(str(csv_path), print_report=False)
     assert error_count == expected_errors
 
 
@@ -220,11 +231,12 @@ def test_is_uuid(tmp_path):
     csv_path = tmp_path / "test.csv"
     pd.DataFrame(data).to_csv(csv_path, index=False)
 
-    validator = dataguard.Validator()
-    col = dataguard.string_column("uuid_col").is_uuid().build()
-    validator.commit([col])
+    guard = dataguard.Guard()
+    col = dataguard.string_column("uuid_col").is_uuid()
+    guard.add_column(col)
+    guard.commit()
 
-    error_count = validator.validate_csv(str(csv_path), print_report=False)
+    error_count = guard.validate_csv(str(csv_path), print_report=False)
     assert error_count == expected_errors
 
 
@@ -247,9 +259,10 @@ def test_is_in_check(tmp_path):
     csv_path = tmp_path / "test.csv"
     pd.DataFrame(data).to_csv(csv_path, index=False)
 
-    validator = dataguard.Validator()
-    col = dataguard.string_column("fruit_col").is_in(allowed_values).build()
-    validator.commit([col])
+    guard = dataguard.Guard()
+    col = dataguard.string_column("fruit_col").is_in(allowed_values)
+    guard.add_column(col)
+    guard.commit()
 
-    error_count = validator.validate_csv(str(csv_path), print_report=False)
+    error_count = guard.validate_csv(str(csv_path), print_report=False)
     assert error_count == expected_errors
