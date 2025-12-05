@@ -1,0 +1,44 @@
+[package]
+name = "dataguard"
+version = "0.1.0"
+edition = "2024"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "dataguard"
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+pyo3 = { version = "0.27.0", optional = true }
+arrow = "57.0.0"
+arrow-string = "57.0.0"
+thiserror = "2.0.17"
+rayon = "1.11.0"
+regex = "1.12.2"
+prettytable-rs = "0.10"
+dashmap = "5.5"
+once_cell = "1.21.3"
+arrow-ord = "57.1.0"
+arrow-array = "57.1.0"
+num-traits = "0.2"
+xxhash-rust = { version = "0.8.15", features = ["xxh3"] }
+
+[features]
+default = ["python"]
+python = ["pyo3"]
+
+[dev-dependencies]
+tempfile = "3.0"
+criterion = "0.7.0"
+
+[[bench]]
+name = "string_length_check_bench"
+harness = false
+
+[[bench]]
+name = "monotonicaly_bench"
+harness = false
+
+
+[lints.clippy]
+too_many_arguments = "allow"
