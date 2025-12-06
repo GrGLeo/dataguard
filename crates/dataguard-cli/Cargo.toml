@@ -1,0 +1,13 @@
+[package]
+name = "dataguard-cli"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+dataguard-core = { path = "../dataguard-core" }
+clap = { version = "4.5.53", features = ["derive"] }
+serde = { version = "1.0.228", features = ["derive"] }
+toml = "0.9.8"
+
+[lints]
+workspace = true

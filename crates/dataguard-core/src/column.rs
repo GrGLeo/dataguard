@@ -72,9 +72,8 @@ impl StringColumnBuilder {
     }
 
     /// Add uniqueness constraint
-    pub fn is_unique(mut self) -> Self {
+    pub fn is_unique(&mut self) {
         self.rules.push(ColumnRule::Unicity);
-        self
     }
 
     /// Set length constraints (both min and max)
@@ -84,12 +83,11 @@ impl StringColumnBuilder {
     }
 
     /// Set minimum length
-    pub fn with_min_length(mut self, min: usize) -> Self {
+    pub fn with_min_length(&mut self, min: usize) {
         self.rules.push(ColumnRule::StringLength {
             min: Some(min),
             max: None,
         });
-        self
     }
 
     /// Set maximum length

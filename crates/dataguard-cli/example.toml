@@ -1,0 +1,25 @@
+[[table]]
+name = "products_small"
+path = "benchmark/products_small.csv"
+
+[[table.column]]
+name = "Id"
+datatype = "integer"
+
+  [[table.column.rule]]
+  name = "not_null"
+
+  [[table.column.rule]]
+  name = "min"
+  min = 5
+
+[[table.column]]
+name = "Name"
+datatype = "string"
+
+  [[table.column.rule]]
+  name = "is_unique"
+
+  [[table.column.rule]]
+  name = "min"
+  min = 5
