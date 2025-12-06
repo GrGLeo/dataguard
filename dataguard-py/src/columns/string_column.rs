@@ -1,5 +1,5 @@
 use super::Column;
-use crate::{errors::RuleError, rules::core::Rule};
+use crate::rules::core::Rule;
 use pyo3::prelude::*;
 use regex::Regex;
 
@@ -71,8 +71,12 @@ impl StringColumnBuilder {
 
     /// Add a rule to match a string against a regex pattern.
     pub fn with_regex(&mut self, pattern: &str, flag: Option<&str>) -> PyResult<Self> {
-        let _ = Regex::new(pattern).map_err(|e| {
-            RuleError::ValidationError(format!("Invalid regex pattern: '{}': '{}'", pattern, e))
+        // Validate regex at build time
+        Regex::new(pattern).map_err(|e| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "Invalid regex pattern '{}': {}",
+                pattern, e
+            ))
         })?;
         let flag = flag.map(|f| f.to_string());
         self.rules.push(Rule::StringRegex {

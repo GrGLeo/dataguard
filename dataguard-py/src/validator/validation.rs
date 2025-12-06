@@ -1,156 +1,53 @@
 use crate::columns;
-use crate::reader::read_csv_parallel;
-use crate::report::ValidationReport;
-use crate::rules::core::Rule as RuleEnum;
-use crate::rules::generic_rules::{TypeCheck, UnicityCheck};
-use crate::rules::numeric_rules::{Monotonicity, NumericRule, Range};
-use crate::rules::string_rules::{IsInCheck, RegexMatch, StringLengthCheck, StringRule};
-use crate::utils::hasher::Xxh3Builder;
-use arrow::array::{Array, PrimitiveArray, StringArray};
-use arrow::datatypes::{DataType, Float64Type, Int64Type};
-use arrow::record_batch::RecordBatch;
-use arrow_array::ArrowPrimitiveType;
+use crate::rules::core::Rule as PyRule;
+use dataguard_core::{
+    Column as CoreColumn, ColumnRule as CoreRule, ColumnType as CoreType, RuleError,
+    Validator as CoreValidator,
+};
 use pyo3::{exceptions::PyIOError, prelude::*};
-use rayon::prelude::*;
 use std::collections::HashMap;
-use std::collections::HashSet;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::Instant;
 
-use super::executable_column::ExecutableColumn;
-
-#[cfg(feature = "python")]
+/// Python-facing Validator that wraps the core Rust validator.
+/// This is a thin PyO3 bridge that converts Python types to core types.
 #[pyclass(name = "Validator")]
 pub struct Validator {
-    executable_columns: Vec<ExecutableColumn>,
+    core_validator: CoreValidator,
 }
 
-#[cfg(feature = "python")]
 impl Default for Validator {
     fn default() -> Self {
         Self::new()
     }
 }
 
-#[cfg(feature = "python")]
 #[pymethods]
 impl Validator {
     /// Create a new Validator instance.
     #[new]
     pub fn new() -> Self {
         Self {
-            executable_columns: Vec::new(),
+            core_validator: CoreValidator::new(),
         }
     }
 
     /// Compiles and commits a list of column configurations to the validator.
-    /// This method transforms the simple `Column` data objects into executable
-    /// validation rules.
+    /// This method transforms the Python Column DTOs into core Column types
+    /// and delegates to the core validator.
     ///
     /// Args:
     ///     columns (list[Column]): A list of configured Column objects from Python.
     pub fn commit(&mut self, columns: Vec<columns::Column>) -> PyResult<()> {
-        // We use filter_map to iterate, transform, and filter out any unhandled types in one pass.
-        self.executable_columns = columns
+        // Convert PyO3 columns to core columns
+        let core_columns: Vec<CoreColumn> = columns
             .into_iter()
-            .filter_map(|col| {
-                // The match statement is now an expression that returns a value.
-                match col.column_type.as_str() {
-                    "string" => {
-                        let executable_rules: Vec<Box<dyn StringRule>> = col
-                            .rules
-                            .into_iter()
-                            .map(|r| -> Box<dyn StringRule> {
-                                // Match on the RuleEnum from Python
-                                match r {
-                                    RuleEnum::StringLength { min, max } => {
-                                        Box::new(StringLengthCheck::new(min, max))
-                                    }
-                                    RuleEnum::StringRegex { pattern, flag } => {
-                                        Box::new(RegexMatch::new(pattern, flag))
-                                    }
-                                    RuleEnum::StringMembers { members } => {
-                                        Box::new(IsInCheck::new(members))
-                                    }
-                                    _ => {
-                                        todo!()
-                                    }
-                                }
-                            })
-                            .collect();
+            .map(|py_col| self.convert_column(py_col))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| PyIOError::new_err(e.to_string()))?;
 
-                        // Return the constructed ExecutableColumn variant, wrapped in Some
-                        // For unicity, the option should always be a Unicity RuleEnum so we do not
-                        // match on it
-                        Some(ExecutableColumn::String {
-                            name: col.name.clone(),
-                            rules: executable_rules,
-                            type_check: TypeCheck::new(col.name, DataType::Utf8),
-                            unicity: col.unicity.map(|_r| UnicityCheck {}),
-                        })
-                    }
-                    "integer" => {
-                        let executable_rules: Vec<Box<dyn NumericRule<Int64Type>>> = col
-                            .rules
-                            .into_iter()
-                            .map(|r| -> Box<dyn NumericRule<Int64Type>> {
-                                // Match on the RuleEnum from Python
-                                match r {
-                                    RuleEnum::NumericRange { min, max } => {
-                                        Box::new(Range::<i64>::new(
-                                            min.map(|v| v as i64),
-                                            max.map(|v| v as i64),
-                                        ))
-                                    }
-                                    RuleEnum::Monotonicity { asc } => {
-                                        Box::new(Monotonicity::<i64>::new(asc))
-                                    }
-                                    _ => {
-                                        todo!()
-                                    }
-                                }
-                            })
-                            .collect();
-
-                        // Return the constructed ExecutableColumn variant, wrapped in Some
-                        Some(ExecutableColumn::Integer {
-                            name: col.name.clone(),
-                            rules: executable_rules,
-                            type_check: TypeCheck::new(col.name, DataType::Int64),
-                        })
-                    }
-                    "float" => {
-                        let executable_rules: Vec<Box<dyn NumericRule<Float64Type>>> = col
-                            .rules
-                            .into_iter()
-                            .map(|r| -> Box<dyn NumericRule<Float64Type>> {
-                                match r {
-                                    RuleEnum::NumericRange { min, max } => {
-                                        Box::new(Range::<f64>::new(min, max))
-                                    }
-                                    RuleEnum::Monotonicity { asc } => {
-                                        Box::new(Monotonicity::<f64>::new(asc))
-                                    }
-                                    _ => {
-                                        todo!()
-                                    }
-                                }
-                            })
-                            .collect();
-
-                        Some(ExecutableColumn::Float {
-                            name: col.name.clone(),
-                            rules: executable_rules,
-                            type_check: TypeCheck::new(col.name, DataType::Float64),
-                        })
-                    }
-                    // Add other column types here in the future
-                    _ => None, // Ignore unknown column types
-                }
-            })
-            .collect();
-        Ok(())
+        // Delegate to core validator
+        self.core_validator
+            .commit(core_columns)
+            .map_err(|e| PyIOError::new_err(e.to_string()))
     }
 
     /// Validate a CSV file against the committed rules.
@@ -162,69 +59,10 @@ impl Validator {
     /// Returns:
     ///     int: The number of validation errors found.
     pub fn validate_csv(&mut self, path: &str, print_report: bool) -> PyResult<usize> {
-        let start = Instant::now();
-        let batches = read_csv_parallel(path).map_err(|e| PyIOError::new_err(e.to_string()))?;
-        let read_duration = start.elapsed();
-        eprintln!("CSV reading took {:?}", read_duration);
-        let validation_start = Instant::now();
-
-        let error_count = AtomicUsize::new(0);
-        let report = ValidationReport::new();
-
-        let total_rows: usize = batches.iter().map(|batch| batch.num_rows()).sum();
-        report.set_total_rows(total_rows);
-
-        for executable_col in &self.executable_columns {
-            match executable_col {
-                ExecutableColumn::String {
-                    name,
-                    rules,
-                    type_check,
-                    unicity,
-                } => self._validate_string_column(
-                    &batches,
-                    name,
-                    rules,
-                    type_check,
-                    unicity,
-                    &report,
-                    &error_count,
-                    total_rows,
-                ),
-                ExecutableColumn::Integer {
-                    name,
-                    rules,
-                    type_check,
-                } => self._validate_numeric_column::<Int64Type>(
-                    &batches,
-                    name,
-                    rules,
-                    type_check,
-                    &report,
-                    &error_count,
-                ),
-                ExecutableColumn::Float {
-                    name,
-                    rules,
-                    type_check,
-                } => self._validate_numeric_column::<Float64Type>(
-                    &batches,
-                    name,
-                    rules,
-                    type_check,
-                    &report,
-                    &error_count,
-                ),
-            }
-        }
-        let validation_duration = validation_start.elapsed();
-        eprintln!("Validation took {:?}", validation_duration);
-
-        if print_report {
-            println!("{}", report.generate_report());
-        }
-
-        Ok(error_count.load(Ordering::Relaxed))
+        // Direct delegation to core validator
+        self.core_validator
+            .validate_csv(path, print_report)
+            .map_err(|e| PyIOError::new_err(e.to_string()))
     }
 
     /// Get a summary of the configured columns and their rules.
@@ -232,162 +70,150 @@ impl Validator {
     /// Returns:
     ///     dict: A dictionary of the configured columns.
     pub fn get_rules(&self) -> PyResult<HashMap<String, Vec<String>>> {
-        let mut result = HashMap::new();
-        for column in &self.executable_columns {
-            // KEY CHANGE: Match to access the data inside the enum variant
-            match column {
-                ExecutableColumn::String { name, rules, .. } => {
-                    let mut rule_names = vec!["TypeCheck".to_string()];
-                    rule_names.extend(rules.iter().map(|r| r.name().to_string()));
-                    result.insert(name.clone(), rule_names);
-                }
-                ExecutableColumn::Integer { name, rules, .. } => {
-                    let mut rule_names = vec!["TypeCheck".to_string()];
-                    rule_names.extend(rules.iter().map(|r| r.name().to_string()));
-                    result.insert(name.clone(), rule_names);
-                }
-                ExecutableColumn::Float { name, rules, .. } => {
-                    let mut rule_names = vec!["TypeCheck".to_string()];
-                    rule_names.extend(rules.iter().map(|r| r.name().to_string()));
-                    result.insert(name.clone(), rule_names);
-                }
-            }
-        }
-        Ok(result)
+        Ok(self.core_validator.get_rules())
     }
 }
 
 impl Validator {
-    fn _validate_string_column(
-        &self,
-        batches: &[Arc<RecordBatch>],
-        name: &str,
-        rules: &[Box<dyn StringRule>],
-        type_check: &TypeCheck,
-        unicity: &Option<UnicityCheck>,
-        report: &ValidationReport,
-        error_count: &AtomicUsize,
-        total_rows: usize,
-    ) {
-        if let Some(uni_rule) = unicity {
-            let global_hash = batches
-                .par_iter()
-                .map(|batch| {
-                    let mut local_hash = HashSet::with_hasher(Xxh3Builder);
-                    if let Ok(col_index) = batch.schema().index_of(name) {
-                        let array = batch.column(col_index);
-                        match type_check.validate(array.as_ref()) {
-                            Ok((errors, casted_array)) => {
-                                error_count.fetch_add(errors, Ordering::Relaxed);
-                                report.record_result(name, type_check.name(), errors);
+    /// Private helper to convert PyO3 Column DTO → Core Column.
+    fn convert_column(&self, py_col: columns::Column) -> Result<CoreColumn, RuleError> {
+        // Convert column type string to CoreType enum
+        let column_type = match py_col.column_type.as_str() {
+            "string" => CoreType::String,
+            "integer" => CoreType::Integer,
+            "float" => CoreType::Float,
+            _ => {
+                return Err(RuleError::ValidationError(format!(
+                    "Unknown column type: '{}'",
+                    py_col.column_type
+                )))
+            }
+        };
 
-                                if let Some(string_array) =
-                                    casted_array.as_any().downcast_ref::<StringArray>()
-                                {
-                                    local_hash = uni_rule.validate(string_array);
-                                    for rule in rules {
-                                        if let Ok(count) =
-                                            rule.validate(string_array, name.to_string())
-                                        {
-                                            error_count.fetch_add(count, Ordering::Relaxed);
-                                            report.record_result(name, rule.name(), count);
-                                        }
-                                    }
-                                    local_hash
-                                } else {
-                                    local_hash
-                                }
-                            }
-                            Err(_) => {
-                                let count = array.len();
-                                error_count.fetch_add(count, Ordering::Relaxed);
-                                report.record_result(name, type_check.name(), count);
-                                local_hash
-                            }
-                        }
-                    } else {
-                        local_hash
-                    }
-                })
-                .reduce(
-                    || HashSet::with_hasher(Xxh3Builder),
-                    |mut set_a, set_b| {
-                        set_a.extend(set_b.iter());
-                        set_a
-                    },
-                );
-            let duplicates = total_rows.saturating_sub(global_hash.len());
-            error_count.fetch_add(duplicates, Ordering::Relaxed);
-            report.record_result(name, uni_rule.name(), duplicates);
-        } else {
-            batches.par_iter().for_each(|batch| {
-                if let Ok(col_index) = batch.schema().index_of(name) {
-                    let array = batch.column(col_index);
-                    match type_check.validate(array.as_ref()) {
-                        Ok((errors, casted_array)) => {
-                            error_count.fetch_add(errors, Ordering::Relaxed);
-                            report.record_result(name, type_check.name(), errors);
-
-                            if let Some(string_array) =
-                                casted_array.as_any().downcast_ref::<StringArray>()
-                            {
-                                for rule in rules {
-                                    if let Ok(count) = rule.validate(string_array, name.to_string())
-                                    {
-                                        error_count.fetch_add(count, Ordering::Relaxed);
-                                        report.record_result(name, rule.name(), count);
-                                    }
-                                }
-                            }
-                        }
-                        Err(_) => {
-                            let count = array.len();
-                            error_count.fetch_add(count, Ordering::Relaxed);
-                            report.record_result(name, type_check.name(), count);
-                        }
-                    }
-                }
-            });
+        // Convert PyO3 rules to core rules
+        let mut rules = Vec::new();
+        for py_rule in py_col.rules {
+            rules.push(self.convert_rule(py_rule)?);
         }
+
+        // Add unicity rule if present
+        if py_col.unicity.is_some() {
+            rules.push(CoreRule::Unicity);
+        }
+
+        Ok(CoreColumn::new(py_col.name, column_type, rules))
     }
 
-    fn _validate_numeric_column<T>(
-        &self,
-        batches: &[Arc<RecordBatch>],
-        name: &str,
-        rules: &[Box<dyn NumericRule<T>>],
-        type_check: &TypeCheck,
-        report: &ValidationReport,
-        error_count: &AtomicUsize,
-    ) where
-        T: ArrowPrimitiveType,
-    {
-        batches.par_iter().for_each(|batch| {
-            if let Ok(col_index) = batch.schema().index_of(name) {
-                let array = batch.column(col_index);
-                match type_check.validate(array.as_ref()) {
-                    Ok((errors, casted_array)) => {
-                        error_count.fetch_add(errors, Ordering::Relaxed);
-                        report.record_result(name, type_check.name(), errors);
-
-                        if let Some(concrete_array) =
-                            casted_array.as_any().downcast_ref::<PrimitiveArray<T>>()
-                        {
-                            for rule in rules {
-                                if let Ok(count) = rule.validate(concrete_array, name.to_string()) {
-                                    error_count.fetch_add(count, Ordering::Relaxed);
-                                    report.record_result(name, rule.name(), count);
-                                }
-                            }
-                        }
-                    }
-                    Err(_) => {
-                        let count = array.len();
-                        error_count.fetch_add(count, Ordering::Relaxed);
-                        report.record_result(name, type_check.name(), count);
-                    }
-                }
+    /// Private helper to convert PyO3 Rule enum → Core ColumnRule enum.
+    fn convert_rule(&self, py_rule: PyRule) -> Result<CoreRule, RuleError> {
+        match py_rule {
+            // String rules
+            PyRule::StringLength { min, max } => Ok(CoreRule::StringLength { min, max }),
+            PyRule::StringRegex { pattern, flag } => {
+                Ok(CoreRule::StringRegex {
+                    pattern,
+                    flags: flag,
+                })
             }
-        });
+            PyRule::StringMembers { members } => Ok(CoreRule::StringMembers { members }),
+
+            // Numeric rules
+            PyRule::NumericRange { min, max } => Ok(CoreRule::NumericRange { min, max }),
+            PyRule::Monotonicity { asc } => Ok(CoreRule::Monotonicity { ascending: asc }),
+
+            // Generic rules (handled separately in convert_column)
+            PyRule::Unicity {} => {
+                // This shouldn't be in the rules list, it should be in the unicity field
+                // But handle it gracefully
+                Ok(CoreRule::Unicity)
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::rules::core::Rule as PyRule;
+
+    #[test]
+    fn test_convert_string_column() {
+        let validator = Validator::new();
+        let py_col = columns::Column::new(
+            "test".to_string(),
+            "string".to_string(),
+            vec![
+                PyRule::StringLength {
+                    min: Some(1),
+                    max: Some(10),
+                },
+                PyRule::StringRegex {
+                    pattern: "^test$".to_string(),
+                    flag: None,
+                },
+            ],
+            None,
+        );
+
+        let core_col = validator.convert_column(py_col).unwrap();
+        assert_eq!(core_col.name, "test");
+        assert_eq!(core_col.column_type, CoreType::String);
+        assert_eq!(core_col.rules.len(), 2);
+    }
+
+    #[test]
+    fn test_convert_integer_column() {
+        let validator = Validator::new();
+        let py_col = columns::Column::new(
+            "age".to_string(),
+            "integer".to_string(),
+            vec![PyRule::NumericRange {
+                min: Some(0.0),
+                max: Some(120.0),
+            }],
+            None,
+        );
+
+        let core_col = validator.convert_column(py_col).unwrap();
+        assert_eq!(core_col.name, "age");
+        assert_eq!(core_col.column_type, CoreType::Integer);
+        assert_eq!(core_col.rules.len(), 1);
+    }
+
+    #[test]
+    fn test_convert_float_column() {
+        let validator = Validator::new();
+        let py_col = columns::Column::new(
+            "price".to_string(),
+            "float".to_string(),
+            vec![
+                PyRule::NumericRange {
+                    min: Some(0.0),
+                    max: None,
+                },
+                PyRule::Monotonicity { asc: true },
+            ],
+            None,
+        );
+
+        let core_col = validator.convert_column(py_col).unwrap();
+        assert_eq!(core_col.name, "price");
+        assert_eq!(core_col.column_type, CoreType::Float);
+        assert_eq!(core_col.rules.len(), 2);
+    }
+
+    #[test]
+    fn test_convert_column_with_unicity() {
+        let validator = Validator::new();
+        let py_col = columns::Column::new(
+            "id".to_string(),
+            "string".to_string(),
+            vec![],
+            Some(PyRule::Unicity {}),
+        );
+
+        let core_col = validator.convert_column(py_col).unwrap();
+        assert_eq!(core_col.name, "id");
+        assert_eq!(core_col.rules.len(), 1); // Unicity should be added to rules
     }
 }
