@@ -41,15 +41,15 @@ where
         for value in array.iter() {
             match value {
                 Some(i) => {
-                    if let Some(min) = self.min
-                        && i < min
-                    {
-                        counter += 1
+                    if let Some(min) = self.min {
+                        if i < min {
+                            counter += 1
+                        }
                     }
-                    if let Some(max) = self.max
-                        && i > max
-                    {
-                        counter += 1
+                    if let Some(max) = self.max {
+                        if i > max {
+                            counter += 1
+                        }
                     }
                 }
                 None => counter += 1,

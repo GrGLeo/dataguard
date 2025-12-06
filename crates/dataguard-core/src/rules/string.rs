@@ -52,15 +52,15 @@ impl StringRule for StringLengthCheck {
                 for value in len_array.iter() {
                     match value {
                         Some(i) => {
-                            if let Some(min) = self.min
-                                && i < min as i32
-                            {
-                                counter += 1
+                            if let Some(min) = self.min {
+                                if i < min as i32 {
+                                    counter += 1
+                                }
                             }
-                            if let Some(max) = self.max
-                                && i > max as i32
-                            {
-                                counter += 1
+                            if let Some(max) = self.max {
+                                if i > max as i32 {
+                                    counter += 1
+                                }
                             }
                         }
                         None => counter += 1,

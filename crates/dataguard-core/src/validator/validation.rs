@@ -1,172 +1,53 @@
-use crate::columns;
+use crate::column::{Column, ColumnRule, ColumnType};
+use crate::errors::RuleError;
 use crate::reader::read_csv_parallel;
 use crate::report::ValidationReport;
-use crate::rules::core::Rule as RuleEnum;
-use crate::rules::generic_rules::{TypeCheck, UnicityCheck};
-use crate::rules::numeric_rules::{Monotonicity, NumericRule, Range};
-use crate::rules::string_rules::{IsInCheck, RegexMatch, StringLengthCheck, StringRule};
+use crate::rules::generic::{TypeCheck, UnicityCheck};
+use crate::rules::numeric::{Monotonicity, NumericRule, Range};
+use crate::rules::string::{IsInCheck, RegexMatch, StringLengthCheck, StringRule};
 use crate::utils::hasher::Xxh3Builder;
 use arrow::array::{Array, PrimitiveArray, StringArray};
 use arrow::datatypes::{DataType, Float64Type, Int64Type};
 use arrow::record_batch::RecordBatch;
 use arrow_array::ArrowPrimitiveType;
-use pyo3::{exceptions::PyIOError, prelude::*};
 use rayon::prelude::*;
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::sync::Arc;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::Instant;
+use std::sync::Arc;
 
 use super::executable_column::ExecutableColumn;
 
-#[cfg(feature = "python")]
-#[pyclass(name = "Validator")]
+/// Core validator (no PyO3 dependencies)
 pub struct Validator {
     executable_columns: Vec<ExecutableColumn>,
 }
 
-#[cfg(feature = "python")]
 impl Default for Validator {
     fn default() -> Self {
         Self::new()
     }
 }
 
-#[cfg(feature = "python")]
-#[pymethods]
 impl Validator {
-    /// Create a new Validator instance.
-    #[new]
+    /// Create a new Validator instance
     pub fn new() -> Self {
         Self {
             executable_columns: Vec::new(),
         }
     }
 
-    /// Compiles and commits a list of column configurations to the validator.
-    /// This method transforms the simple `Column` data objects into executable
-    /// validation rules.
-    ///
-    /// Args:
-    ///     columns (list[Column]): A list of configured Column objects from Python.
-    pub fn commit(&mut self, columns: Vec<columns::Column>) -> PyResult<()> {
-        // We use filter_map to iterate, transform, and filter out any unhandled types in one pass.
+    /// Commit column configurations and compile them into executable rules
+    pub fn commit(&mut self, columns: Vec<Column>) -> Result<(), RuleError> {
         self.executable_columns = columns
             .into_iter()
-            .filter_map(|col| {
-                // The match statement is now an expression that returns a value.
-                match col.column_type.as_str() {
-                    "string" => {
-                        let executable_rules: Vec<Box<dyn StringRule>> = col
-                            .rules
-                            .into_iter()
-                            .map(|r| -> Box<dyn StringRule> {
-                                // Match on the RuleEnum from Python
-                                match r {
-                                    RuleEnum::StringLength { min, max } => {
-                                        Box::new(StringLengthCheck::new(min, max))
-                                    }
-                                    RuleEnum::StringRegex { pattern, flag } => {
-                                        Box::new(RegexMatch::new(pattern, flag))
-                                    }
-                                    RuleEnum::StringMembers { members } => {
-                                        Box::new(IsInCheck::new(members))
-                                    }
-                                    _ => {
-                                        todo!()
-                                    }
-                                }
-                            })
-                            .collect();
-
-                        // Return the constructed ExecutableColumn variant, wrapped in Some
-                        // For unicity, the option should always be a Unicity RuleEnum so we do not
-                        // match on it
-                        Some(ExecutableColumn::String {
-                            name: col.name.clone(),
-                            rules: executable_rules,
-                            type_check: TypeCheck::new(col.name, DataType::Utf8),
-                            unicity: col.unicity.map(|_r| UnicityCheck {}),
-                        })
-                    }
-                    "integer" => {
-                        let executable_rules: Vec<Box<dyn NumericRule<Int64Type>>> = col
-                            .rules
-                            .into_iter()
-                            .map(|r| -> Box<dyn NumericRule<Int64Type>> {
-                                // Match on the RuleEnum from Python
-                                match r {
-                                    RuleEnum::NumericRange { min, max } => {
-                                        Box::new(Range::<i64>::new(
-                                            min.map(|v| v as i64),
-                                            max.map(|v| v as i64),
-                                        ))
-                                    }
-                                    RuleEnum::Monotonicity { asc } => {
-                                        Box::new(Monotonicity::<i64>::new(asc))
-                                    }
-                                    _ => {
-                                        todo!()
-                                    }
-                                }
-                            })
-                            .collect();
-
-                        // Return the constructed ExecutableColumn variant, wrapped in Some
-                        Some(ExecutableColumn::Integer {
-                            name: col.name.clone(),
-                            rules: executable_rules,
-                            type_check: TypeCheck::new(col.name, DataType::Int64),
-                        })
-                    }
-                    "float" => {
-                        let executable_rules: Vec<Box<dyn NumericRule<Float64Type>>> = col
-                            .rules
-                            .into_iter()
-                            .map(|r| -> Box<dyn NumericRule<Float64Type>> {
-                                match r {
-                                    RuleEnum::NumericRange { min, max } => {
-                                        Box::new(Range::<f64>::new(min, max))
-                                    }
-                                    RuleEnum::Monotonicity { asc } => {
-                                        Box::new(Monotonicity::<f64>::new(asc))
-                                    }
-                                    _ => {
-                                        todo!()
-                                    }
-                                }
-                            })
-                            .collect();
-
-                        Some(ExecutableColumn::Float {
-                            name: col.name.clone(),
-                            rules: executable_rules,
-                            type_check: TypeCheck::new(col.name, DataType::Float64),
-                        })
-                    }
-                    // Add other column types here in the future
-                    _ => None, // Ignore unknown column types
-                }
-            })
-            .collect();
+            .map(|col| self.compile_column(col))
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(())
     }
 
-    /// Validate a CSV file against the committed rules.
-    ///
-    /// Args:
-    ///     path (str): Path to the CSV file to validate.
-    ///     print_report (bool): Whether to print the validation report.
-    ///
-    /// Returns:
-    ///     int: The number of validation errors found.
-    pub fn validate_csv(&mut self, path: &str, print_report: bool) -> PyResult<usize> {
-        let start = Instant::now();
-        let batches = read_csv_parallel(path).map_err(|e| PyIOError::new_err(e.to_string()))?;
-        let read_duration = start.elapsed();
-        eprintln!("CSV reading took {:?}", read_duration);
-        let validation_start = Instant::now();
+    /// Validate a CSV file against the committed rules
+    pub fn validate_csv(&mut self, path: &str, print_report: bool) -> Result<usize, RuleError> {
+        let batches = read_csv_parallel(path)?;
 
         let error_count = AtomicUsize::new(0);
         let report = ValidationReport::new();
@@ -181,7 +62,7 @@ impl Validator {
                     rules,
                     type_check,
                     unicity,
-                } => self._validate_string_column(
+                } => self.validate_string_column(
                     &batches,
                     name,
                     rules,
@@ -195,7 +76,7 @@ impl Validator {
                     name,
                     rules,
                     type_check,
-                } => self._validate_numeric_column::<Int64Type>(
+                } => self.validate_numeric_column::<Int64Type>(
                     &batches,
                     name,
                     rules,
@@ -207,7 +88,7 @@ impl Validator {
                     name,
                     rules,
                     type_check,
-                } => self._validate_numeric_column::<Float64Type>(
+                } => self.validate_numeric_column::<Float64Type>(
                     &batches,
                     name,
                     rules,
@@ -217,8 +98,6 @@ impl Validator {
                 ),
             }
         }
-        let validation_duration = validation_start.elapsed();
-        eprintln!("Validation took {:?}", validation_duration);
 
         if print_report {
             println!("{}", report.generate_report());
@@ -227,14 +106,10 @@ impl Validator {
         Ok(error_count.load(Ordering::Relaxed))
     }
 
-    /// Get a summary of the configured columns and their rules.
-    ///
-    /// Returns:
-    ///     dict: A dictionary of the configured columns.
-    pub fn get_rules(&self) -> PyResult<HashMap<String, Vec<String>>> {
+    /// Get a summary of configured rules
+    pub fn get_rules(&self) -> HashMap<String, Vec<String>> {
         let mut result = HashMap::new();
         for column in &self.executable_columns {
-            // KEY CHANGE: Match to access the data inside the enum variant
             match column {
                 ExecutableColumn::String { name, rules, .. } => {
                     let mut rule_names = vec!["TypeCheck".to_string()];
@@ -253,12 +128,106 @@ impl Validator {
                 }
             }
         }
-        Ok(result)
+        result
     }
-}
 
-impl Validator {
-    fn _validate_string_column(
+    // Private helper methods
+
+    fn compile_column(&self, col: Column) -> Result<ExecutableColumn, RuleError> {
+        match col.column_type {
+            ColumnType::String => {
+                let mut executable_rules: Vec<Box<dyn StringRule>> = Vec::new();
+                let mut unicity = None;
+
+                for rule in col.rules {
+                    match rule {
+                        ColumnRule::StringLength { min, max } => {
+                            executable_rules.push(Box::new(StringLengthCheck::new(min, max)));
+                        }
+                        ColumnRule::StringRegex { pattern, flags } => {
+                            executable_rules.push(Box::new(RegexMatch::new(pattern, flags)));
+                        }
+                        ColumnRule::StringMembers { members } => {
+                            executable_rules.push(Box::new(IsInCheck::new(members)));
+                        }
+                        ColumnRule::Unicity => {
+                            unicity = Some(UnicityCheck::new());
+                        }
+                        _ => {
+                            return Err(RuleError::ValidationError(format!(
+                                "Invalid rule {:?} for String column '{}'",
+                                rule, col.name
+                            )))
+                        }
+                    }
+                }
+
+                Ok(ExecutableColumn::String {
+                    name: col.name.clone(),
+                    rules: executable_rules,
+                    type_check: TypeCheck::new(col.name, DataType::Utf8),
+                    unicity,
+                })
+            }
+            ColumnType::Integer => {
+                let mut executable_rules: Vec<Box<dyn NumericRule<Int64Type>>> = Vec::new();
+
+                for rule in col.rules {
+                    match rule {
+                        ColumnRule::NumericRange { min, max } => {
+                            executable_rules.push(Box::new(Range::<i64>::new(
+                                min.map(|v| v as i64),
+                                max.map(|v| v as i64),
+                            )));
+                        }
+                        ColumnRule::Monotonicity { ascending } => {
+                            executable_rules.push(Box::new(Monotonicity::<i64>::new(ascending)));
+                        }
+                        _ => {
+                            return Err(RuleError::ValidationError(format!(
+                                "Invalid rule {:?} for Integer column '{}'",
+                                rule, col.name
+                            )))
+                        }
+                    }
+                }
+
+                Ok(ExecutableColumn::Integer {
+                    name: col.name.clone(),
+                    rules: executable_rules,
+                    type_check: TypeCheck::new(col.name, DataType::Int64),
+                })
+            }
+            ColumnType::Float => {
+                let mut executable_rules: Vec<Box<dyn NumericRule<Float64Type>>> = Vec::new();
+
+                for rule in col.rules {
+                    match rule {
+                        ColumnRule::NumericRange { min, max } => {
+                            executable_rules.push(Box::new(Range::<f64>::new(min, max)));
+                        }
+                        ColumnRule::Monotonicity { ascending } => {
+                            executable_rules.push(Box::new(Monotonicity::<f64>::new(ascending)));
+                        }
+                        _ => {
+                            return Err(RuleError::ValidationError(format!(
+                                "Invalid rule {:?} for Float column '{}'",
+                                rule, col.name
+                            )))
+                        }
+                    }
+                }
+
+                Ok(ExecutableColumn::Float {
+                    name: col.name.clone(),
+                    rules: executable_rules,
+                    type_check: TypeCheck::new(col.name, DataType::Float64),
+                })
+            }
+        }
+    }
+
+    fn validate_string_column(
         &self,
         batches: &[Arc<RecordBatch>],
         name: &str,
@@ -351,7 +320,7 @@ impl Validator {
         }
     }
 
-    fn _validate_numeric_column<T>(
+    fn validate_numeric_column<T>(
         &self,
         batches: &[Arc<RecordBatch>],
         name: &str,

@@ -1,9 +1,10 @@
-use crate::rules::generic_rules::{TypeCheck, UnicityCheck};
-use crate::rules::numeric_rules::NumericRule;
-use crate::rules::string_rules::StringRule;
+use crate::rules::generic::{TypeCheck, UnicityCheck};
+use crate::rules::numeric::NumericRule;
+use crate::rules::string::StringRule;
 use arrow::datatypes::{Float64Type, Int64Type};
 
-/// An internal enum to hold the compiled, logic-bearing validation rules for each column type.
+/// Internal enum to hold compiled, executable validation rules for each column type.
+/// This is NOT exposed to Python - it's purely internal to the core validator.
 pub enum ExecutableColumn {
     String {
         name: String,
