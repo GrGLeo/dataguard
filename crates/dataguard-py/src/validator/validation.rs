@@ -109,12 +109,10 @@ impl Validator {
         match py_rule {
             // String rules
             PyRule::StringLength { min, max } => Ok(CoreRule::StringLength { min, max }),
-            PyRule::StringRegex { pattern, flag } => {
-                Ok(CoreRule::StringRegex {
-                    pattern,
-                    flags: flag,
-                })
-            }
+            PyRule::StringRegex { pattern, flag } => Ok(CoreRule::StringRegex {
+                pattern,
+                flags: flag,
+            }),
             PyRule::StringMembers { members } => Ok(CoreRule::StringMembers { members }),
 
             // Numeric rules

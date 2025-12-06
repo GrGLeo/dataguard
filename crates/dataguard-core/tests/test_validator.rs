@@ -1,6 +1,4 @@
-use dataguard_core::{
-    FloatColumnBuilder, IntegerColumnBuilder, StringColumnBuilder, Validator,
-};
+use dataguard_core::{FloatColumnBuilder, IntegerColumnBuilder, StringColumnBuilder, Validator};
 use std::fs::File;
 use std::io::Write;
 use tempfile::tempdir;

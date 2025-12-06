@@ -48,7 +48,7 @@ impl Validator {
     /// Validate a CSV file against the committed rules
     pub fn validate_csv(&mut self, path: &str, print_report: bool) -> Result<usize, RuleError> {
         let batches = read_csv_parallel(path)?;
-        
+
         let error_count = AtomicUsize::new(0);
         let report = ValidationReport::new();
 

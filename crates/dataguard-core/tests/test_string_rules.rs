@@ -70,7 +70,11 @@ fn test_is_in_check_with_duplicates() {
 
 #[test]
 fn test_is_in_check_all_valid() {
-    let members = vec!["apple".to_string(), "banana".to_string(), "cherry".to_string()];
+    let members = vec![
+        "apple".to_string(),
+        "banana".to_string(),
+        "cherry".to_string(),
+    ];
     let rule = IsInCheck::new(members);
     let array = StringArray::from(vec![
         Some("apple"),
@@ -86,12 +90,7 @@ fn test_is_in_check_all_valid() {
 fn test_is_in_check_all_invalid() {
     let members = vec!["apple".to_string()];
     let rule = IsInCheck::new(members);
-    let array = StringArray::from(vec![
-        Some("banana"),
-        Some("cherry"),
-        Some("orange"),
-        None,
-    ]);
+    let array = StringArray::from(vec![Some("banana"), Some("cherry"), Some("orange"), None]);
     // All values are invalid (including None)
     assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 4);
 }
@@ -99,12 +98,7 @@ fn test_is_in_check_all_invalid() {
 #[test]
 fn test_string_length_no_min() {
     let rule = StringLengthCheck::new(None, Some(5));
-    let array = StringArray::from(vec![
-        Some(""),
-        Some("a"),
-        Some("12345"),
-        Some("123456"),
-    ]);
+    let array = StringArray::from(vec![Some(""), Some("a"), Some("12345"), Some("123456")]);
     // Only "123456" exceeds max
     assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 1);
 }
@@ -124,10 +118,7 @@ fn test_string_length_no_max() {
 
 #[test]
 fn test_regex_match_url_pattern() {
-    let rule = RegexMatch::new(
-        r"^https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}".to_string(),
-        None,
-    );
+    let rule = RegexMatch::new(r"^https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}".to_string(), None);
     let array = StringArray::from(vec![
         Some("https://example.com"),
         Some("http://test.org"),

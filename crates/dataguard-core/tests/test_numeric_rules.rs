@@ -75,13 +75,7 @@ fn test_range_all_invalid_integers() {
 #[test]
 fn test_range_negative_floats() {
     let rule = Range::new(Some(-10.0), Some(-1.0));
-    let array = Float64Array::from(vec![
-        Some(-5.5),
-        Some(-0.5),
-        Some(-10.5),
-        Some(-9.9),
-        None,
-    ]);
+    let array = Float64Array::from(vec![Some(-5.5), Some(-0.5), Some(-10.5), Some(-9.9), None]);
     // Errors: -0.5 (> max), -10.5 (< min), None = 3
     assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 3);
 }

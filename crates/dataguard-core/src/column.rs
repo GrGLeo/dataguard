@@ -153,10 +153,7 @@ impl StringColumnBuilder {
 
     /// Check if string is a valid URL
     pub fn is_url(self) -> Result<Self, RuleError> {
-        self.with_regex(
-            r"^https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}".to_string(),
-            None,
-        )
+        self.with_regex(r"^https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}".to_string(), None)
     }
 
     /// Check if string is a valid email
@@ -262,7 +259,8 @@ impl IntegerColumnBuilder {
 
     /// Check if values are monotonically increasing
     pub fn is_monotonically_increasing(mut self) -> Self {
-        self.rules.push(ColumnRule::Monotonicity { ascending: true });
+        self.rules
+            .push(ColumnRule::Monotonicity { ascending: true });
         self
     }
 
@@ -356,7 +354,8 @@ impl FloatColumnBuilder {
 
     /// Check if values are monotonically increasing
     pub fn is_monotonically_increasing(mut self) -> Self {
-        self.rules.push(ColumnRule::Monotonicity { ascending: true });
+        self.rules
+            .push(ColumnRule::Monotonicity { ascending: true });
         self
     }
 
@@ -408,8 +407,8 @@ mod tests {
 
     #[test]
     fn test_string_column_invalid_regex() {
-        let result = StringColumnBuilder::new("test".to_string())
-            .with_regex("[invalid(".to_string(), None);
+        let result =
+            StringColumnBuilder::new("test".to_string()).with_regex("[invalid(".to_string(), None);
 
         assert!(result.is_err());
     }
