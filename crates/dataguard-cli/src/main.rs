@@ -3,20 +3,38 @@ mod errors;
 mod parser;
 use crate::constructor::construct_validator;
 use anyhow::{Context, Result};
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use parser::Config;
 
-/// Simple program to greet a person
+/// Output format for validation results
+#[derive(Debug, Clone, ValueEnum)]
+enum OutputFormat {
+    /// Print results to standard output (human-readable)
+    Stdout,
+    /// Output results in JSON format
+    Json,
+}
+
 #[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
+#[command(
+    name = "dataguard",
+    version,
+    author = "DataGuard Contributors",
+    about = "DataGuard CLI - Data validation tool for CSV/table files",
+    long_about = "DataGuard is a high-performance data validation tool that validates data tables \
+                  based on configurable rules. It supports various data types and validation rules \
+                  for numeric, string, and generic columns.\n\n\
+                  Example usage:\n  \
+                  dataguard --config validation.toml --output stdout"
+)]
 struct Args {
-    /// Name of the person to greet
-    #[arg(short, long)]
+    /// Path to the TOML configuration file that defines validation rules
+    #[arg(short, long, value_name = "FILE")]
     config: String,
 
-    /// Number of times to greet
-    #[arg(short, long)]
-    output: String,
+    /// Output format for validation results
+    #[arg(short, long, value_enum, default_value = "stdout")]
+    output: OutputFormat,
 }
 
 fn run() -> Result<()> {
@@ -30,11 +48,26 @@ fn run() -> Result<()> {
     if config.table.is_empty() {
         anyhow::bail!("Configuration file contains no table");
     }
-    for t in config.table {
-        println!("Validation on: {}", t.name);
-        construct_validator(&t)
-            .with_context(|| format!("Failed to validate table: '{}'", t.name))?;
+    
+    // Process validation based on output format
+    match args.output {
+        OutputFormat::Stdout => {
+            for t in config.table {
+                println!("Validation on: {}", t.name);
+                construct_validator(&t)
+                    .with_context(|| format!("Failed to validate table: '{}'", t.name))?;
+            }
+        }
+        OutputFormat::Json => {
+            // JSON output format - placeholder for future implementation
+            for t in config.table {
+                println!("Validation on: {}", t.name);
+                construct_validator(&t)
+                    .with_context(|| format!("Failed to validate table: '{}'", t.name))?;
+            }
+        }
     }
+    
     Ok(())
 }
 

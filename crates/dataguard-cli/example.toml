@@ -1,6 +1,6 @@
 [[table]]
-name = "products_small"
-path = "benchmark/products_small.csv"
+name = "products_large"
+path = "benchmark/products_large.csv"
 
 [[table.column]]
 name = "Id"
