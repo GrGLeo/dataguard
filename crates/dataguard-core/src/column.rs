@@ -1,6 +1,12 @@
 use crate::errors::RuleError;
 use regex::Regex;
 
+pub trait ColumnBuilder {
+    fn name(&self) -> &str;
+    fn column_type(&self) -> ColumnType;
+    fn rules(&self) -> &[ColumnRule];
+}
+
 /// Column type enum (no PyO3 pollution)
 #[derive(Debug, Clone, PartialEq)]
 pub enum ColumnType {
@@ -38,29 +44,25 @@ pub enum ColumnRule {
     Unicity,
 }
 
-/// Column configuration
-#[derive(Debug, Clone)]
-pub struct Column {
-    pub name: String,
-    pub column_type: ColumnType,
-    pub rules: Vec<ColumnRule>,
-}
-
-impl Column {
-    pub fn new(name: String, column_type: ColumnType, rules: Vec<ColumnRule>) -> Self {
-        Self {
-            name,
-            column_type,
-            rules,
-        }
-    }
-}
-
 /// Builder for String columns
 #[derive(Debug, Clone)]
 pub struct StringColumnBuilder {
     name: String,
     rules: Vec<ColumnRule>,
+}
+
+impl ColumnBuilder for StringColumnBuilder {
+    fn name(&self) -> &str {
+        self.name.as_str()
+    }
+
+    fn column_type(&self) -> ColumnType {
+        ColumnType::String
+    }
+
+    fn rules(&self) -> &[ColumnRule] {
+        self.rules.as_slice()
+    }
 }
 
 impl StringColumnBuilder {
@@ -72,26 +74,28 @@ impl StringColumnBuilder {
     }
 
     /// Add uniqueness constraint
-    pub fn is_unique(&mut self) {
+    pub fn is_unique(&mut self) -> &mut Self {
         self.rules.push(ColumnRule::Unicity);
+        self
     }
 
     /// Set length constraints (both min and max)
-    pub fn with_length_between(mut self, min: Option<usize>, max: Option<usize>) -> Self {
+    pub fn with_length_between(&mut self, min: Option<usize>, max: Option<usize>) -> &mut Self {
         self.rules.push(ColumnRule::StringLength { min, max });
         self
     }
 
     /// Set minimum length
-    pub fn with_min_length(&mut self, min: usize) {
+    pub fn with_min_length(&mut self, min: usize) -> &mut Self {
         self.rules.push(ColumnRule::StringLength {
             min: Some(min),
             max: None,
         });
+        self
     }
 
     /// Set maximum length
-    pub fn with_max_length(mut self, max: usize) -> Self {
+    pub fn with_max_length(&mut self, max: usize) -> &mut Self {
         self.rules.push(ColumnRule::StringLength {
             min: None,
             max: Some(max),
@@ -100,7 +104,7 @@ impl StringColumnBuilder {
     }
 
     /// Set exact length
-    pub fn is_exact_length(mut self, len: usize) -> Self {
+    pub fn is_exact_length(&mut self, len: usize) -> &mut Self {
         self.rules.push(ColumnRule::StringLength {
             min: Some(len),
             max: Some(len),
@@ -109,13 +113,17 @@ impl StringColumnBuilder {
     }
 
     /// Check if value is in a set of allowed values
-    pub fn is_in(mut self, members: Vec<String>) -> Self {
+    pub fn is_in(&mut self, members: Vec<String>) -> &mut Self {
         self.rules.push(ColumnRule::StringMembers { members });
         self
     }
 
     /// Match against a regex pattern
-    pub fn with_regex(mut self, pattern: String, flags: Option<String>) -> Result<Self, RuleError> {
+    pub fn with_regex(
+        &mut self,
+        pattern: String,
+        flags: Option<String>,
+    ) -> Result<&mut Self, RuleError> {
         // Validate regex at build time
         Regex::new(&pattern).map_err(|e| {
             RuleError::ValidationError(format!("Invalid regex pattern '{}': {}", pattern, e))
@@ -125,37 +133,37 @@ impl StringColumnBuilder {
     }
 
     /// Check if string contains only numeric characters
-    pub fn is_numeric(self) -> Result<Self, RuleError> {
+    pub fn is_numeric(&mut self) -> Result<&mut Self, RuleError> {
         self.with_regex(r"^\d+$".to_string(), None)
     }
 
     /// Check if string contains only alphabetic characters
-    pub fn is_alpha(self) -> Result<Self, RuleError> {
+    pub fn is_alpha(&mut self) -> Result<&mut Self, RuleError> {
         self.with_regex(r"^[a-zA-Z]+$".to_string(), None)
     }
 
     /// Check if string contains only alphanumeric characters
-    pub fn is_alphanumeric(self) -> Result<Self, RuleError> {
+    pub fn is_alphanumeric(&mut self) -> Result<&mut Self, RuleError> {
         self.with_regex(r"^[a-zA-Z0-9]+$".to_string(), None)
     }
 
     /// Check if string is lowercase
-    pub fn is_lowercase(self) -> Result<Self, RuleError> {
+    pub fn is_lowercase(&mut self) -> Result<&mut Self, RuleError> {
         self.with_regex(r"^[a-z0-9\s-]+$".to_string(), None)
     }
 
     /// Check if string is uppercase
-    pub fn is_uppercase(self) -> Result<Self, RuleError> {
+    pub fn is_uppercase(&mut self) -> Result<&mut Self, RuleError> {
         self.with_regex(r"^[A-Z0-9\s-]+$".to_string(), None)
     }
 
     /// Check if string is a valid URL
-    pub fn is_url(self) -> Result<Self, RuleError> {
+    pub fn is_url(&mut self) -> Result<&mut Self, RuleError> {
         self.with_regex(r"^https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}".to_string(), None)
     }
 
     /// Check if string is a valid email
-    pub fn is_email(self) -> Result<Self, RuleError> {
+    pub fn is_email(&mut self) -> Result<&mut Self, RuleError> {
         self.with_regex(
             r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$".to_string(),
             None,
@@ -163,17 +171,12 @@ impl StringColumnBuilder {
     }
 
     /// Check if string is a valid UUID
-    pub fn is_uuid(self) -> Result<Self, RuleError> {
+    pub fn is_uuid(&mut self) -> Result<&mut Self, RuleError> {
         self.with_regex(
             r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
                 .to_string(),
             None,
         )
-    }
-
-    /// Build the column
-    pub fn build(self) -> Column {
-        Column::new(self.name, ColumnType::String, self.rules)
     }
 }
 
@@ -182,6 +185,20 @@ impl StringColumnBuilder {
 pub struct IntegerColumnBuilder {
     name: String,
     rules: Vec<ColumnRule>,
+}
+
+impl ColumnBuilder for IntegerColumnBuilder {
+    fn name(&self) -> &str {
+        self.name.as_str()
+    }
+
+    fn column_type(&self) -> ColumnType {
+        ColumnType::Integer
+    }
+
+    fn rules(&self) -> &[ColumnRule] {
+        self.rules.as_slice()
+    }
 }
 
 impl IntegerColumnBuilder {
@@ -193,7 +210,7 @@ impl IntegerColumnBuilder {
     }
 
     /// Set numeric range (both min and max)
-    pub fn between(mut self, min: Option<i64>, max: Option<i64>) -> Self {
+    pub fn between(&mut self, min: Option<i64>, max: Option<i64>) -> &mut Self {
         self.rules.push(ColumnRule::NumericRange {
             min: min.map(|v| v as f64),
             max: max.map(|v| v as f64),
@@ -202,7 +219,7 @@ impl IntegerColumnBuilder {
     }
 
     /// Set minimum value
-    pub fn min(mut self, min: i64) -> Self {
+    pub fn min(&mut self, min: i64) -> &mut Self {
         self.rules.push(ColumnRule::NumericRange {
             min: Some(min as f64),
             max: None,
@@ -211,7 +228,7 @@ impl IntegerColumnBuilder {
     }
 
     /// Set maximum value
-    pub fn max(mut self, max: i64) -> Self {
+    pub fn max(&mut self, max: i64) -> &mut Self {
         self.rules.push(ColumnRule::NumericRange {
             min: None,
             max: Some(max as f64),
@@ -220,7 +237,7 @@ impl IntegerColumnBuilder {
     }
 
     /// Check if values are positive (> 0)
-    pub fn is_positive(mut self) -> Self {
+    pub fn is_positive(&mut self) -> &mut Self {
         self.rules.push(ColumnRule::NumericRange {
             min: Some(1.0),
             max: None,
@@ -229,7 +246,7 @@ impl IntegerColumnBuilder {
     }
 
     /// Check if values are negative (< 0)
-    pub fn is_negative(mut self) -> Self {
+    pub fn is_negative(&mut self) -> &mut Self {
         self.rules.push(ColumnRule::NumericRange {
             min: None,
             max: Some(-1.0),
@@ -238,7 +255,7 @@ impl IntegerColumnBuilder {
     }
 
     /// Check if values are non-negative (>= 0)
-    pub fn is_non_negative(mut self) -> Self {
+    pub fn is_non_negative(&mut self) -> &mut Self {
         self.rules.push(ColumnRule::NumericRange {
             min: Some(0.0),
             max: None,
@@ -247,7 +264,7 @@ impl IntegerColumnBuilder {
     }
 
     /// Check if values are non-positive (<= 0)
-    pub fn is_non_positive(mut self) -> Self {
+    pub fn is_non_positive(&mut self) -> &mut Self {
         self.rules.push(ColumnRule::NumericRange {
             min: None,
             max: Some(0.0),
@@ -256,22 +273,17 @@ impl IntegerColumnBuilder {
     }
 
     /// Check if values are monotonically increasing
-    pub fn is_monotonically_increasing(mut self) -> Self {
+    pub fn is_monotonically_increasing(&mut self) -> &mut Self {
         self.rules
             .push(ColumnRule::Monotonicity { ascending: true });
         self
     }
 
     /// Check if values are monotonically decreasing
-    pub fn is_monotonically_decreasing(mut self) -> Self {
+    pub fn is_monotonically_decreasing(&mut self) -> &mut Self {
         self.rules
             .push(ColumnRule::Monotonicity { ascending: false });
         self
-    }
-
-    /// Build the column
-    pub fn build(self) -> Column {
-        Column::new(self.name, ColumnType::Integer, self.rules)
     }
 }
 
@@ -280,6 +292,20 @@ impl IntegerColumnBuilder {
 pub struct FloatColumnBuilder {
     name: String,
     rules: Vec<ColumnRule>,
+}
+
+impl ColumnBuilder for FloatColumnBuilder {
+    fn name(&self) -> &str {
+        self.name.as_str()
+    }
+
+    fn column_type(&self) -> ColumnType {
+        ColumnType::Float
+    }
+
+    fn rules(&self) -> &[ColumnRule] {
+        self.rules.as_slice()
+    }
 }
 
 impl FloatColumnBuilder {
@@ -291,13 +317,13 @@ impl FloatColumnBuilder {
     }
 
     /// Set numeric range (both min and max)
-    pub fn between(mut self, min: Option<f64>, max: Option<f64>) -> Self {
+    pub fn between(&mut self, min: Option<f64>, max: Option<f64>) -> &mut Self {
         self.rules.push(ColumnRule::NumericRange { min, max });
         self
     }
 
     /// Set minimum value
-    pub fn min(mut self, min: f64) -> Self {
+    pub fn min(&mut self, min: f64) -> &mut Self {
         self.rules.push(ColumnRule::NumericRange {
             min: Some(min),
             max: None,
@@ -306,7 +332,7 @@ impl FloatColumnBuilder {
     }
 
     /// Set maximum value
-    pub fn max(mut self, max: f64) -> Self {
+    pub fn max(&mut self, max: f64) -> &mut Self {
         self.rules.push(ColumnRule::NumericRange {
             min: None,
             max: Some(max),
@@ -315,7 +341,7 @@ impl FloatColumnBuilder {
     }
 
     /// Check if values are positive (> 0)
-    pub fn is_positive(mut self) -> Self {
+    pub fn is_positive(&mut self) -> &mut Self {
         self.rules.push(ColumnRule::NumericRange {
             min: Some(0.0 + f64::EPSILON),
             max: None,
@@ -324,7 +350,7 @@ impl FloatColumnBuilder {
     }
 
     /// Check if values are negative (< 0)
-    pub fn is_negative(mut self) -> Self {
+    pub fn is_negative(&mut self) -> &mut Self {
         self.rules.push(ColumnRule::NumericRange {
             min: None,
             max: Some(0.0 - f64::EPSILON),
@@ -333,7 +359,7 @@ impl FloatColumnBuilder {
     }
 
     /// Check if values are non-negative (>= 0)
-    pub fn is_non_negative(mut self) -> Self {
+    pub fn is_non_negative(&mut self) -> &mut Self {
         self.rules.push(ColumnRule::NumericRange {
             min: Some(0.0),
             max: None,
@@ -342,7 +368,7 @@ impl FloatColumnBuilder {
     }
 
     /// Check if values are non-positive (<= 0)
-    pub fn is_non_positive(mut self) -> Self {
+    pub fn is_non_positive(&mut self) -> &mut Self {
         self.rules.push(ColumnRule::NumericRange {
             min: None,
             max: Some(0.0),
@@ -351,22 +377,17 @@ impl FloatColumnBuilder {
     }
 
     /// Check if values are monotonically increasing
-    pub fn is_monotonically_increasing(mut self) -> Self {
+    pub fn is_monotonically_increasing(&mut self) -> &mut Self {
         self.rules
             .push(ColumnRule::Monotonicity { ascending: true });
         self
     }
 
     /// Check if values are monotonically decreasing
-    pub fn is_monotonically_decreasing(mut self) -> Self {
+    pub fn is_monotonically_decreasing(&mut self) -> &mut Self {
         self.rules
             .push(ColumnRule::Monotonicity { ascending: false });
         self
-    }
-
-    /// Build the column
-    pub fn build(self) -> Column {
-        Column::new(self.name, ColumnType::Float, self.rules)
     }
 }
 
@@ -376,10 +397,8 @@ mod tests {
 
     #[test]
     fn test_string_column_builder() {
-        let col = StringColumnBuilder::new("name".to_string())
-            .with_min_length(3)
-            .with_max_length(50)
-            .build();
+        let mut col = StringColumnBuilder::new("name".to_string());
+        col.with_min_length(3).with_max_length(50).build();
 
         assert_eq!(col.name, "name");
         assert_eq!(col.column_type, ColumnType::String);

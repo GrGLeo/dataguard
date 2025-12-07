@@ -1,4 +1,4 @@
-use crate::column::{Column, ColumnRule, ColumnType};
+use crate::column::{ColumnBuilder, ColumnRule, ColumnType};
 use crate::errors::RuleError;
 use crate::reader::read_csv_parallel;
 use crate::report::ValidationReport;
@@ -37,10 +37,10 @@ impl Validator {
     }
 
     /// Commit column configurations and compile them into executable rules
-    pub fn commit(&mut self, columns: Vec<Column>) -> Result<(), RuleError> {
+    pub fn commit(&mut self, columns: Vec<Box<dyn ColumnBuilder>>) -> Result<(), RuleError> {
         self.executable_columns = columns
             .into_iter()
-            .map(|col| self.compile_column(col))
+            .map(|col| self.compile_column_builder(col))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(())
     }
@@ -133,22 +133,26 @@ impl Validator {
 
     // Private helper methods
 
-    fn compile_column(&self, col: Column) -> Result<ExecutableColumn, RuleError> {
-        match col.column_type {
+    fn compile_column_builder(
+        &self,
+        builder: Box<dyn ColumnBuilder>,
+    ) -> Result<ExecutableColumn, RuleError> {
+        match builder.column_type() {
             ColumnType::String => {
                 let mut executable_rules: Vec<Box<dyn StringRule>> = Vec::new();
                 let mut unicity = None;
 
-                for rule in col.rules {
+                for rule in builder.rules() {
                     match rule {
                         ColumnRule::StringLength { min, max } => {
-                            executable_rules.push(Box::new(StringLengthCheck::new(min, max)));
+                            executable_rules.push(Box::new(StringLengthCheck::new(*min, *max)));
                         }
                         ColumnRule::StringRegex { pattern, flags } => {
-                            executable_rules.push(Box::new(RegexMatch::new(pattern, flags)));
+                            executable_rules
+                                .push(Box::new(RegexMatch::new(pattern.clone(), flags.clone())));
                         }
                         ColumnRule::StringMembers { members } => {
-                            executable_rules.push(Box::new(IsInCheck::new(members)));
+                            executable_rules.push(Box::new(IsInCheck::new(members.to_vec())));
                         }
                         ColumnRule::Unicity => {
                             unicity = Some(UnicityCheck::new());
@@ -156,23 +160,24 @@ impl Validator {
                         _ => {
                             return Err(RuleError::ValidationError(format!(
                                 "Invalid rule {:?} for String column '{}'",
-                                rule, col.name
+                                rule,
+                                builder.name()
                             )))
                         }
                     }
                 }
 
                 Ok(ExecutableColumn::String {
-                    name: col.name.clone(),
+                    name: builder.name().to_string(),
                     rules: executable_rules,
-                    type_check: TypeCheck::new(col.name, DataType::Utf8),
+                    type_check: TypeCheck::new(builder.name().to_string(), DataType::Utf8),
                     unicity,
                 })
             }
             ColumnType::Integer => {
                 let mut executable_rules: Vec<Box<dyn NumericRule<Int64Type>>> = Vec::new();
 
-                for rule in col.rules {
+                for rule in builder.rules() {
                     match rule {
                         ColumnRule::NumericRange { min, max } => {
                             executable_rules.push(Box::new(Range::<i64>::new(
@@ -181,47 +186,49 @@ impl Validator {
                             )));
                         }
                         ColumnRule::Monotonicity { ascending } => {
-                            executable_rules.push(Box::new(Monotonicity::<i64>::new(ascending)));
+                            executable_rules.push(Box::new(Monotonicity::<i64>::new(*ascending)));
                         }
                         _ => {
                             return Err(RuleError::ValidationError(format!(
                                 "Invalid rule {:?} for Integer column '{}'",
-                                rule, col.name
+                                rule,
+                                builder.name()
                             )))
                         }
                     }
                 }
 
                 Ok(ExecutableColumn::Integer {
-                    name: col.name.clone(),
+                    name: builder.name().to_string(),
                     rules: executable_rules,
-                    type_check: TypeCheck::new(col.name, DataType::Int64),
+                    type_check: TypeCheck::new(builder.name().to_string(), DataType::Int64),
                 })
             }
             ColumnType::Float => {
                 let mut executable_rules: Vec<Box<dyn NumericRule<Float64Type>>> = Vec::new();
 
-                for rule in col.rules {
+                for rule in builder.rules() {
                     match rule {
                         ColumnRule::NumericRange { min, max } => {
-                            executable_rules.push(Box::new(Range::<f64>::new(min, max)));
+                            executable_rules.push(Box::new(Range::<f64>::new(*min, *max)));
                         }
                         ColumnRule::Monotonicity { ascending } => {
-                            executable_rules.push(Box::new(Monotonicity::<f64>::new(ascending)));
+                            executable_rules.push(Box::new(Monotonicity::<f64>::new(*ascending)));
                         }
                         _ => {
                             return Err(RuleError::ValidationError(format!(
                                 "Invalid rule {:?} for Float column '{}'",
-                                rule, col.name
+                                rule,
+                                builder.name()
                             )))
                         }
                     }
                 }
 
                 Ok(ExecutableColumn::Float {
-                    name: col.name.clone(),
+                    name: builder.name().to_string(),
                     rules: executable_rules,
-                    type_check: TypeCheck::new(col.name, DataType::Float64),
+                    type_check: TypeCheck::new(builder.name().to_string(), DataType::Float64),
                 })
             }
         }

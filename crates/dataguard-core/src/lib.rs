@@ -8,7 +8,7 @@ pub mod utils;
 pub mod validator;
 
 pub use column::{
-    Column, ColumnRule, ColumnType, FloatColumnBuilder, IntegerColumnBuilder, StringColumnBuilder,
+    ColumnRule, ColumnType, FloatColumnBuilder, IntegerColumnBuilder, StringColumnBuilder,
 };
 pub use errors::RuleError;
 pub use validator::Validator;

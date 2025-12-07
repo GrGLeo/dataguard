@@ -25,9 +25,8 @@ pub fn construct_validator(table: &Table) {
                         }
                     }
                 }
-                let column_rule = builder.build();
                 let mut v = Validator::new();
-                v.commit(vec![column_rule]).unwrap();
+                v.commit(vec![Box::new(builder)]).unwrap();
                 let _ = v.validate_csv(path, true);
             }
             _ => {}

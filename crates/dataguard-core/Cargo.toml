@@ -24,5 +24,16 @@ xxhash-rust = { workspace = true }
 tempfile = { workspace = true }
 criterion = { workspace = true }
 
+[[bench]]
+name = "monotonicaly_bench"
+harness = false
+path = "benches/monotonicaly_bench.rs"
+
+[[bench]]
+name = "string_length_check_bench"
+harness = false
+path = "benches/string_length_check_bench.rs"
+
 [lints]
 workspace = true
+
