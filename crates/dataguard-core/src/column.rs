@@ -80,8 +80,11 @@ impl StringColumnBuilder {
     }
 
     /// Set length constraints (both min and max)
-    pub fn with_length_between(&mut self, min: Option<usize>, max: Option<usize>) -> &mut Self {
-        self.rules.push(ColumnRule::StringLength { min, max });
+    pub fn with_length_between(&mut self, min: usize, max: usize) -> &mut Self {
+        self.rules.push(ColumnRule::StringLength {
+            min: Some(min),
+            max: Some(max),
+        });
         self
     }
 
@@ -210,10 +213,10 @@ impl IntegerColumnBuilder {
     }
 
     /// Set numeric range (both min and max)
-    pub fn between(&mut self, min: Option<i64>, max: Option<i64>) -> &mut Self {
+    pub fn between(&mut self, min: i64, max: i64) -> &mut Self {
         self.rules.push(ColumnRule::NumericRange {
-            min: min.map(|v| v as f64),
-            max: max.map(|v| v as f64),
+            min: Some(min as f64),
+            max: Some(max as f64),
         });
         self
     }
@@ -317,8 +320,11 @@ impl FloatColumnBuilder {
     }
 
     /// Set numeric range (both min and max)
-    pub fn between(&mut self, min: Option<f64>, max: Option<f64>) -> &mut Self {
-        self.rules.push(ColumnRule::NumericRange { min, max });
+    pub fn between(&mut self, min: f64, max: f64) -> &mut Self {
+        self.rules.push(ColumnRule::NumericRange {
+            min: Some(min),
+            max: Some(max),
+        });
         self
     }
 
@@ -431,7 +437,7 @@ mod tests {
     #[test]
     fn test_integer_column_builder() {
         let mut builder = IntegerColumnBuilder::new("age".to_string());
-        builder.between(Some(0), Some(120));
+        builder.between(0, 120);
 
         assert_eq!(builder.name(), "age");
         assert_eq!(builder.column_type(), ColumnType::Integer);
@@ -455,7 +461,7 @@ mod tests {
     #[test]
     fn test_float_column_builder() {
         let mut builder = FloatColumnBuilder::new("price".to_string());
-        builder.between(Some(0.0), Some(1000.0));
+        builder.between(0.0, 1000.0);
 
         assert_eq!(builder.name(), "price");
         assert_eq!(builder.column_type(), ColumnType::Float);

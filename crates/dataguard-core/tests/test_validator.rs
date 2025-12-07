@@ -54,10 +54,10 @@ fn test_validator_integer_column_validation() {
     writeln!(file, "45,50").unwrap(); // ok
 
     let mut age_col = IntegerColumnBuilder::new("age".to_string());
-    age_col.between(Some(0), Some(120));
+    age_col.between(0, 120);
 
     let mut score_col = IntegerColumnBuilder::new("score".to_string());
-    score_col.between(Some(0), Some(100));
+    score_col.between(0, 100);
 
     let mut validator = Validator::new();
     validator
@@ -100,13 +100,13 @@ fn test_validator_float_column_validation() {
 #[test]
 fn test_validator_get_rules() {
     let mut col1 = StringColumnBuilder::new("col1".to_string());
-    col1.with_length_between(Some(1), Some(10));
+    col1.with_length_between(1, 10);
 
     let mut col2 = StringColumnBuilder::new("col2".to_string());
     col2.with_regex("^[a-z]+$".to_string(), None).unwrap();
 
     let mut col3 = IntegerColumnBuilder::new("col3".to_string());
-    col3.between(Some(2), Some(5));
+    col3.between(2, 5);
 
     let mut validator = Validator::new();
     validator
@@ -230,10 +230,10 @@ fn test_validator_mixed_column_types() {
     name_col.with_min_length(3);
 
     let mut age_col = IntegerColumnBuilder::new("age".to_string());
-    age_col.between(Some(0), Some(120));
+    age_col.between(0, 120);
 
     let mut score_col = IntegerColumnBuilder::new("score".to_string());
-    score_col.between(Some(0), Some(100));
+    score_col.between(0, 100);
 
     let mut price_col = FloatColumnBuilder::new("price".to_string());
     price_col.is_monotonically_increasing();

@@ -7,9 +7,6 @@ name = "Id"
 datatype = "integer"
 
   [[table.column.rule]]
-  name = "not_null"
-
-  [[table.column.rule]]
   name = "min"
   min = 5
 
@@ -21,5 +18,6 @@ datatype = "string"
   name = "is_unique"
 
   [[table.column.rule]]
-  name = "min"
-  min = 5
+  name = "with_min_length"
+  min_length = 5
+
