@@ -17,15 +17,15 @@ fn test_validator_string_column_validation() {
     writeln!(file, "p5,").unwrap(); // desc length fail ("" < 6)
 
     // Create column rules
-    let desc_col = StringColumnBuilder::new("description".to_string())
+    let mut desc_col = StringColumnBuilder::new("description".to_string());
+    desc_col
         .with_regex("^[a-z ]+$".to_string(), None)
         .unwrap()
-        .with_min_length(6)
-        .build();
+        .with_min_length(6);
 
     // Commit to validator
     let mut validator = Validator::new();
-    validator.commit(vec![desc_col]).unwrap();
+    validator.commit(vec![Box::new(desc_col)]).unwrap();
 
     // Run validation
     let error_count = validator
@@ -53,16 +53,16 @@ fn test_validator_integer_column_validation() {
     writeln!(file, "30,105").unwrap(); // score fail (>100)
     writeln!(file, "45,50").unwrap(); // ok
 
-    let age_col = IntegerColumnBuilder::new("age".to_string())
-        .between(Some(0), Some(120))
-        .build();
+    let mut age_col = IntegerColumnBuilder::new("age".to_string());
+    age_col.between(Some(0), Some(120));
 
-    let score_col = IntegerColumnBuilder::new("score".to_string())
-        .between(Some(0), Some(100))
-        .build();
+    let mut score_col = IntegerColumnBuilder::new("score".to_string());
+    score_col.between(Some(0), Some(100));
 
     let mut validator = Validator::new();
-    validator.commit(vec![age_col, score_col]).unwrap();
+    validator
+        .commit(vec![Box::new(age_col), Box::new(score_col)])
+        .unwrap();
 
     let error_count = validator
         .validate_csv(file_path.to_str().unwrap(), false)
@@ -83,12 +83,11 @@ fn test_validator_float_column_validation() {
     writeln!(file, "5.0").unwrap(); // fail (not monotonically increasing)
     writeln!(file, "30.0").unwrap(); // ok
 
-    let price_col = FloatColumnBuilder::new("price".to_string())
-        .is_monotonically_increasing()
-        .build();
+    let mut price_col = FloatColumnBuilder::new("price".to_string());
+    price_col.is_monotonically_increasing();
 
     let mut validator = Validator::new();
-    validator.commit(vec![price_col]).unwrap();
+    validator.commit(vec![Box::new(price_col)]).unwrap();
 
     let error_count = validator
         .validate_csv(file_path.to_str().unwrap(), false)
@@ -100,21 +99,19 @@ fn test_validator_float_column_validation() {
 
 #[test]
 fn test_validator_get_rules() {
-    let col1 = StringColumnBuilder::new("col1".to_string())
-        .with_length_between(Some(1), Some(10))
-        .build();
+    let mut col1 = StringColumnBuilder::new("col1".to_string());
+    col1.with_length_between(Some(1), Some(10));
 
-    let col2 = StringColumnBuilder::new("col2".to_string())
-        .with_regex("^[a-z]+$".to_string(), None)
-        .unwrap()
-        .build();
+    let mut col2 = StringColumnBuilder::new("col2".to_string());
+    col2.with_regex("^[a-z]+$".to_string(), None).unwrap();
 
-    let col3 = IntegerColumnBuilder::new("col3".to_string())
-        .between(Some(2), Some(5))
-        .build();
+    let mut col3 = IntegerColumnBuilder::new("col3".to_string());
+    col3.between(Some(2), Some(5));
 
     let mut validator = Validator::new();
-    validator.commit(vec![col1, col2, col3]).unwrap();
+    validator
+        .commit(vec![Box::new(col1), Box::new(col2), Box::new(col3)])
+        .unwrap();
 
     let rules = validator.get_rules();
     assert_eq!(rules.len(), 3);
@@ -144,15 +141,15 @@ fn test_validator_multiple_rules_per_column() {
     writeln!(file, "charlie").unwrap(); // ok
     writeln!(file, "verylongusernamethatexceedslimit").unwrap(); // fail (too long)
 
-    let username_col = StringColumnBuilder::new("username".to_string())
+    let mut username_col = StringColumnBuilder::new("username".to_string());
+    username_col
         .with_min_length(3)
         .with_max_length(20)
         .is_alpha()
-        .unwrap()
-        .build();
+        .unwrap();
 
     let mut validator = Validator::new();
-    validator.commit(vec![username_col]).unwrap();
+    validator.commit(vec![Box::new(username_col)]).unwrap();
 
     let error_count = validator
         .validate_csv(file_path.to_str().unwrap(), false)
@@ -175,16 +172,16 @@ fn test_validator_all_pass() {
     writeln!(file, "bob,30").unwrap();
     writeln!(file, "charlie,35").unwrap();
 
-    let name_col = StringColumnBuilder::new("name".to_string())
-        .with_min_length(3)
-        .build();
+    let mut name_col = StringColumnBuilder::new("name".to_string());
+    name_col.with_min_length(3);
 
-    let age_col = IntegerColumnBuilder::new("age".to_string())
-        .is_positive()
-        .build();
+    let mut age_col = IntegerColumnBuilder::new("age".to_string());
+    age_col.is_positive();
 
     let mut validator = Validator::new();
-    validator.commit(vec![name_col, age_col]).unwrap();
+    validator
+        .commit(vec![Box::new(name_col), Box::new(age_col)])
+        .unwrap();
 
     let error_count = validator
         .validate_csv(file_path.to_str().unwrap(), false)
@@ -204,13 +201,11 @@ fn test_validator_email_validation() {
     writeln!(file, "another@test.co.uk").unwrap(); // ok
     writeln!(file, "@invalid.com").unwrap(); // fail
 
-    let email_col = StringColumnBuilder::new("email".to_string())
-        .is_email()
-        .unwrap()
-        .build();
+    let mut email_col = StringColumnBuilder::new("email".to_string());
+    email_col.is_email().unwrap();
 
     let mut validator = Validator::new();
-    validator.commit(vec![email_col]).unwrap();
+    validator.commit(vec![Box::new(email_col)]).unwrap();
 
     let error_count = validator
         .validate_csv(file_path.to_str().unwrap(), false)
@@ -231,25 +226,26 @@ fn test_validator_mixed_column_types() {
     writeln!(file, "charlie,30,105,30.0").unwrap(); // score fail
     writeln!(file, "dave,35,90,5.0").unwrap(); // price fail (monotonicity)
 
-    let name_col = StringColumnBuilder::new("name".to_string())
-        .with_min_length(3)
-        .build();
+    let mut name_col = StringColumnBuilder::new("name".to_string());
+    name_col.with_min_length(3);
 
-    let age_col = IntegerColumnBuilder::new("age".to_string())
-        .between(Some(0), Some(120))
-        .build();
+    let mut age_col = IntegerColumnBuilder::new("age".to_string());
+    age_col.between(Some(0), Some(120));
 
-    let score_col = IntegerColumnBuilder::new("score".to_string())
-        .between(Some(0), Some(100))
-        .build();
+    let mut score_col = IntegerColumnBuilder::new("score".to_string());
+    score_col.between(Some(0), Some(100));
 
-    let price_col = FloatColumnBuilder::new("price".to_string())
-        .is_monotonically_increasing()
-        .build();
+    let mut price_col = FloatColumnBuilder::new("price".to_string());
+    price_col.is_monotonically_increasing();
 
     let mut validator = Validator::new();
     validator
-        .commit(vec![name_col, age_col, score_col, price_col])
+        .commit(vec![
+            Box::new(name_col),
+            Box::new(age_col),
+            Box::new(score_col),
+            Box::new(price_col),
+        ])
         .unwrap();
 
     let error_count = validator

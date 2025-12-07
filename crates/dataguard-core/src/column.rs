@@ -397,24 +397,22 @@ mod tests {
 
     #[test]
     fn test_string_column_builder() {
-        let mut col = StringColumnBuilder::new("name".to_string());
-        col.with_min_length(3).with_max_length(50).build();
+        let mut builder = StringColumnBuilder::new("name".to_string());
+        builder.with_min_length(3).with_max_length(50);
 
-        assert_eq!(col.name, "name");
-        assert_eq!(col.column_type, ColumnType::String);
-        assert_eq!(col.rules.len(), 2);
+        assert_eq!(builder.name(), "name");
+        assert_eq!(builder.column_type(), ColumnType::String);
+        assert_eq!(builder.rules().len(), 2);
     }
 
     #[test]
     fn test_string_column_with_regex() {
-        let col = StringColumnBuilder::new("email".to_string())
-            .is_email()
-            .unwrap()
-            .build();
+        let mut builder = StringColumnBuilder::new("email".to_string());
+        builder.is_email().unwrap();
 
-        assert_eq!(col.column_type, ColumnType::String);
-        assert_eq!(col.rules.len(), 1);
-        match &col.rules[0] {
+        assert_eq!(builder.column_type(), ColumnType::String);
+        assert_eq!(builder.rules().len(), 1);
+        match &builder.rules()[0] {
             ColumnRule::StringRegex { pattern, .. } => {
                 assert!(pattern.contains("@"));
             }
@@ -424,33 +422,31 @@ mod tests {
 
     #[test]
     fn test_string_column_invalid_regex() {
-        let result =
-            StringColumnBuilder::new("test".to_string()).with_regex("[invalid(".to_string(), None);
+        let mut builder = StringColumnBuilder::new("test".to_string());
+        let result = builder.with_regex("[invalid(".to_string(), None);
 
         assert!(result.is_err());
     }
 
     #[test]
     fn test_integer_column_builder() {
-        let col = IntegerColumnBuilder::new("age".to_string())
-            .between(Some(0), Some(120))
-            .build();
+        let mut builder = IntegerColumnBuilder::new("age".to_string());
+        builder.between(Some(0), Some(120));
 
-        assert_eq!(col.name, "age");
-        assert_eq!(col.column_type, ColumnType::Integer);
-        assert_eq!(col.rules.len(), 1);
+        assert_eq!(builder.name(), "age");
+        assert_eq!(builder.column_type(), ColumnType::Integer);
+        assert_eq!(builder.rules().len(), 1);
     }
 
     #[test]
     fn test_integer_column_is_positive() {
-        let col = IntegerColumnBuilder::new("count".to_string())
-            .is_positive()
-            .build();
+        let mut builder = IntegerColumnBuilder::new("count".to_string());
+        builder.is_positive();
 
-        match &col.rules[0] {
+        match &builder.rules()[0] {
             ColumnRule::NumericRange { min, max } => {
-                assert_eq!(*min, Some(1.0));
-                assert_eq!(*max, None);
+                assert_eq!(min, &Some(1.0));
+                assert_eq!(max, &None);
             }
             _ => panic!("Expected NumericRange rule"),
         }
@@ -458,22 +454,20 @@ mod tests {
 
     #[test]
     fn test_float_column_builder() {
-        let col = FloatColumnBuilder::new("price".to_string())
-            .between(Some(0.0), Some(1000.0))
-            .build();
+        let mut builder = FloatColumnBuilder::new("price".to_string());
+        builder.between(Some(0.0), Some(1000.0));
 
-        assert_eq!(col.name, "price");
-        assert_eq!(col.column_type, ColumnType::Float);
-        assert_eq!(col.rules.len(), 1);
+        assert_eq!(builder.name(), "price");
+        assert_eq!(builder.column_type(), ColumnType::Float);
+        assert_eq!(builder.rules().len(), 1);
     }
 
     #[test]
     fn test_float_column_monotonicity() {
-        let col = FloatColumnBuilder::new("timestamp".to_string())
-            .is_monotonically_increasing()
-            .build();
+        let mut builder = FloatColumnBuilder::new("timestamp".to_string());
+        builder.is_monotonically_increasing();
 
-        match &col.rules[0] {
+        match &builder.rules()[0] {
             ColumnRule::Monotonicity { ascending } => {
                 assert!(ascending);
             }
@@ -483,14 +477,14 @@ mod tests {
 
     #[test]
     fn test_column_chaining() {
-        let col = StringColumnBuilder::new("username".to_string())
+        let mut builder = StringColumnBuilder::new("username".to_string());
+        builder
             .with_min_length(3)
             .with_max_length(20)
             .is_alphanumeric()
             .unwrap()
-            .is_unique()
-            .build();
+            .is_unique();
 
-        assert_eq!(col.rules.len(), 4);
+        assert_eq!(builder.rules().len(), 4);
     }
 }
