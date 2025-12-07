@@ -1,8 +1,7 @@
 use crate::columns;
 use crate::rules::core::Rule as PyRule;
 use dataguard_core::{
-    Column as CoreColumn, ColumnRule as CoreRule, ColumnType as CoreType, RuleError,
-    Validator as CoreValidator,
+    ColumnRule as CoreRule, ColumnType as CoreType, RuleError, Validator as CoreValidator,
 };
 use pyo3::{exceptions::PyIOError, prelude::*};
 use std::collections::HashMap;

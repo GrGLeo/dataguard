@@ -1,7 +1,7 @@
 extern crate dataguard;
 
 use arrow::array::Int64Array;
-use criterion::{Criterion, criterion_group, criterion_main};
+use criterion::{criterion_group, criterion_main, Criterion};
 use dataguard::rules::logic::{IntegerRule, Monotonicity};
 use once_cell::sync::Lazy;
 use std::hint::black_box;
