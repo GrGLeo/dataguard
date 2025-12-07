@@ -19,6 +19,23 @@ permissions:
   contents: read
 
 jobs:
+  build_and_test:
+      name: Rust project - latest
+      runs-on: ubuntu-latest
+      strategy:
+        matrix:
+          toolchain:
+            - stable
+            - beta
+            - nightly
+      steps:
+        - uses: actions/checkout@v4
+        - run: rustup update ${{ matrix.toolchain }} && rustup default ${{ matrix.toolchain }}
+        - run: cargo build -p dataguard-core --verbose
+        - run: cargo build -p dataguard-cli --verbose
+        - run: cargo test -p dataguard-core --verbose
+        - run: cargo test -p dataguard-cli --verbose
+
   linux:
     runs-on: ${{ matrix.platform.runner }}
     strategy:
@@ -53,14 +70,6 @@ jobs:
         with:
           name: wheels-linux-${{ matrix.platform.target }}
           path: dist
-      # Testing
-      - name: Install dependencies
-        run: pip install pytest dist/*.whl
-      - name: Run Python tests (pytest)
-        run: python -m pytest
-      - name: Run Rust tests (cargo test)
-        run: cargo test
-
 
   musllinux:
     runs-on: ${{ matrix.platform.runner }}

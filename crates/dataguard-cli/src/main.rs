@@ -48,7 +48,7 @@ fn run() -> Result<()> {
     if config.table.is_empty() {
         anyhow::bail!("Configuration file contains no table");
     }
-    
+
     // Process validation based on output format
     match args.output {
         OutputFormat::Stdout => {
@@ -67,7 +67,7 @@ fn run() -> Result<()> {
             }
         }
     }
-    
+
     Ok(())
 }
 
