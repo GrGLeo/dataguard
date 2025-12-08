@@ -107,7 +107,9 @@ impl Table for CsvTable {
         println!("{}", report.generate_report());
 
         if error_count.load(Ordering::Relaxed) > 0 {
-            RuleError::ValidationError("too much errors found".to_string());
+            return Err(RuleError::ValidationError(
+                "too much errors found".to_string(),
+            ));
         }
         Ok(())
     }

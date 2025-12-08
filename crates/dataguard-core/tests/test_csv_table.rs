@@ -135,12 +135,12 @@ fn test_table_multiple_rules_per_column() {
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("test.csv");
     let mut file = File::create(&file_path).unwrap();
-    writeln!(file, "username").unwrap();
-    writeln!(file, "alice").unwrap(); // ok
-    writeln!(file, "ab").unwrap(); // fail (too short)
-    writeln!(file, "bob123").unwrap(); // fail (not alpha)
-    writeln!(file, "charlie").unwrap(); // ok
-    writeln!(file, "verylongusernamethatexceedslimit").unwrap(); // fail (too long)
+    writeln!(file, "username, city").unwrap();
+    writeln!(file, "alice, paris").unwrap(); // ok
+    writeln!(file, "ab, paris").unwrap(); // fail (too short)
+    writeln!(file, "bob123, marseille").unwrap(); // fail (not alpha)
+    writeln!(file, "charlie, lyon").unwrap(); // ok
+    writeln!(file, "verylongusernamethatexceedslimit, grenoble").unwrap(); // fail (too long)
 
     let file_path = file_path.into_os_string().into_string().unwrap();
 
