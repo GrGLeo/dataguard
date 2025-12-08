@@ -1,9 +1,10 @@
 mod constructor;
 mod errors;
 mod parser;
-use crate::constructor::construct_validator;
+use crate::constructor::construct_csv_table;
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
+use dataguard_core::Validator;
 use parser::Config;
 
 /// Output format for validation results
@@ -35,11 +36,13 @@ struct Args {
     /// Output format for validation results
     #[arg(short, long, value_enum, default_value = "stdout")]
     output: OutputFormat,
+
+    /// Enable debug mode with detailed error backtraces and stack traces
+    #[arg(short, long)]
+    debug: bool,
 }
 
-fn run() -> Result<()> {
-    let args = Args::parse();
-
+fn run(args: Args) -> Result<()> {
     let config_path = std::path::PathBuf::from(args.config);
     let config_str = std::fs::read_to_string(config_path.clone())
         .with_context(|| format!("Failed to read config file: {}", config_path.display()))?;
@@ -49,31 +52,50 @@ fn run() -> Result<()> {
         anyhow::bail!("Configuration file contains no table");
     }
 
+    let mut validator = Validator::new();
+
     // Process validation based on output format
     match args.output {
         OutputFormat::Stdout => {
             for t in config.table {
-                println!("Validation on: {}", t.name);
-                construct_validator(&t)
-                    .with_context(|| format!("Failed to validate table: '{}'", t.name))?;
+                println!("Parsing: {}", t.name);
+                let csv_table = construct_csv_table(&t)
+                    .with_context(|| format!("Failed to parse table: '{}'", t.name))?;
+                validator.add_table(t.name, csv_table);
             }
         }
         OutputFormat::Json => {
             // JSON output format - placeholder for future implementation
             for t in config.table {
-                println!("Validation on: {}", t.name);
-                construct_validator(&t)
-                    .with_context(|| format!("Failed to validate table: '{}'", t.name))?;
+                println!("Parsing: {}", t.name);
+                let csv_table = construct_csv_table(&t)
+                    .with_context(|| format!("Failed to parse table: '{}'", t.name))?;
+                validator.add_table(t.name, csv_table);
             }
         }
     }
+    let _ = validator
+        .validate_all()
+        .with_context(|| format!("Failed to run validation"))?;
 
     Ok(())
 }
 
 fn main() {
-    if let Err(err) = run() {
-        eprintln!("Error: {:?}", err);
+    let args = Args::parse();
+
+    // Enable backtraces in debug mode
+    if args.debug {
+        std::env::set_var("RUST_BACKTRACE", "1");
+    }
+
+    if let Err(err) = run(args) {
+        if std::env::var("RUST_BACKTRACE").is_ok() {
+            eprintln!("Error: {:?}", err);
+        } else {
+            eprintln!("Error: {:#}", err);
+            eprintln!("\nHint: Run with --debug flag for detailed stack traces");
+        }
         std::process::exit(1);
     }
 }

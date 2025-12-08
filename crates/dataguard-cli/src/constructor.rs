@@ -1,10 +1,11 @@
 use crate::{
     errors::CliError,
-    parser::{Rule, Table},
+    parser::{ConfigTable, Rule},
 };
 use anyhow::{Context, Result};
 use dataguard_core::{
-    column::ColumnBuilder, FloatColumnBuilder, IntegerColumnBuilder, StringColumnBuilder, Validator,
+    column::ColumnBuilder, CsvTable, FloatColumnBuilder, IntegerColumnBuilder, StringColumnBuilder,
+    Table,
 };
 use toml::Value;
 
@@ -359,7 +360,7 @@ fn apply_float_rule(
     }
 }
 
-pub fn construct_validator(table: &Table) -> Result<()> {
+pub fn construct_csv_table(table: &ConfigTable) -> Result<CsvTable> {
     let path = &table.path;
     let mut all_builder: Vec<Box<dyn ColumnBuilder>> = Vec::new();
     for column in &table.column {
@@ -402,10 +403,9 @@ pub fn construct_validator(table: &Table) -> Result<()> {
             }
         }
     }
-    let mut v = Validator::new();
-    v.commit(all_builder).unwrap();
-    let _ = v.validate_csv(path, true);
-    Ok(())
+    let mut t = CsvTable::new(path.clone(), "hi".to_string());
+    t.commit(all_builder).unwrap();
+    Ok(t)
 }
 
 #[cfg(test)]
