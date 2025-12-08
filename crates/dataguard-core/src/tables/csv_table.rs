@@ -1,7 +1,7 @@
 use crate::column::{ColumnBuilder, ColumnRule, ColumnType};
 use crate::errors::RuleError;
 use crate::reader::read_csv_parallel;
-use crate::report::ValidationReport;
+use crate::report::{ReportMode, ValidationReport};
 use crate::rules::generic::{TypeCheck, UnicityCheck};
 use crate::rules::numeric::{Monotonicity, NumericRule, Range};
 use crate::rules::string::{IsInCheck, RegexMatch, StringLengthCheck, StringRule};
@@ -17,21 +17,26 @@ use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-/// Core validator (no PyO3 dependencies)
 pub struct CsvTable {
     path: String,
-    output: String,
+    output: ReportMode,
     executable_columns: Vec<ExecutableColumn>,
 }
 
 impl CsvTable {
     /// Create a new Validator instance
-    pub fn new(path: String, output: String) -> Self {
-        Self {
+    pub fn new(path: String, output: String) -> Result<Self, RuleError> {
+        let mode = match output.to_lowercase().as_str() {
+            "stdout" => ReportMode::StdOut,
+            "json" => ReportMode::Json,
+            "csv" => ReportMode::Csv,
+            _ => return Err(RuleError::UnknownReportMode(output)),
+        };
+        Ok(Self {
             path,
-            output,
+            output: mode,
             executable_columns: Vec::new(),
-        }
+        })
     }
 }
 
@@ -55,7 +60,7 @@ impl Table for CsvTable {
         let batches = read_csv_parallel(self.path.as_str(), needed_cols)?;
 
         let error_count = AtomicUsize::new(0);
-        let report = ValidationReport::new();
+        let report = ValidationReport::new(&self.output);
 
         let total_rows: usize = batches.iter().map(|batch| batch.num_rows()).sum();
         report.set_total_rows(total_rows);
@@ -104,8 +109,14 @@ impl Table for CsvTable {
             }
         }
 
-        println!("{}", report.generate_report());
+        let output = report.generate_report(&self.output);
+        match self.output {
+            ReportMode::StdOut => println!("{}", output),
+            ReportMode::Json => println!("{}", output),
+            ReportMode::Csv => println!("{}", output),
+        };
 
+        // TODO: not sure about that
         if error_count.load(Ordering::Relaxed) > 0 {
             return Err(RuleError::ValidationError(
                 "too much errors found".to_string(),

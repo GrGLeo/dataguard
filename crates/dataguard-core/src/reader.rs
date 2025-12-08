@@ -17,7 +17,7 @@ pub fn read_csv_parallel(
     let file = File::open(path)?;
     let file_size = file.metadata()?.len();
 
-    let schema = Arc::new(generate_utf_schema(path, cols.clone())?);
+    let schema = Arc::new(generate_utf_schema(path)?);
     let cols = cols.as_slice();
     let projection = calculate_projection(&schema, cols);
 
@@ -88,7 +88,7 @@ fn find_next_newline(file: &mut File, pos: u64) -> Result<u64, io::Error> {
 fn parse_chunk(
     path: &str,
     schema: &Arc<Schema>,
-    projection: &Vec<usize>,
+    projection: &[usize],
     header: &str,
     start: u64,
     end: u64,
@@ -127,7 +127,7 @@ pub fn read_csv_sequential(
 ) -> Result<Vec<Arc<RecordBatch>>, io::Error> {
     let cols: Vec<&str> = cols.iter().map(|v| v.as_str()).collect();
     let file = File::open(path)?;
-    let schema = Arc::new(generate_utf_schema(path, cols.clone())?);
+    let schema = Arc::new(generate_utf_schema(path)?);
     let cols = cols.as_slice();
     let projection = calculate_projection(&schema, cols);
     let mut batches = Vec::new();
@@ -147,7 +147,7 @@ pub fn read_csv_sequential(
     Ok(batches)
 }
 
-fn generate_utf_schema(path: &str, cols: Vec<&str>) -> Result<Schema, io::Error> {
+fn generate_utf_schema(path: &str) -> Result<Schema, io::Error> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);
     let mut lines = reader.lines();

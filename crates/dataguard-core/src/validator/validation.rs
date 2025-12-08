@@ -36,9 +36,13 @@ impl Validator {
     pub fn validate_all(&mut self) -> Result<(), RuleError> {
         for (name, table) in self.tables.iter_mut() {
             println!("Validation on: {}", name.clone());
-            if let Err(e) = table.validate() {
-                return Err(RuleError::ValidationError(e.to_string()));
-            }
+            let res = table.validate();
+            match res {
+                Err(e) => {
+                    println!("Validation failed: {}", e.to_string())
+                }
+                Ok(_) => {}
+            };
         }
         Ok(())
     }

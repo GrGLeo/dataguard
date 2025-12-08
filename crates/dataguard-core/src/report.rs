@@ -2,22 +2,24 @@ use dashmap::DashMap;
 use prettytable::{Cell, Row, Table};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-pub struct ValidationReport {
+pub enum ReportMode {
+    StdOut,
+    Json,
+    Csv,
+}
+
+pub struct ValidationReport<'a> {
     results: DashMap<(String, String), AtomicUsize>, // (column_name, rule_name) -> error_count
     total_rows: AtomicUsize,
+    mode: &'a ReportMode,
 }
 
-impl Default for ValidationReport {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl ValidationReport {
-    pub fn new() -> Self {
+impl<'a> ValidationReport<'a> {
+    pub fn new(mode: &'a ReportMode) -> Self {
         Self {
             results: DashMap::new(),
             total_rows: AtomicUsize::new(0),
+            mode,
         }
     }
 
@@ -32,7 +34,7 @@ impl ValidationReport {
         self.total_rows.store(total_rows, Ordering::Relaxed);
     }
 
-    pub fn generate_report(&self) -> String {
+    pub fn generate_report(&self, mode: &ReportMode) -> String {
         let mut table = Table::new();
         table.add_row(Row::new(vec![
             Cell::new("Column"),

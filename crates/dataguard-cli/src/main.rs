@@ -4,7 +4,7 @@ mod parser;
 use crate::constructor::construct_csv_table;
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
-use dataguard_core::Validator;
+use dataguard_core::{RuleError, Validator};
 use parser::Config;
 
 /// Output format for validation results
@@ -74,9 +74,19 @@ fn run(args: Args) -> Result<()> {
             }
         }
     }
-    let _ = validator
-        .validate_all()
-        .with_context(|| format!("Failed to run validation"))?;
+
+    match validator.validate_all() {
+        Ok(()) => {
+            // Validation succeeded
+        }
+        Err(RuleError::ValidationError(msg)) => {
+            println!("Validation failed: {}", msg);
+            // Continue or return Ok(())
+        }
+        Err(e) => {
+            return Err(e).context("Validation failed");
+        }
+    }
 
     Ok(())
 }

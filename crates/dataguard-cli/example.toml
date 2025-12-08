@@ -20,3 +20,15 @@ path = "benchmark/products_large.csv"
     [[table.column.rule]]
     name = "with_min_length"
     min_length = 5
+
+[[table]]
+name = "customers_medium"
+path = "benchmark/customers_medium.csv"
+
+  [[table.column]]
+  name = "Index"
+  datatype = "integer"
+
+    [[table.column.rule]]
+    name = "min"
+    min = 5
