@@ -109,7 +109,7 @@ impl Table for CsvTable {
             }
         }
 
-        let output = report.generate_report(&self.output);
+        let output = report.generate_report();
         match self.output {
             ReportMode::StdOut => println!("{}", output),
             ReportMode::Json => println!("{}", output),

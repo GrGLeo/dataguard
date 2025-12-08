@@ -179,9 +179,7 @@ mod tests {
         writeln!(file, "name,age,city").unwrap();
         writeln!(file, "Alice,30,New York").unwrap();
 
-        let schema =
-            generate_utf_schema(file.path().to_str().unwrap(), vec!["name", "age", "city"])
-                .unwrap();
+        let schema = generate_utf_schema(file.path().to_str().unwrap()).unwrap();
         assert_eq!(schema.fields().len(), 3);
         assert_eq!(schema.field(0).name(), "name");
         assert_eq!(schema.field(1).name(), "age");
@@ -194,8 +192,7 @@ mod tests {
         writeln!(file, "name,age,city").unwrap();
         writeln!(file, "Alice,30,New York").unwrap();
 
-        let schema =
-            generate_utf_schema(file.path().to_str().unwrap(), vec!["name", "age"]).unwrap();
+        let schema = generate_utf_schema(file.path().to_str().unwrap()).unwrap();
         assert_eq!(schema.fields().len(), 3);
         assert_eq!(schema.field(0).name(), "name");
         assert_eq!(schema.field(1).name(), "age");
@@ -205,7 +202,7 @@ mod tests {
     #[test]
     fn test_generate_utf_schema_empty_file() {
         let file = NamedTempFile::new().unwrap();
-        let result = generate_utf_schema(file.path().to_str().unwrap(), vec![]);
+        let result = generate_utf_schema(file.path().to_str().unwrap());
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().kind(), io::ErrorKind::InvalidData);
     }

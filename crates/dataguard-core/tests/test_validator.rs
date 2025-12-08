@@ -6,7 +6,7 @@ use tempfile::tempdir;
 #[test]
 fn test_validator_add_single_table() {
     let mut validator = Validator::new();
-    let table = CsvTable::new("path/to/file.csv".to_string(), "output.csv".to_string());
+    let table = CsvTable::new("path/to/file.csv".to_string(), "stdout".to_string()).unwrap();
 
     validator.add_table("users".to_string(), table);
 
@@ -18,12 +18,9 @@ fn test_validator_add_single_table() {
 fn test_validator_add_multiple_tables() {
     let mut validator = Validator::new();
 
-    let table1 = CsvTable::new("path/to/users.csv".to_string(), "output1.csv".to_string());
-    let table2 = CsvTable::new("path/to/orders.csv".to_string(), "output2.csv".to_string());
-    let table3 = CsvTable::new(
-        "path/to/products.csv".to_string(),
-        "output3.csv".to_string(),
-    );
+    let table1 = CsvTable::new("path/to/users.csv".to_string(), "stdout".to_string()).unwrap();
+    let table2 = CsvTable::new("path/to/orders.csv".to_string(), "json".to_string()).unwrap();
+    let table3 = CsvTable::new("path/to/products.csv".to_string(), "csv".to_string()).unwrap();
 
     validator.add_table("users".to_string(), table1);
     validator.add_table("orders".to_string(), table2);
@@ -63,7 +60,7 @@ fn test_validator_validate_existing_table() {
     age_col.is_positive();
 
     let file_path_str = file_path.into_os_string().into_string().unwrap();
-    let mut table = CsvTable::new(file_path_str, "output.csv".to_string());
+    let mut table = CsvTable::new(file_path_str, "stdout".to_string()).unwrap();
     table
         .commit(vec![Box::new(name_col), Box::new(age_col)])
         .unwrap();
@@ -81,8 +78,8 @@ fn test_validator_validate_existing_table() {
 fn test_validator_replace_table() {
     let mut validator = Validator::new();
 
-    let table1 = CsvTable::new("path/to/file1.csv".to_string(), "output1.csv".to_string());
-    let table2 = CsvTable::new("path/to/file2.csv".to_string(), "output2.csv".to_string());
+    let table1 = CsvTable::new("path/to/file1.csv".to_string(), "stdout".to_string()).unwrap();
+    let table2 = CsvTable::new("path/to/file2.csv".to_string(), "json".to_string()).unwrap();
 
     // Add first table
     validator.add_table("data".to_string(), table1);

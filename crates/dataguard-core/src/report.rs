@@ -34,7 +34,7 @@ impl<'a> ValidationReport<'a> {
         self.total_rows.store(total_rows, Ordering::Relaxed);
     }
 
-    pub fn generate_report(&self, mode: &ReportMode) -> String {
+    pub fn generate_report(&self) -> String {
         let mut table = Table::new();
         table.add_row(Row::new(vec![
             Cell::new("Column"),

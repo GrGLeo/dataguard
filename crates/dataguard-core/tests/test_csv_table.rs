@@ -28,7 +28,7 @@ fn test_table_string_column_validation() {
     let file_path = file_path.into_os_string().into_string().unwrap();
 
     // Commit to validator
-    let mut csv_table = CsvTable::new(file_path, "hello".to_string());
+    let mut csv_table = CsvTable::new(file_path, "stdout".to_string()).unwrap();
     csv_table.commit(vec![Box::new(desc_col)]).unwrap();
 
     // Run validation
@@ -62,7 +62,7 @@ fn test_table_integer_column_validation() {
     score_col.between(0, 100);
 
     let file_path = file_path.into_os_string().into_string().unwrap();
-    let mut csv_table = CsvTable::new(file_path, "hello".to_string());
+    let mut csv_table = CsvTable::new(file_path, "stdout".to_string()).unwrap();
     csv_table
         .commit(vec![Box::new(age_col), Box::new(score_col)])
         .unwrap();
@@ -89,7 +89,7 @@ fn test_table_float_column_validation() {
     let mut price_col = FloatColumnBuilder::new("price".to_string());
     price_col.is_monotonically_increasing();
 
-    let mut csv_table = CsvTable::new(file_path, "hello".to_string());
+    let mut csv_table = CsvTable::new(file_path, "stdout".to_string()).unwrap();
     csv_table.commit(vec![Box::new(price_col)]).unwrap();
 
     let res = csv_table.validate();
@@ -109,7 +109,7 @@ fn test_table_get_rules() {
     let mut col3 = IntegerColumnBuilder::new("col3".to_string());
     col3.between(2, 5);
 
-    let mut csv_table = CsvTable::new("hi".to_string(), "hello".to_string());
+    let mut csv_table = CsvTable::new("hi".to_string(), "stdout".to_string()).unwrap();
     csv_table
         .commit(vec![Box::new(col1), Box::new(col2), Box::new(col3)])
         .unwrap();
@@ -151,7 +151,7 @@ fn test_table_multiple_rules_per_column() {
         .is_alpha()
         .unwrap();
 
-    let mut csv_table = CsvTable::new(file_path, "he".to_string());
+    let mut csv_table = CsvTable::new(file_path, "stdout".to_string()).unwrap();
     csv_table.commit(vec![Box::new(username_col)]).unwrap();
 
     let res = csv_table.validate();
@@ -180,7 +180,7 @@ fn test_table_all_pass() {
     age_col.is_positive();
 
     let file_path = file_path.into_os_string().into_string().unwrap();
-    let mut csv_table = CsvTable::new(file_path, "he".to_string());
+    let mut csv_table = CsvTable::new(file_path, "stdout".to_string()).unwrap();
     csv_table
         .commit(vec![Box::new(name_col), Box::new(age_col)])
         .unwrap();
@@ -205,7 +205,7 @@ fn test_table_email_validation() {
     email_col.is_email().unwrap();
 
     let file_path = file_path.into_os_string().into_string().unwrap();
-    let mut csv_table = CsvTable::new(file_path, "he".to_string());
+    let mut csv_table = CsvTable::new(file_path, "stdout".to_string()).unwrap();
     csv_table.commit(vec![Box::new(email_col)]).unwrap();
 
     let res = csv_table.validate();
@@ -240,7 +240,7 @@ fn test_table_mixed_column_types() {
     let mut email_col = StringColumnBuilder::new("email".to_string());
 
     let file_path = file_path.into_os_string().into_string().unwrap();
-    let mut csv_table = CsvTable::new(file_path, "he".to_string());
+    let mut csv_table = CsvTable::new(file_path, "stdout".to_string()).unwrap();
     csv_table
         .commit(vec![
             Box::new(name_col),
