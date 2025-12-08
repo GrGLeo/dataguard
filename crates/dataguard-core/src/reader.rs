@@ -9,11 +9,17 @@ use std::sync::Arc;
 const BATCH: usize = 256_000; // Increased from 256K
 const MIN_CHUNK_SIZE: u64 = 50 * 1024 * 1024; // 50MB minimum per chunk
 
-pub fn read_csv_parallel(path: &str) -> Result<Vec<Arc<RecordBatch>>, io::Error> {
+pub fn read_csv_parallel(
+    path: &str,
+    cols: Vec<String>,
+) -> Result<Vec<Arc<RecordBatch>>, io::Error> {
+    let cols: Vec<&str> = cols.iter().map(|v| v.as_str()).collect();
     let file = File::open(path)?;
     let file_size = file.metadata()?.len();
 
     let schema = Arc::new(generate_utf_schema(path)?);
+    let cols = cols.as_slice();
+    let projection = calculate_projection(&schema, cols);
 
     let mut header_reader = BufReader::new(File::open(path)?);
     let mut header = String::new();
@@ -28,10 +34,17 @@ pub fn read_csv_parallel(path: &str) -> Result<Vec<Arc<RecordBatch>>, io::Error>
 
     let batches: Result<Vec<_>, _> = chunks
         .into_par_iter()
-        .map(|(start, end)| parse_chunk(path, &schema, &header, start, end))
+        .map(|(start, end)| parse_chunk(path, &schema, &projection, &header, start, end))
         .collect();
 
     Ok(batches?.into_iter().flatten().collect())
+}
+
+fn calculate_projection(schema: &Schema, requested_cols: &[&str]) -> Vec<usize> {
+    requested_cols
+        .iter()
+        .filter_map(|col_name| schema.column_with_name(col_name).map(|(idx, _)| idx))
+        .collect()
 }
 
 fn create_chunks(
@@ -75,6 +88,7 @@ fn find_next_newline(file: &mut File, pos: u64) -> Result<u64, io::Error> {
 fn parse_chunk(
     path: &str,
     schema: &Arc<Schema>,
+    projection: &[usize],
     header: &str,
     start: u64,
     end: u64,
@@ -93,6 +107,7 @@ fn parse_chunk(
     let cursor = io::Cursor::new(buffer);
     let reader = ReaderBuilder::new(schema.clone())
         .with_header(true)
+        .with_projection(projection.to_vec())
         .with_batch_size(BATCH)
         .build(cursor)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
@@ -106,13 +121,20 @@ fn parse_chunk(
     Ok(batches)
 }
 
-pub fn read_csv_sequential(path: &str) -> Result<Vec<Arc<RecordBatch>>, io::Error> {
+pub fn read_csv_sequential(
+    path: &str,
+    cols: Vec<String>,
+) -> Result<Vec<Arc<RecordBatch>>, io::Error> {
+    let cols: Vec<&str> = cols.iter().map(|v| v.as_str()).collect();
     let file = File::open(path)?;
     let schema = Arc::new(generate_utf_schema(path)?);
+    let cols = cols.as_slice();
+    let projection = calculate_projection(&schema, cols);
     let mut batches = Vec::new();
 
     let reader = ReaderBuilder::new(schema)
         .with_header(true)
+        .with_projection(projection.to_vec())
         .with_batch_size(BATCH)
         .build(file)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
@@ -131,8 +153,8 @@ fn generate_utf_schema(path: &str) -> Result<Schema, io::Error> {
     let mut lines = reader.lines();
     if let Some(first) = lines.next() {
         let header = first?;
-        let cols: Vec<&str> = header.split(',').collect();
-        let fields: Vec<Field> = cols
+        let all_columns: Vec<&str> = header.split(',').collect();
+        let fields: Vec<Field> = all_columns
             .iter()
             .map(|c| Field::new(c.trim(), DataType::Utf8, true))
             .collect();
@@ -165,6 +187,19 @@ mod tests {
     }
 
     #[test]
+    fn test_generate_utf_schema_valid_with_projection() {
+        let mut file = NamedTempFile::new().unwrap();
+        writeln!(file, "name,age,city").unwrap();
+        writeln!(file, "Alice,30,New York").unwrap();
+
+        let schema = generate_utf_schema(file.path().to_str().unwrap()).unwrap();
+        assert_eq!(schema.fields().len(), 3);
+        assert_eq!(schema.field(0).name(), "name");
+        assert_eq!(schema.field(1).name(), "age");
+        assert_eq!(schema.field(2).name(), "city");
+    }
+
+    #[test]
     fn test_generate_utf_schema_empty_file() {
         let file = NamedTempFile::new().unwrap();
         let result = generate_utf_schema(file.path().to_str().unwrap());
@@ -179,7 +214,11 @@ mod tests {
         writeln!(file, "Alice,30").unwrap();
         writeln!(file, "Bob,25").unwrap();
 
-        let batches = read_csv_sequential(file.path().to_str().unwrap()).unwrap();
+        let batches = read_csv_sequential(
+            file.path().to_str().unwrap(),
+            vec!["name".to_string(), "age".to_string(), "city".to_string()],
+        )
+        .unwrap();
         assert_eq!(batches.len(), 1);
         let batch = &batches[0];
         assert_eq!(batch.num_rows(), 2);
@@ -189,14 +228,20 @@ mod tests {
     #[test]
     fn test_read_csv_sequential_empty_file() {
         let file = NamedTempFile::new().unwrap();
-        let result = read_csv_sequential(file.path().to_str().unwrap());
+        let result = read_csv_sequential(
+            file.path().to_str().unwrap(),
+            vec!["name".to_string(), "age".to_string(), "city".to_string()],
+        );
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().kind(), io::ErrorKind::InvalidData);
     }
 
     #[test]
     fn test_read_csv_sequential_invalid_path() {
-        let result = read_csv_sequential("nonexistent.csv");
+        let result = read_csv_sequential(
+            "nonexistent.csv",
+            vec!["name".to_string(), "age".to_string(), "city".to_string()],
+        );
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().kind(), io::ErrorKind::NotFound);
     }

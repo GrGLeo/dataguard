@@ -23,3 +23,13 @@ pub enum ExecutableColumn {
         type_check: TypeCheck,
     },
 }
+
+impl ExecutableColumn {
+    pub fn get_name(&self) -> String {
+        match self {
+            ExecutableColumn::String { name, .. } => name.clone(),
+            ExecutableColumn::Integer { name, .. } => name.clone(),
+            ExecutableColumn::Float { name, .. } => name.clone(),
+        }
+    }
+}

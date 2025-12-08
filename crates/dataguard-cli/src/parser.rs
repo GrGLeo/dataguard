@@ -3,11 +3,11 @@ use toml::Value;
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
-    pub table: Vec<Table>,
+    pub table: Vec<ConfigTable>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Table {
+pub struct ConfigTable {
     pub name: String,
     pub path: String,
     pub column: Vec<Column>,

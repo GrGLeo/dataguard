@@ -2,22 +2,33 @@
 name = "products_large"
 path = "benchmark/products_large.csv"
 
-[[table.column]]
-name = "Id"
-datatype = "integer"
+  [[table.column]]
+  name = "Id"
+  datatype = "integer"
 
-  [[table.column.rule]]
-  name = "min"
-  min = 5
+    [[table.column.rule]]
+    name = "min"
+    min = 5
 
-[[table.column]]
-name = "Name"
-datatype = "string"
+  [[table.column]]
+  name = "Name"
+  datatype = "string"
 
-  [[table.column.rule]]
-  name = "is_unique"
+    [[table.column.rule]]
+    name = "is_unique"
 
-  [[table.column.rule]]
-  name = "with_min_length"
-  min_length = 5
+    [[table.column.rule]]
+    name = "with_min_length"
+    min_length = 5
 
+[[table]]
+name = "customers_medium"
+path = "benchmark/customers_medium.csv"
+
+  [[table.column]]
+  name = "Index"
+  datatype = "integer"
+
+    [[table.column.rule]]
+    name = "min"
+    min = 5

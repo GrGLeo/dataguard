@@ -21,4 +21,12 @@ pub enum RuleError {
     /// Generic validation error with message
     #[error("Validation error: {0}")]
     ValidationError(String),
+
+    /// Table not found in Validator
+    #[error("Table '{0}' not found in Validator")]
+    TableNotFound(String),
+
+    /// Unknown report format
+    #[error("Unknown report format: '{0}'")]
+    UnknownReportMode(String),
 }
