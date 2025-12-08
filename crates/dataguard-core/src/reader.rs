@@ -13,11 +13,13 @@ pub fn read_csv_parallel(
     path: &str,
     cols: Vec<String>,
 ) -> Result<Vec<Arc<RecordBatch>>, io::Error> {
-    let cols = cols.iter().map(|v| v.as_str()).collect();
+    let cols: Vec<&str> = cols.iter().map(|v| v.as_str()).collect();
     let file = File::open(path)?;
     let file_size = file.metadata()?.len();
 
-    let schema = Arc::new(generate_utf_schema(path, cols)?);
+    let schema = Arc::new(generate_utf_schema(path, cols.clone())?);
+    let cols = cols.as_slice();
+    let projection = calculate_projection(&schema, cols);
 
     let mut header_reader = BufReader::new(File::open(path)?);
     let mut header = String::new();
@@ -32,10 +34,17 @@ pub fn read_csv_parallel(
 
     let batches: Result<Vec<_>, _> = chunks
         .into_par_iter()
-        .map(|(start, end)| parse_chunk(path, &schema, &header, start, end))
+        .map(|(start, end)| parse_chunk(path, &schema, &projection, &header, start, end))
         .collect();
 
     Ok(batches?.into_iter().flatten().collect())
+}
+
+fn calculate_projection(schema: &Schema, requested_cols: &[&str]) -> Vec<usize> {
+    requested_cols
+        .iter()
+        .filter_map(|col_name| schema.column_with_name(col_name).map(|(idx, _)| idx))
+        .collect()
 }
 
 fn create_chunks(
@@ -79,6 +88,7 @@ fn find_next_newline(file: &mut File, pos: u64) -> Result<u64, io::Error> {
 fn parse_chunk(
     path: &str,
     schema: &Arc<Schema>,
+    projection: &Vec<usize>,
     header: &str,
     start: u64,
     end: u64,
@@ -97,6 +107,7 @@ fn parse_chunk(
     let cursor = io::Cursor::new(buffer);
     let reader = ReaderBuilder::new(schema.clone())
         .with_header(true)
+        .with_projection(projection.to_vec())
         .with_batch_size(BATCH)
         .build(cursor)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
@@ -114,13 +125,16 @@ pub fn read_csv_sequential(
     path: &str,
     cols: Vec<String>,
 ) -> Result<Vec<Arc<RecordBatch>>, io::Error> {
-    let cols = cols.iter().map(|v| v.as_str()).collect();
+    let cols: Vec<&str> = cols.iter().map(|v| v.as_str()).collect();
     let file = File::open(path)?;
-    let schema = Arc::new(generate_utf_schema(path, cols)?);
+    let schema = Arc::new(generate_utf_schema(path, cols.clone())?);
+    let cols = cols.as_slice();
+    let projection = calculate_projection(&schema, cols);
     let mut batches = Vec::new();
 
     let reader = ReaderBuilder::new(schema)
         .with_header(true)
+        .with_projection(projection.to_vec())
         .with_batch_size(BATCH)
         .build(file)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
@@ -142,7 +156,6 @@ fn generate_utf_schema(path: &str, cols: Vec<&str>) -> Result<Schema, io::Error>
         let all_columns: Vec<&str> = header.split(',').collect();
         let fields: Vec<Field> = all_columns
             .iter()
-            .filter(|col| cols.contains(col))
             .map(|c| Field::new(c.trim(), DataType::Utf8, true))
             .collect();
         Ok(Schema::new(fields))
@@ -183,9 +196,10 @@ mod tests {
 
         let schema =
             generate_utf_schema(file.path().to_str().unwrap(), vec!["name", "age"]).unwrap();
-        assert_eq!(schema.fields().len(), 2);
+        assert_eq!(schema.fields().len(), 3);
         assert_eq!(schema.field(0).name(), "name");
         assert_eq!(schema.field(1).name(), "age");
+        assert_eq!(schema.field(2).name(), "city");
     }
 
     #[test]
