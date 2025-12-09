@@ -32,6 +32,10 @@ impl ValidationResult {
         self.passed = false;
         self.error_message = Some(message);
     }
+
+    pub fn is_failed(&self) -> bool {
+        return !self.passed;
+    }
 }
 
 #[derive(Debug, Clone)]
