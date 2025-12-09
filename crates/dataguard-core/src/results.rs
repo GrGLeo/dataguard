@@ -1,16 +1,16 @@
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
-pub struct ValidationResult<'a> {
-    table_name: &'a str,
+pub struct ValidationResult {
+    table_name: String,
     total_rows: usize,
     passed: bool,
     error_message: Option<String>,
     column_results: HashMap<String, Vec<RuleResult>>,
 }
 
-impl<'a> ValidationResult<'a> {
-    pub fn new(table_name: &'a str, total_rows: usize) -> Self {
+impl ValidationResult {
+    pub fn new(table_name: String, total_rows: usize) -> Self {
         Self {
             table_name,
             total_rows,
@@ -57,9 +57,9 @@ mod test {
 
     #[test]
     fn test_validaton_result_instanciation() {
-        let table_name = "products";
+        let table_name = "products".to_string();
         let total_rows = 20_000_000usize;
-        let validation = ValidationResult::new(table_name, total_rows);
+        let validation = ValidationResult::new(table_name.clone(), total_rows);
 
         assert_eq!(validation.passed, true);
         assert_eq!(validation.table_name, table_name);
@@ -68,9 +68,9 @@ mod test {
 
     #[test]
     fn test_validaton_result_failed() {
-        let table_name = "products";
+        let table_name = "products".to_string();
         let total_rows = 20_000_000usize;
-        let mut validation = ValidationResult::new(table_name, total_rows);
+        let mut validation = ValidationResult::new(table_name.clone(), total_rows);
 
         assert_eq!(validation.passed, true);
         validation.set_failed(String::from("Failed"));

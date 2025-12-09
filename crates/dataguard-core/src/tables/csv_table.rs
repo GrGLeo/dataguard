@@ -18,15 +18,15 @@ use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-pub struct CsvTable<'a> {
+pub struct CsvTable {
     path: String,
-    table_name: &'a str,
+    table_name: String,
     executable_columns: Vec<ExecutableColumn>,
 }
 
-impl<'a> CsvTable<'a> {
+impl CsvTable {
     /// Create a new Validator instance
-    pub fn new(path: String, table_name: &'a str) -> Result<Self, RuleError> {
+    pub fn new(path: String, table_name: String) -> Result<Self, RuleError> {
         Ok(Self {
             path,
             table_name,
@@ -35,7 +35,7 @@ impl<'a> CsvTable<'a> {
     }
 }
 
-impl<'a> Table for CsvTable<'a> {
+impl Table for CsvTable {
     /// Commit column configurations and compile them into executable rules
     fn commit(&mut self, columns: Vec<Box<dyn ColumnBuilder>>) -> Result<(), RuleError> {
         self.executable_columns = columns
@@ -55,7 +55,7 @@ impl<'a> Table for CsvTable<'a> {
         let batches = read_csv_parallel(self.path.as_str(), needed_cols)?;
 
         let error_count = AtomicUsize::new(0);
-        let report = ValidationReport::new(self.table_name);
+        let report = ValidationReport::new(self.table_name.clone());
 
         let total_rows: usize = batches.iter().map(|batch| batch.num_rows()).sum();
         report.set_total_rows(total_rows);
@@ -106,7 +106,7 @@ impl<'a> Table for CsvTable<'a> {
 
         let column_results = report.to_results();
         let total_errors = error_count.load(Ordering::Relaxed);
-        let mut results = ValidationResult::new(self.table_name, total_rows);
+        let mut results = ValidationResult::new(self.table_name.clone(), total_rows);
         results.add_column_results(column_results);
 
         // TODO: not sure about that

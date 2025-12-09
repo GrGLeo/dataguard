@@ -7,14 +7,14 @@ use std::{
 
 use crate::RuleResult;
 
-pub struct ValidationReport<'a> {
-    table_name: &'a str,
+pub struct ValidationReport {
+    table_name: String,
     results: DashMap<(String, String), AtomicUsize>, // (column_name, rule_name) -> error_count
     total_rows: AtomicUsize,
 }
 
-impl<'a> ValidationReport<'a> {
-    pub fn new(table_name: &'a str) -> Self {
+impl ValidationReport {
+    pub fn new(table_name: String) -> Self {
         Self {
             table_name,
             results: DashMap::new(),
