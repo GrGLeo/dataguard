@@ -41,7 +41,7 @@ fn test_table_string_column_validation() {
     // - "another good one": pass + pass = 0 errors
     // - "": fail (length) + fail (regex) = 2 errors
     if let Ok(res) = csv_table.validate() {
-        assert!(res.is_failed());
+        assert!(!res.is_passed());
     } else {
         assert!(false)
     }
@@ -75,7 +75,7 @@ fn test_table_integer_column_validation() {
 
     // Expected: 3 errors (150 > 120, -5 < 0, 105 > 100)
     if let Ok(res) = csv_table.validate() {
-        assert!(res.is_failed());
+        assert!(!res.is_passed());
     } else {
         assert!(false)
     }
@@ -102,7 +102,7 @@ fn test_table_float_column_validation() {
 
     // Expected: 1 error (5.0 < 25.0 violates monotonicity)
     if let Ok(res) = csv_table.validate() {
-        assert!(res.is_failed());
+        assert!(!res.is_passed());
     } else {
         assert!(false)
     }
@@ -169,7 +169,7 @@ fn test_table_multiple_rules_per_column() {
     // - "bob123": fail (not alpha) = 1 error
     // - "verylongusername...": fail (length > 20) = 1 error
     if let Ok(res) = csv_table.validate() {
-        assert!(res.is_failed());
+        assert!(!res.is_passed());
     } else {
         assert!(false)
     }
@@ -221,7 +221,7 @@ fn test_table_email_validation() {
     csv_table.commit(vec![Box::new(email_col)]).unwrap();
 
     if let Ok(res) = csv_table.validate() {
-        assert!(res.is_failed());
+        assert!(!res.is_passed());
     } else {
         assert!(false)
     }
@@ -266,7 +266,7 @@ fn test_table_mixed_column_types() {
 
     // Expected: 4 errors (ab too short, 150 > 120, 105 > 100, 5.0 < 30.0)
     if let Ok(res) = csv_table.validate() {
-        assert!(res.is_failed());
+        assert!(!res.is_passed());
     } else {
         assert!(false)
     }

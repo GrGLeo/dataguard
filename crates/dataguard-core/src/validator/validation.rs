@@ -7,6 +7,12 @@ pub struct Validator {
     tables: HashMap<String, CsvTable>,
 }
 
+impl Default for Validator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Validator {
     /// Create a new Validator instance
     pub fn new() -> Self {

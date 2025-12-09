@@ -30,5 +30,4 @@ path = "benchmark/customers_medium.csv"
   datatype = "integer"
 
     [[table.column.rule]]
-    name = "min"
-    min = 5
+    name = "is_non_negative"

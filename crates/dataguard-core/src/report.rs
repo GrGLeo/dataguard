@@ -8,15 +8,19 @@ use std::{
 use crate::RuleResult;
 
 pub struct ValidationReport {
-    table_name: String,
     results: DashMap<(String, String), AtomicUsize>, // (column_name, rule_name) -> error_count
     total_rows: AtomicUsize,
 }
 
+impl Default for ValidationReport {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ValidationReport {
-    pub fn new(table_name: String) -> Self {
+    pub fn new() -> Self {
         Self {
-            table_name,
             results: DashMap::new(),
             total_rows: AtomicUsize::new(0),
         }
@@ -58,7 +62,7 @@ impl ValidationReport {
 
             results
                 .entry(column_name.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(RuleResult::new(
                     rule_name.clone(),
                     error_count,

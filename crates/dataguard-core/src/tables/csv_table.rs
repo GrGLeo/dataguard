@@ -55,7 +55,7 @@ impl Table for CsvTable {
         let batches = read_csv_parallel(self.path.as_str(), needed_cols)?;
 
         let error_count = AtomicUsize::new(0);
-        let report = ValidationReport::new(self.table_name.clone());
+        let report = ValidationReport::new();
 
         let total_rows: usize = batches.iter().map(|batch| batch.num_rows()).sum();
         report.set_total_rows(total_rows);

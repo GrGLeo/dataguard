@@ -2,10 +2,10 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct ValidationResult {
-    table_name: String,
-    total_rows: usize,
+    pub table_name: String,
+    pub total_rows: usize,
     passed: bool,
-    error_message: Option<String>,
+    pub error_message: Option<String>,
     column_results: HashMap<String, Vec<RuleResult>>,
 }
 
@@ -28,21 +28,28 @@ impl ValidationResult {
         self.column_results = column_results
     }
 
+    pub fn get_column_results(&self) -> HashMap<String, Vec<&RuleResult>> {
+        self.column_results
+            .iter()
+            .map(|(s, v)| (s.clone(), v.iter().collect()))
+            .collect()
+    }
+
     pub fn set_failed(&mut self, message: String) {
         self.passed = false;
         self.error_message = Some(message);
     }
 
-    pub fn is_failed(&self) -> bool {
-        return !self.passed;
+    pub fn is_passed(&self) -> bool {
+        self.passed
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct RuleResult {
-    rule_name: String,
-    error_count: usize,
-    error_percentage: f64,
+    pub rule_name: String,
+    pub error_count: usize,
+    pub error_percentage: f64,
 }
 
 impl RuleResult {
