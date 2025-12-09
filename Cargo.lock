@@ -634,6 +634,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "dataguard-reports"
+version = "0.1.0"
+dependencies = [
+ "dataguard-core",
+]
+
+[[package]]
 name = "dirs-next"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -1,25 +1,24 @@
 use dashmap::DashMap;
 use prettytable::{Cell, Row, Table};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::{
+    collections::HashMap,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
-pub enum ReportMode {
-    StdOut,
-    Json,
-    Csv,
-}
+use crate::RuleResult;
 
 pub struct ValidationReport<'a> {
+    table_name: &'a str,
     results: DashMap<(String, String), AtomicUsize>, // (column_name, rule_name) -> error_count
     total_rows: AtomicUsize,
-    mode: &'a ReportMode,
 }
 
 impl<'a> ValidationReport<'a> {
-    pub fn new(mode: &'a ReportMode) -> Self {
+    pub fn new(table_name: &'a str) -> Self {
         Self {
+            table_name,
             results: DashMap::new(),
             total_rows: AtomicUsize::new(0),
-            mode,
         }
     }
 
@@ -32,6 +31,46 @@ impl<'a> ValidationReport<'a> {
 
     pub fn set_total_rows(&self, total_rows: usize) {
         self.total_rows.store(total_rows, Ordering::Relaxed);
+    }
+
+    pub fn to_results(&self) -> HashMap<String, Vec<RuleResult>> {
+        let mut results: HashMap<String, Vec<RuleResult>> = HashMap::new();
+        let total_rows = self.total_rows.load(Ordering::Relaxed);
+
+        let mut sorted: Vec<_> = self.results.iter().collect();
+        sorted.sort_by(|a, b| {
+            let col_cmp = a.key().0.cmp(&b.key().0);
+            if col_cmp != std::cmp::Ordering::Equal {
+                col_cmp
+            } else {
+                a.key().1.cmp(&b.key().1)
+            }
+        });
+
+        for entry in sorted {
+            let (column_name, rule_name) = entry.key();
+            let error_count = entry.value().load(Ordering::Relaxed);
+            let error_percentage = if total_rows > 0 {
+                (error_count as f64 / total_rows as f64) * 100.
+            } else {
+                0.0
+            };
+
+            results
+                .entry(column_name.clone())
+                .or_insert_with(Vec::new)
+                .push(RuleResult::new(
+                    rule_name.clone(),
+                    error_count,
+                    error_percentage,
+                ));
+        }
+
+        results
+    }
+
+    pub fn get_total_rows(&self) -> usize {
+        self.total_rows.load(Ordering::Relaxed)
     }
 
     pub fn generate_report(&self) -> String {

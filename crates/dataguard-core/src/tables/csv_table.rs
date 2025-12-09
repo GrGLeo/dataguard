@@ -1,13 +1,14 @@
 use crate::column::{ColumnBuilder, ColumnRule, ColumnType};
 use crate::errors::RuleError;
 use crate::reader::read_csv_parallel;
-use crate::report::{ReportMode, ValidationReport};
+use crate::report::ValidationReport;
 use crate::rules::generic::{TypeCheck, UnicityCheck};
 use crate::rules::numeric::{Monotonicity, NumericRule, Range};
 use crate::rules::string::{IsInCheck, RegexMatch, StringLengthCheck, StringRule};
 use crate::tables::Table;
 use crate::utils::hasher::Xxh3Builder;
 use crate::validator::ExecutableColumn;
+use crate::ValidationResult;
 use arrow::array::{Array, PrimitiveArray, StringArray};
 use arrow::datatypes::{DataType, Float64Type, Int64Type};
 use arrow::record_batch::RecordBatch;
@@ -17,30 +18,24 @@ use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-pub struct CsvTable {
+pub struct CsvTable<'a> {
     path: String,
-    output: ReportMode,
+    table_name: &'a str,
     executable_columns: Vec<ExecutableColumn>,
 }
 
-impl CsvTable {
+impl<'a> CsvTable<'a> {
     /// Create a new Validator instance
-    pub fn new(path: String, output: String) -> Result<Self, RuleError> {
-        let mode = match output.to_lowercase().as_str() {
-            "stdout" => ReportMode::StdOut,
-            "json" => ReportMode::Json,
-            "csv" => ReportMode::Csv,
-            _ => return Err(RuleError::UnknownReportMode(output)),
-        };
+    pub fn new(path: String, table_name: &'a str) -> Result<Self, RuleError> {
         Ok(Self {
             path,
-            output: mode,
+            table_name,
             executable_columns: Vec::new(),
         })
     }
 }
 
-impl Table for CsvTable {
+impl<'a> Table for CsvTable<'a> {
     /// Commit column configurations and compile them into executable rules
     fn commit(&mut self, columns: Vec<Box<dyn ColumnBuilder>>) -> Result<(), RuleError> {
         self.executable_columns = columns
@@ -51,7 +46,7 @@ impl Table for CsvTable {
     }
 
     /// Validate a CSV file against the committed rules
-    fn validate(&mut self) -> Result<(), RuleError> {
+    fn validate(&mut self) -> Result<ValidationResult, RuleError> {
         let needed_cols: Vec<String> = self
             .executable_columns
             .iter()
@@ -60,7 +55,7 @@ impl Table for CsvTable {
         let batches = read_csv_parallel(self.path.as_str(), needed_cols)?;
 
         let error_count = AtomicUsize::new(0);
-        let report = ValidationReport::new(&self.output);
+        let report = ValidationReport::new(self.table_name);
 
         let total_rows: usize = batches.iter().map(|batch| batch.num_rows()).sum();
         report.set_total_rows(total_rows);
@@ -109,20 +104,16 @@ impl Table for CsvTable {
             }
         }
 
-        let output = report.generate_report();
-        match self.output {
-            ReportMode::StdOut => println!("{}", output),
-            ReportMode::Json => println!("{}", output),
-            ReportMode::Csv => println!("{}", output),
-        };
+        let column_results = report.to_results();
+        let total_errors = error_count.load(Ordering::Relaxed);
+        let mut results = ValidationResult::new(self.table_name, total_rows);
+        results.add_column_results(column_results);
 
         // TODO: not sure about that
-        if error_count.load(Ordering::Relaxed) > 0 {
-            return Err(RuleError::ValidationError(
-                "too much errors found".to_string(),
-            ));
+        if total_errors > 0 {
+            results.set_failed("Too much errors found".to_string());
         }
-        Ok(())
+        Ok(results)
     }
 
     /// Get a summary of configured rules
