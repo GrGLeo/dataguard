@@ -45,9 +45,7 @@ pub fn validate_config(config: &Config) -> Result<(), ConfigError> {
             });
         }
         for column in &table.column {
-            if let Err(e) = validate_column(column) {
-                return Err(e);
-            }
+            validate_column(column)?
         }
     }
     Ok(())
@@ -55,81 +53,84 @@ pub fn validate_config(config: &Config) -> Result<(), ConfigError> {
 
 fn validate_column(col: &Column) -> Result<(), ConfigError> {
     for rule in &col.rule {
-        match (rule.min_length, rule.max_length) {
-            (Some(min), Some(max)) => {
-                if min > max {
-                    return Err(ConfigError::RuleError {
-                        rule_name: rule.name.clone(),
-                        column_name: col.name.clone(),
-                        message: format!(
-                            "min length ({}) must be less than max length ({})",
-                            min, max
-                        ),
-                    });
-                }
-                if min == max {
-                    return Err(ConfigError::RuleError {
-                        rule_name: rule.name.clone(),
-                        column_name: col.name.clone(),
-                        message: format!("min length ({}) is equal max length ({})\n Hint: use 'is_exact_length'", min, max)
-                    });
-                }
+        if let (Some(min), Some(max)) = (rule.min_length, rule.max_length) {
+            if min > max {
+                return Err(ConfigError::RuleError {
+                    rule_name: rule.name.clone(),
+                    column_name: col.name.clone(),
+                    message: format!(
+                        "min length ({}) must be less than max length ({})",
+                        min, max
+                    ),
+                });
             }
-            (_, _) => {}
+            if min == max {
+                return Err(ConfigError::RuleError {
+                    rule_name: rule.name.clone(),
+                    column_name: col.name.clone(),
+                    message: format!(
+                        "min length ({}) is equal max length ({})\n Hint: use 'is_exact_length'",
+                        min, max
+                    ),
+                });
+            }
         }
 
-        match (&rule.min, &rule.max) {
-            (Some(i), Some(j)) => {
-                match (&i, &j) {
-                    (Value::Float(min_f), Value::Float(max_f)) => {
-                        if min_f > max_f {
-                            return Err(ConfigError::RuleError {
-                             rule_name: rule.name.clone(),
-                             column_name: col.name.clone(),
-                             message: format!("min value ({}) must be less than max value ({}) for float rule.", min_f, max_f)
-                         });
-                        }
-                        if min_f == max_f {
-                            return Err(ConfigError::RuleError {
-                             rule_name: rule.name.clone(),
-                             column_name: col.name.clone(),
-                            message: format!("min value ({}) is equal max value ({})\n Hint: use 'is_exact_length'", min_f, max_f)
-                         });
-                        }
-                    }
-                    (Value::Integer(min_i), Value::Integer(max_i)) => {
-                        if min_i > max_i {
-                            return Err(ConfigError::RuleError {
-                             rule_name: rule.name.clone(),
-                             column_name: col.name.clone(),
-                             message: format!("min value ({}) must be less than max value ({}) for integer rule.", min_i, max_i)
-                         });
-                        }
-                        if min_i == max_i {
-                            return Err(ConfigError::RuleError {
-                             rule_name: rule.name.clone(),
-                             column_name: col.name.clone(),
-                            message: format!("min value ({}) is equal max value ({})\n Hint: use 'is_exact_length'", min_i, max_i)
-                         });
-                        }
-                    }
-                    (Value::Integer(_), Value::Float(_)) | (Value::Float(_), Value::Integer(_)) => {
+        if let (Some(i), Some(j)) = (&rule.min, &rule.max) {
+            match (&i, &j) {
+                (Value::Float(min_f), Value::Float(max_f)) => {
+                    if min_f > max_f {
                         return Err(ConfigError::RuleError {
-                        rule_name: rule.name.clone(),
-                        column_name: col.name.clone(),
-                        message: format!("type mismatch min and max must be the same type (both integer or both float). Got min: {:?}, max: {:?}", i, j)
-                    });
+                            rule_name: rule.name.clone(),
+                            column_name: col.name.clone(),
+                            message: format!(
+                                "min value ({}) must be less than max value ({}) for float rule.",
+                                min_f, max_f
+                            ),
+                        });
                     }
-                    _ => {
+                    if min_f == max_f {
                         return Err(ConfigError::RuleError {
-                        rule_name: rule.name.clone(),
-                        column_name: col.name.clone(),
-                        message: format!("Unsupported type for min/max. Expected Integer or Float, got min: {:?}, max: {:?}", i, j)
-                    });
+                         rule_name: rule.name.clone(),
+                         column_name: col.name.clone(),
+                        message: format!("min value ({}) is equal max value ({})\n Hint: use 'is_exact_length'", min_f, max_f)
+                     });
                     }
                 }
+                (Value::Integer(min_i), Value::Integer(max_i)) => {
+                    if min_i > max_i {
+                        return Err(ConfigError::RuleError {
+                            rule_name: rule.name.clone(),
+                            column_name: col.name.clone(),
+                            message: format!(
+                                "min value ({}) must be less than max value ({}) for integer rule.",
+                                min_i, max_i
+                            ),
+                        });
+                    }
+                    if min_i == max_i {
+                        return Err(ConfigError::RuleError {
+                         rule_name: rule.name.clone(),
+                         column_name: col.name.clone(),
+                        message: format!("min value ({}) is equal max value ({})\n Hint: use 'is_exact_length'", min_i, max_i)
+                     });
+                    }
+                }
+                (Value::Integer(_), Value::Float(_)) | (Value::Float(_), Value::Integer(_)) => {
+                    return Err(ConfigError::RuleError {
+                    rule_name: rule.name.clone(),
+                    column_name: col.name.clone(),
+                    message: format!("type mismatch min and max must be the same type (both integer or both float). Got min: {:?}, max: {:?}", i, j)
+                });
+                }
+                _ => {
+                    return Err(ConfigError::RuleError {
+                    rule_name: rule.name.clone(),
+                    column_name: col.name.clone(),
+                    message: format!("Unsupported type for min/max. Expected Integer or Float, got min: {:?}, max: {:?}", i, j)
+                });
+                }
             }
-            _ => {}
         }
     }
     Ok(())
