@@ -1,0 +1,10 @@
+[package]
+name = "dataguard-reports"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+dataguard-core = { path = "../dataguard-core/" }
+
+[lints]
+workspace = true

@@ -40,7 +40,11 @@ fn test_table_string_column_validation() {
     // - "invalid-char!": pass (length) + fail (regex has !) = 1 error
     // - "another good one": pass + pass = 0 errors
     // - "": fail (length) + fail (regex) = 2 errors
-    assert_eq!(true, res.is_err());
+    if let Ok(res) = csv_table.validate() {
+        assert!(!res.is_passed());
+    } else {
+        assert!(false)
+    }
 }
 
 #[test]
@@ -70,7 +74,11 @@ fn test_table_integer_column_validation() {
     let res = csv_table.validate();
 
     // Expected: 3 errors (150 > 120, -5 < 0, 105 > 100)
-    assert_eq!(true, res.is_err());
+    if let Ok(res) = csv_table.validate() {
+        assert!(!res.is_passed());
+    } else {
+        assert!(false)
+    }
 }
 
 #[test]
@@ -92,10 +100,12 @@ fn test_table_float_column_validation() {
     let mut csv_table = CsvTable::new(file_path, "stdout".to_string()).unwrap();
     csv_table.commit(vec![Box::new(price_col)]).unwrap();
 
-    let res = csv_table.validate();
-
     // Expected: 1 error (5.0 < 25.0 violates monotonicity)
-    assert_eq!(res.is_err(), true);
+    if let Ok(res) = csv_table.validate() {
+        assert!(!res.is_passed());
+    } else {
+        assert!(false)
+    }
 }
 
 #[test]
@@ -154,13 +164,15 @@ fn test_table_multiple_rules_per_column() {
     let mut csv_table = CsvTable::new(file_path, "stdout".to_string()).unwrap();
     csv_table.commit(vec![Box::new(username_col)]).unwrap();
 
-    let res = csv_table.validate();
-
     // Expected:
     // - "ab": fail (length < 3) = 1 error
     // - "bob123": fail (not alpha) = 1 error
     // - "verylongusername...": fail (length > 20) = 1 error
-    assert_eq!(res.is_err(), true);
+    if let Ok(res) = csv_table.validate() {
+        assert!(!res.is_passed());
+    } else {
+        assert!(false)
+    }
 }
 
 #[test]
@@ -208,10 +220,11 @@ fn test_table_email_validation() {
     let mut csv_table = CsvTable::new(file_path, "stdout".to_string()).unwrap();
     csv_table.commit(vec![Box::new(email_col)]).unwrap();
 
-    let res = csv_table.validate();
-
-    // Expected: 2 errors (invalid-email, @invalid.com)
-    assert_eq!(res.is_err(), true);
+    if let Ok(res) = csv_table.validate() {
+        assert!(!res.is_passed());
+    } else {
+        assert!(false)
+    }
 }
 
 #[test]
@@ -237,7 +250,7 @@ fn test_table_mixed_column_types() {
     let mut price_col = FloatColumnBuilder::new("price".to_string());
     price_col.is_monotonically_increasing();
 
-    let mut email_col = StringColumnBuilder::new("email".to_string());
+    let email_col = StringColumnBuilder::new("email".to_string());
 
     let file_path = file_path.into_os_string().into_string().unwrap();
     let mut csv_table = CsvTable::new(file_path, "stdout".to_string()).unwrap();
@@ -251,8 +264,10 @@ fn test_table_mixed_column_types() {
         ])
         .unwrap();
 
-    let res = csv_table.validate();
-
     // Expected: 4 errors (ab too short, 150 > 120, 105 > 100, 5.0 < 30.0)
-    assert_eq!(res.is_err(), true);
+    if let Ok(res) = csv_table.validate() {
+        assert!(!res.is_passed());
+    } else {
+        assert!(false)
+    }
 }
