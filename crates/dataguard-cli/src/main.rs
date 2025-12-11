@@ -1,7 +1,7 @@
 mod constructor;
 mod errors;
 mod parser;
-use crate::runner::run;
+use crate::runner::{run, watch_run};
 use clap::{Parser, ValueEnum};
 mod runner;
 
@@ -41,10 +41,8 @@ struct Args {
 
     /// Enable running validation automatically on file changes
     #[arg(short, long)]
-    watch: bool
+    watch: bool,
 }
-
-
 
 fn main() {
     let args = Args::parse();
@@ -53,21 +51,25 @@ fn main() {
     if args.debug {
         std::env::set_var("RUST_BACKTRACE", "1");
     }
-
-    match run(args) {
-        Ok(all_passed) => {
-            if !all_passed {
-                std::process::exit(1)
-            }
+    match args.watch {
+        true => {
+            watch_run(args);
         }
-        Err(err) => {
-            if std::env::var("RUST_BACKTRACE").is_ok() {
-                eprintln!("Error: {:?}", err);
-            } else {
-                eprintln!("Error: {:#}", err);
-                eprintln!("\nHint: Run with --debug flag for detailed stack traces");
+        false => match run(args) {
+            Ok(all_passed) => {
+                if !all_passed {
+                    std::process::exit(1)
+                }
             }
-            std::process::exit(2);
-        }
+            Err(err) => {
+                if std::env::var("RUST_BACKTRACE").is_ok() {
+                    eprintln!("Error: {:?}", err);
+                } else {
+                    eprintln!("Error: {:#}", err);
+                    eprintln!("\nHint: Run with --debug flag for detailed stack traces");
+                }
+                std::process::exit(2);
+            }
+        },
     }
 }
