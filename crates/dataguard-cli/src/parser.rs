@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use anyhow::{Context, Result};
 use serde::Deserialize;
 use toml::Value;
 
@@ -49,6 +50,19 @@ pub fn validate_config(config: &Config) -> Result<(), ConfigError> {
         }
     }
     Ok(())
+}
+
+pub fn parse_config(path: String) -> Result<Config> {
+    let config_path = std::path::PathBuf::from(path);
+    let config_str = std::fs::read_to_string(config_path.clone())
+        .with_context(|| format!("Failed to read config file: {}", config_path.display()))?;
+    let config: Config = toml::from_str(config_str.as_str())
+        .with_context(|| format!("Failed to parse config file: {}", config_path.display()))?;
+    if config.table.is_empty() {
+        anyhow::bail!("Configuration file contains no table");
+    }
+    validate_config(&config)?;
+    Ok(config)
 }
 
 fn validate_column(col: &Column) -> Result<(), ConfigError> {
