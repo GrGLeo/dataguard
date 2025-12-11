@@ -1,7 +1,7 @@
 mod constructor;
 mod errors;
 mod parser;
-use crate::constructor::construct_csv_table;
+use crate::{constructor::construct_csv_table, parser::validate_config};
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
 use dataguard_core::Validator;
@@ -43,8 +43,8 @@ struct Args {
     debug: bool,
 }
 
-fn run(args: Args) -> Result<bool> {
-    let config_path = std::path::PathBuf::from(args.config);
+fn parse_config(path: String) -> Result<Config> {
+    let config_path = std::path::PathBuf::from(path);
     let config_str = std::fs::read_to_string(config_path.clone())
         .with_context(|| format!("Failed to read config file: {}", config_path.display()))?;
     let config: Config = toml::from_str(config_str.as_str())
@@ -52,7 +52,11 @@ fn run(args: Args) -> Result<bool> {
     if config.table.is_empty() {
         anyhow::bail!("Configuration file contains no table");
     }
+    validate_config(&config)?;
+    Ok(config)
+}
 
+fn run(args: Args) -> Result<bool> {
     let mut validator = Validator::new();
 
     // Process validation based on output format
@@ -61,6 +65,7 @@ fn run(args: Args) -> Result<bool> {
             let version = env!("CARGO_PKG_VERSION");
             let formatter = StdOutFormatter::new(version.to_string());
             formatter.print_loading_start();
+            let config = parse_config(args.config)?;
             let n_table = config.table.len();
             for (i, t) in config.table.iter().enumerate() {
                 formatter.print_loading_progress(i + 1, n_table, &t.name);
@@ -82,6 +87,7 @@ fn run(args: Args) -> Result<bool> {
         }
         OutputFormat::Json => {
             // JSON output format - placeholder for future implementation
+            let config = parse_config(args.config)?;
             for t in config.table {
                 println!("Parsing: {}", t.name);
                 let csv_table = construct_csv_table(&t)
@@ -114,7 +120,7 @@ fn main() {
                 eprintln!("Error: {:#}", err);
                 eprintln!("\nHint: Run with --debug flag for detailed stack traces");
             }
-            std::process::exit(1);
+            std::process::exit(2);
         }
     }
 }

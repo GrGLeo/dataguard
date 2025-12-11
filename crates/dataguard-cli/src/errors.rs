@@ -31,3 +31,15 @@ pub enum CliError {
     #[error("Validation error: {0}")]
     ValidationError(#[from] RuleError),
 }
+
+#[derive(Error, Debug)]
+pub enum ConfigError {
+    #[error("Error: csv file not found: '{table_path}'")]
+    FileNotFound { table_path: String },
+    #[error("Rule logic error: rule '{rule_name}' for '{column_name}' - {message}")]
+    RuleError {
+        rule_name: String,
+        column_name: String,
+        message: String,
+    },
+}
