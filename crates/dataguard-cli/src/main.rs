@@ -1,6 +1,7 @@
 mod constructor;
 mod errors;
 mod parser;
+mod writer;
 use crate::runner::{run, watch_run};
 use clap::{Parser, ValueEnum};
 mod runner;
@@ -35,8 +36,10 @@ struct Args {
     #[arg(short, long, value_enum, default_value = "stdout")]
     output: OutputFormat,
 
-    /// Path to directory or file for JSON output (defaults to current directory)
-    /// If a directory is provided, filename will be: validation_{timestamp}.json
+    /// Path to directory or file for JSON output
+    /// - If directory (e.g., ".", "/results/"): generates validation_{timestamp}.json
+    /// - If file path: uses the exact filename provided
+    /// - Defaults to current directory if not specified
     #[arg(short, long)]
     path: Option<String>,
 

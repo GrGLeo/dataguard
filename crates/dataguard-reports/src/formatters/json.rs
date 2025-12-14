@@ -8,6 +8,8 @@ use crate::Reporter;
 pub struct JsonFormatter {
     version: String,
     timestamp: String,
+    #[serde(skip)]
+    timestamp_compact: String,
     tables: Vec<TableFormatter>,
 }
 
@@ -34,16 +36,23 @@ struct RuleFormatter {
 
 impl JsonFormatter {
     pub fn new(version: String) -> Self {
-        let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let now = Local::now();
+        let timestamp = now.format("%Y-%m-%d %H:%M:%S").to_string();
+        let timestamp_compact = now.format("%Y%m%d-%H%M%S").to_string();
         Self {
             version,
             timestamp,
+            timestamp_compact,
             tables: Vec::new(),
         }
     }
 
     pub fn to_json(&self) -> Result<String, Error> {
         serde_json::to_string_pretty(self)
+    }
+
+    pub fn get_timestamp_compact(&self) -> &str {
+        &self.timestamp_compact
     }
 }
 

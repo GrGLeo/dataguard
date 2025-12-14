@@ -618,6 +618,7 @@ dependencies = [
  "dataguard-reports",
  "notify",
  "serde",
+ "tempfile",
  "thiserror",
  "toml",
 ]

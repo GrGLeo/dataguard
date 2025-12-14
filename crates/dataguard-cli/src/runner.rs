@@ -1,4 +1,7 @@
-use std::{fs::File, io::Write, path::{Path, PathBuf}};
+use std::{
+    fs::{self},
+    path::{Path, PathBuf},
+};
 
 use anyhow::{Context, Result};
 use dataguard_core::Validator;
@@ -9,7 +12,8 @@ use notify::{
 };
 
 use crate::{
-    constructor::construct_csv_table, errors::ConfigError, parser::parse_config, Args, OutputFormat,
+    constructor::construct_csv_table, errors::ConfigError, parser::parse_config,
+    writer::resolve_file_path, Args, OutputFormat,
 };
 
 pub fn run(args: Args) -> Result<bool> {
@@ -27,9 +31,12 @@ pub fn run(args: Args) -> Result<bool> {
             let mut formatter = JsonFormatter::new(version.to_string());
             formatter.on_start();
             let res = execute_validation(&args, &mut formatter)?;
-            let output = formatter.to_json().with_context(|| "Failed to serialize validation results to JSON")?;
-            let mut file = File::create("data.json")?;
-            file.write_all(output.as_bytes())?;
+            let output = formatter
+                .to_json()
+                .with_context(|| "Failed to serialize validation results to JSON")?;
+            let output_path = resolve_file_path(&args.path, formatter.get_timestamp_compact())?;
+            fs::write(&output_path, output)
+                .with_context(|| format!("Failed to write JSON to: {}", output_path.display()))?;
             Ok(res)
         }
     }
@@ -45,7 +52,9 @@ pub fn watch_run(args: Args) -> Result<bool> {
             reporter.on_start();
             run_watch_loop(&args, &mut reporter)?;
         }
-        OutputFormat::Json => {}
+        OutputFormat::Json => {
+            anyhow::bail!("Watch mode (--watch) is not currently supported with JSON output format. Please use --output stdout for watch mode.");
+        }
     }
     Ok(true)
 }

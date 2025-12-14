@@ -2,7 +2,7 @@ pub mod formatters;
 pub mod utils;
 
 use dataguard_core::ValidationResult;
-pub use formatters::{stdout::StdOutFormatter, json::JsonFormatter};
+pub use formatters::{json::JsonFormatter, stdout::StdOutFormatter};
 
 pub trait Reporter {
     fn on_start(&self);
