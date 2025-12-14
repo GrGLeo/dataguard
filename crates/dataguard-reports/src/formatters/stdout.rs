@@ -5,15 +5,17 @@ use crate::{utils::numbers::format_numbers, Reporter};
 pub struct StdOutFormatter {
     intro: String,
     intro_len: usize,
+    summary: bool,
 }
 
 impl StdOutFormatter {
-    pub fn new(version: String) -> Self {
+    pub fn new(version: String, summary: bool) -> Self {
         let s = format!("DataGuard v{} - Validation Report", version);
         let n = s.len();
         Self {
             intro: s,
             intro_len: n,
+            summary,
         }
     }
     pub fn print_loading_start(&self) {
@@ -40,6 +42,10 @@ impl StdOutFormatter {
             "\n{} ({} rows) - {}",
             result.table_name, rows_formatted, status
         );
+        // If in summary mode, we simply print the above line and stop early
+        if self.summary {
+            return;
+        }
 
         for (column_name, rule_results) in result.get_column_results() {
             println!("  {}:", column_name);

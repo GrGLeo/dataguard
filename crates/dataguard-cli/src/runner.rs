@@ -22,7 +22,7 @@ pub fn run(args: Args) -> Result<bool> {
     // Process validation based on output format
     match args.output {
         OutputFormat::Stdout => {
-            let mut formatter = StdOutFormatter::new(version.to_string());
+            let mut formatter = StdOutFormatter::new(version.to_string(), args.summary);
             formatter.on_start();
             execute_validation(&args, &mut formatter)
         }
@@ -48,7 +48,7 @@ pub fn watch_run(args: Args) -> Result<bool> {
     // Process validation based on output format
     match args.output {
         OutputFormat::Stdout => {
-            let mut reporter = StdOutFormatter::new(version.to_string());
+            let mut reporter = StdOutFormatter::new(version.to_string(), args.summary);
             reporter.on_start();
             run_watch_loop(&args, &mut reporter)?;
         }
