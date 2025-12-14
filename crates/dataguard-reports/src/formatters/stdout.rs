@@ -98,7 +98,7 @@ impl Reporter for StdOutFormatter {
         self.print_validation_start();
     }
 
-    fn on_table_result(&self, result: &ValidationResult) {
+    fn on_table_result(&mut self, result: &ValidationResult) {
         self.print_table_result(result);
     }
 

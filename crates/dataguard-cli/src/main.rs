@@ -35,6 +35,11 @@ struct Args {
     #[arg(short, long, value_enum, default_value = "stdout")]
     output: OutputFormat,
 
+    /// Path to directory or file for JSON output (defaults to current directory)
+    /// If a directory is provided, filename will be: validation_{timestamp}.json
+    #[arg(short, long)]
+    path: Option<String>,
+
     /// Enable debug mode with detailed error backtraces and stack traces
     #[arg(short, long)]
     debug: bool,

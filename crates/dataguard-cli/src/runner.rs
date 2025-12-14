@@ -1,8 +1,8 @@
-use std::path::{Path, PathBuf};
+use std::{fs::File, io::Write, path::{Path, PathBuf}};
 
 use anyhow::{Context, Result};
 use dataguard_core::Validator;
-use dataguard_reports::{Reporter, StdOutFormatter};
+use dataguard_reports::{JsonFormatter, Reporter, StdOutFormatter};
 use notify::{
     event::{AccessKind, ModifyKind},
     EventKind, Watcher,
@@ -18,15 +18,19 @@ pub fn run(args: Args) -> Result<bool> {
     // Process validation based on output format
     match args.output {
         OutputFormat::Stdout => {
-            let formatter = StdOutFormatter::new(version.to_string());
+            let mut formatter = StdOutFormatter::new(version.to_string());
             formatter.on_start();
-            execute_validation(&args, &formatter)
+            execute_validation(&args, &mut formatter)
         }
         OutputFormat::Json => {
             // JSON output format - placeholder for future implementation
-            let formatter = StdOutFormatter::new(version.to_string());
+            let mut formatter = JsonFormatter::new(version.to_string());
             formatter.on_start();
-            execute_validation(&args, &formatter)
+            let res = execute_validation(&args, &mut formatter)?;
+            let output = formatter.to_json().with_context(|| "Failed to serialize validation results to JSON")?;
+            let mut file = File::create("data.json")?;
+            file.write_all(output.as_bytes())?;
+            Ok(res)
         }
     }
 }
@@ -37,16 +41,16 @@ pub fn watch_run(args: Args) -> Result<bool> {
     // Process validation based on output format
     match args.output {
         OutputFormat::Stdout => {
-            let reporter = StdOutFormatter::new(version.to_string());
+            let mut reporter = StdOutFormatter::new(version.to_string());
             reporter.on_start();
-            run_watch_loop(&args, &reporter)?;
+            run_watch_loop(&args, &mut reporter)?;
         }
         OutputFormat::Json => {}
     }
     Ok(true)
 }
 
-fn execute_validation<R: Reporter>(args: &Args, reporter: &R) -> Result<bool> {
+fn execute_validation<R: Reporter>(args: &Args, reporter: &mut R) -> Result<bool> {
     let mut validator = Validator::new();
     reporter.on_loading();
     let config = parse_config(args.config.clone())?;
@@ -73,7 +77,7 @@ fn execute_validation<R: Reporter>(args: &Args, reporter: &R) -> Result<bool> {
     Ok(failed == 0)
 }
 
-fn run_watch_loop<R: Reporter>(args: &Args, reporter: &R) -> Result<bool> {
+fn run_watch_loop<R: Reporter>(args: &Args, reporter: &mut R) -> Result<bool> {
     reporter.on_waiting();
 
     let config = parse_config(args.config.clone())?;
