@@ -1,122 +1,118 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use dataguard_core::{rules::Monotonicity, Validator};
-use dataguard_reports::StdOutFormatter;
-use notify::{event::{AccessKind, ModifyKind}, Event, EventKind, Watcher};
+use dataguard_core::Validator;
+use dataguard_reports::{Reporter, StdOutFormatter};
+use notify::{
+    event::{AccessKind, ModifyKind},
+    EventKind, Watcher,
+};
 
 use crate::{
     constructor::construct_csv_table, errors::ConfigError, parser::parse_config, Args, OutputFormat,
 };
 
 pub fn run(args: Args) -> Result<bool> {
-    let mut validator = Validator::new();
+    let version = env!("CARGO_PKG_VERSION");
 
     // Process validation based on output format
     match args.output {
         OutputFormat::Stdout => {
-            let version = env!("CARGO_PKG_VERSION");
             let formatter = StdOutFormatter::new(version.to_string());
-            formatter.print_loading_start();
-            let config = parse_config(args.config)?;
-            let n_table = config.table.len();
-            for (i, t) in config.table.iter().enumerate() {
-                formatter.print_loading_progress(i + 1, n_table, &t.name);
-                let csv_table = construct_csv_table(t)
-                    .with_context(|| format!("Failed to parse table: '{}'", t.name))?;
-                validator.add_table(t.name.clone(), csv_table);
-            }
-            formatter.print_validation_start();
-            let res = validator.validate_all()?;
-
-            for r in &res {
-                formatter.print_table_result(r);
-            }
-            let passed = res.iter().filter(|r| r.is_passed()).count();
-            let failed = res.len() - passed;
-            formatter.print_summary(passed, failed);
-
-            Ok(failed == 0)
+            formatter.on_start();
+            execute_validation(&args, &formatter)
         }
         OutputFormat::Json => {
             // JSON output format - placeholder for future implementation
-            let config = parse_config(args.config)?;
-            for t in config.table {
-                println!("Parsing: {}", t.name);
-                let csv_table = construct_csv_table(&t)
-                    .with_context(|| format!("Failed to parse table: '{}'", t.name))?;
-                validator.add_table(t.name, csv_table);
-            }
-            Ok(true)
+            let formatter = StdOutFormatter::new(version.to_string());
+            formatter.on_start();
+            execute_validation(&args, &formatter)
         }
     }
 }
 
 pub fn watch_run(args: Args) -> Result<bool> {
-    let mut validator = Validator::new();
+    let version = env!("CARGO_PKG_VERSION");
 
     // Process validation based on output format
     match args.output {
         OutputFormat::Stdout => {
-            let version = env!("CARGO_PKG_VERSION");
-            let formatter = StdOutFormatter::new(version.to_string());
-            formatter.print_loading_start();
-            let config = parse_config(args.config)?;
-            let n_table = config.table.len();
-            //if n_table > 1 {
-            //    return Err(ConfigError::TooMuchTable { n_table  });
-            //}
-            let (tx, rx) = std::sync::mpsc::channel();
-            let mut watcher = notify::recommended_watcher(tx)?;
-            let path = PathBuf::from(config.table[0].path.as_str());
-            watcher.watch(
-                Path::new(config.table[0].path.as_str()).parent().unwrap(),
-                notify::RecursiveMode::NonRecursive,
-            )?;
-            let (mut opened, mut modified) = (false, false);
-            for res in rx {
-                match res {
-                    Ok(event) => {
-                        println!("event: {:?}", event);
-                        let kind = event.kind;
-                        match kind {
-                            EventKind::Access(ak) => {
-                                match ak {
-                                    AccessKind::Open(_) => {
-                                        println!("{:?} | {:?}", path.file_name().unwrap(), event.paths);
-                                        // println!("{:?} | {:?}", path, event.paths[0]);
-                                        if path == event.paths[0] {
-                                            println!("open file");
-                                            opened = true;
-                                        }
-                                    }
-                                    AccessKind::Close(_) => {
-                                        if modified {
-                                            println!("ready to validate")
-                                        }
-                                    }
-                                    _ => {},
-                                }
-                            },
-                            EventKind::Modify(mk) => {
-                                match mk {
-                                    ModifyKind::Data(_) => {
-                                        println!("modif file");
-                                        if path.file_name().unwrap() == event.paths[0].file_name().unwrap() {
-                                            modified = true;
-                                        }
-                                    },
-                                    _ => {},
-                                }
-                            },
-                            _ => {},
-                        }
-                    }
-                    Err(e) => println!("error: {}", e),
-                }
-            }
+            let reporter = StdOutFormatter::new(version.to_string());
+            reporter.on_start();
+            run_watch_loop(&args, &reporter)?;
         }
         OutputFormat::Json => {}
     }
+    Ok(true)
+}
+
+fn execute_validation<R: Reporter>(args: &Args, reporter: &R) -> Result<bool> {
+    let mut validator = Validator::new();
+    reporter.on_loading();
+    let config = parse_config(args.config.clone())?;
+    let n_tables = config.table.len();
+
+    for (i, t) in config.table.iter().enumerate() {
+        reporter.on_table_load(i + 1, n_tables, &t.name);
+        let csv_table = construct_csv_table(t)
+            .with_context(|| format!("Failed to parse table: '{}'", t.name))?;
+        validator.add_table(t.name.clone(), csv_table);
+    }
+
+    reporter.on_validation_start();
+    let res = validator.validate_all()?;
+
+    for r in &res {
+        reporter.on_table_result(r);
+    }
+
+    let passed = res.iter().filter(|r| r.is_passed()).count();
+    let failed = res.len() - passed;
+    reporter.on_summary(passed, failed);
+
+    Ok(failed == 0)
+}
+
+fn run_watch_loop<R: Reporter>(args: &Args, reporter: &R) -> Result<bool> {
+    reporter.on_waiting();
+
+    let config = parse_config(args.config.clone())?;
+    if config.table.len() > 1 {
+        return Err(ConfigError::TooMuchTable {
+            n_table: config.table.len(),
+        })
+        .context("Watch mode only supports single table validation")?;
+    }
+    let path = PathBuf::from(config.table[0].path.as_str());
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    let mut watcher = notify::recommended_watcher(tx)?;
+    watcher.watch(
+        Path::new(config.table[0].path.as_str()).parent().unwrap(),
+        notify::RecursiveMode::NonRecursive,
+    )?;
+
+    let mut modified = false;
+    for res in rx {
+        match res {
+            Ok(event) => match event.kind {
+                EventKind::Access(AccessKind::Close(..)) => {
+                    if modified {
+                        execute_validation(args, reporter)?;
+                        reporter.on_waiting();
+                        modified = false;
+                    }
+                }
+                EventKind::Modify(ModifyKind::Data(..)) => {
+                    if path.file_name().unwrap() == event.paths[0].file_name().unwrap() {
+                        modified = true;
+                    }
+                }
+                _ => {}
+            },
+            Err(e) => println!("error: {}", e),
+        }
+    }
+
     Ok(true)
 }

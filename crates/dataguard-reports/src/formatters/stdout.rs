@@ -1,18 +1,20 @@
 use dataguard_core::ValidationResult;
 
-use crate::utils::numbers::format_numbers;
+use crate::{utils::numbers::format_numbers, Reporter};
 
-pub struct StdOutFormatter {}
+pub struct StdOutFormatter {
+    intro: String,
+    intro_len: usize,
+}
 
 impl StdOutFormatter {
     pub fn new(version: String) -> Self {
         let s = format!("DataGuard v{} - Validation Report", version);
         let n = s.len();
-        let i = "=".repeat(n);
-
-        println!("{}", s);
-        println!("{}", i);
-        Self {}
+        Self {
+            intro: s,
+            intro_len: n,
+        }
     }
     pub fn print_loading_start(&self) {
         println!("Loading data...");
@@ -66,5 +68,45 @@ impl StdOutFormatter {
     pub fn print_summary(&self, passed: usize, failed: usize) {
         println!("\n===================================");
         println!("Result: {} failed, {} passed", failed, passed);
+    }
+
+    pub fn print_waiting(&self) {
+        let i = "=".repeat(self.intro_len);
+
+        println!("\n{}", i);
+        println!("Waiting for file changes...");
+    }
+}
+
+impl Reporter for StdOutFormatter {
+    fn on_start(&self) {
+        let i = "=".repeat(self.intro_len);
+
+        println!("{}", self.intro);
+        println!("{}", i);
+    }
+
+    fn on_loading(&self) {
+        self.print_loading_start();
+    }
+
+    fn on_table_load(&self, current: usize, total: usize, name: &str) {
+        self.print_loading_progress(current, total, name);
+    }
+
+    fn on_validation_start(&self) {
+        self.print_validation_start();
+    }
+
+    fn on_table_result(&self, result: &ValidationResult) {
+        self.print_table_result(result);
+    }
+
+    fn on_summary(&self, passed: usize, failed: usize) {
+        self.print_summary(passed, failed);
+    }
+
+    fn on_waiting(&self) {
+        self.print_waiting();
     }
 }

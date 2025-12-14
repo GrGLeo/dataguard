@@ -43,7 +43,5 @@ pub enum ConfigError {
         message: String,
     },
     #[error("Watch mode can only be use on one table. Found {n_table} in config")]
-    TooMuchTable {
-        n_table: usize,
-    },
+    TooMuchTable { n_table: usize },
 }

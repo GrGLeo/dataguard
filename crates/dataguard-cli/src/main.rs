@@ -52,9 +52,18 @@ fn main() {
         std::env::set_var("RUST_BACKTRACE", "1");
     }
     match args.watch {
-        true => {
-            watch_run(args);
-        }
+        true => match watch_run(args) {
+            Ok(_) => {}
+            Err(err) => {
+                if std::env::var("RUST_BACKTRACE").is_ok() {
+                    eprintln!("Error: {:?}", err);
+                } else {
+                    eprintln!("Error: {:#}", err);
+                    eprintln!("\nHint: Run with --debug flag for detailed stack traces");
+                }
+                std::process::exit(2);
+            }
+        },
         false => match run(args) {
             Ok(all_passed) => {
                 if !all_passed {
