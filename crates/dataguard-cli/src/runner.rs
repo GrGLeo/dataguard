@@ -22,13 +22,13 @@ pub fn run(args: Args) -> Result<bool> {
     // Process validation based on output format
     match args.output {
         OutputFormat::Stdout => {
-            let mut formatter = StdOutFormatter::new(version.to_string());
+            let mut formatter = StdOutFormatter::new(version.to_string(), args.brief);
             formatter.on_start();
             execute_validation(&args, &mut formatter)
         }
         OutputFormat::Json => {
             // JSON output format - placeholder for future implementation
-            let mut formatter = JsonFormatter::new(version.to_string());
+            let mut formatter = JsonFormatter::new(version.to_string(), args.brief);
             formatter.on_start();
             let res = execute_validation(&args, &mut formatter)?;
             let output = formatter
@@ -48,7 +48,7 @@ pub fn watch_run(args: Args) -> Result<bool> {
     // Process validation based on output format
     match args.output {
         OutputFormat::Stdout => {
-            let mut reporter = StdOutFormatter::new(version.to_string());
+            let mut reporter = StdOutFormatter::new(version.to_string(), args.brief);
             reporter.on_start();
             run_watch_loop(&args, &mut reporter)?;
         }
@@ -81,7 +81,7 @@ fn execute_validation<R: Reporter>(args: &Args, reporter: &mut R) -> Result<bool
 
     let passed = res.iter().filter(|r| r.is_passed()).count();
     let failed = res.len() - passed;
-    reporter.on_summary(passed, failed);
+    reporter.on_complete(passed, failed);
 
     Ok(failed == 0)
 }

@@ -43,6 +43,10 @@ struct Args {
     #[arg(short, long)]
     path: Option<String>,
 
+    /// Enable brief report, return FAILED or PASS per table
+    #[arg(short, long)]
+    brief: bool,
+
     /// Enable debug mode with detailed error backtraces and stack traces
     #[arg(short, long)]
     debug: bool,
