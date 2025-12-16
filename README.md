@@ -1,85 +1,155 @@
 # DataGuard
 
-DataGuard is a high-performance data validation library, written in Rust with Python bindings. It provides a flexible and efficient way to define and apply rules to your data, ensuring data quality and integrity.
+DataGuard is a high-performance data validation CLI tool written in Rust. It provides a flexible and efficient way to define and apply validation rules to CSV files using TOML configuration files, ensuring data quality and integrity.
 
 ## Features
 
-- Read and validate CSV files.
-- Define and apply validation rules to string columns via the Python API.
-- High-performance validation, significantly faster than traditional methods.
+- **TOML-based Configuration**: Define validation rules in a simple, declarative format
+- **Multiple Data Types**: Support for string, integer, and float columns
+- **Comprehensive Validation Rules**:
+  - String: length checks, regex matching, enumeration (isin)
+  - Numeric: range validation (min/max)
+  - Generic: type checking, uniqueness, null checks
+- **Flexible Output**: Human-readable table reports or JSON format
+- **Watch Mode**: Automatic re-validation on file changes
+- **Performance**: Built with parallel processing and optimized validation logic
 
-## Performance
+## Installation
 
-DataGuard is built for speed. Its significant performance improvements compared to traditional methods are a result of two key optimizations: **parallel CSV reading** and **optimized data validation logic**. In our benchmarks, we've observed:
+### From Source
 
-- **2.21x faster** for a 200 thousand row CSV.
-- **7.19x faster** for a 2 million row CSV.
-- **8.35x faster** for a 20 million row CSV.
+```bash
+git clone https://github.com/yourusername/dataguard.git
+cd dataguard
+cargo build --release -p dataguard-cli
+```
+
+The binary will be available at `./target/release/dataguard-cli`
+
+## Quick Start
+
+1. Create a TOML configuration file (`validation.toml`):
+
+```toml
+[[table]]
+name = "products"
+path = "data/products.csv"
+
+  [[table.column]]
+  name = "Id"
+  datatype = "integer"
+
+    [[table.column.rule]]
+    name = "min"
+    min = 1
+
+  [[table.column]]
+  name = "Name"
+  datatype = "string"
+
+    [[table.column.rule]]
+    name = "with_min_length"
+    min_length = 3
+
+    [[table.column.rule]]
+    name = "is_unique"
+```
+
+2. Run validation:
+
+```bash
+dataguard-cli --config validation.toml
+```
 
 ## Usage
 
-The Python API provides a simple way to interact with the Rust backend and define your validation rules.
+### Basic Validation
 
-```python
-import dataguard
+```bash
+# Validate with table output
+dataguard-cli --config validation.toml --output stdout
 
-# 1. Create a Validator instance
-validator = dataguard.Validator()
+# Validate with JSON output
+dataguard-cli --config validation.toml --output json --path results/
 
-# 2. Define rules for your columns
-# For a string column named 'product_id':
-product_id_col = dataguard.string_column("product_id") \
-                           .with_min_length(5) \
-                           .with_max_length(10) \
-                           .build()
-
-# For another string column named 'description' with a regex and min length:
-description_col = dataguard.string_column("description") \
-                            .with_regex("^[a-zA-Z0-9 ]+$") \
-                            .with_min_length(10) \
-                            .build()
-
-# 3. Commit the column rules to the validator
-validator.commit([product_id_col, description_col])
-
-# 4. Validate a CSV file
-# 'your_data.csv' should be replaced with the actual path to your CSV file
-error_count = validator.validate_csv("your_data.csv", print_report=True)
-
-if error_count == 0:
-    print("Validation successful! No errors found.")
-else:
-    print(f"Validation finished with {error_count} errors.")
-
-# You can also inspect the configured rules:
-# configured_rules = validator.get_rules()
-# print(configured_rules)
+# Brief report (PASS/FAIL per table)
+dataguard-cli --config validation.toml --brief
 ```
 
-With `print_report` set to True the `validate_csv` method also output a table report:
+### Watch Mode
+
+Automatically re-run validation when files change:
+
+```bash
+dataguard-cli --config validation.toml --watch
 ```
-+----------+-------------------+-------------+---------+
-| Column   | Rule              | Error Count | % Error |
-+----------+-------------------+-------------+---------+
-| Category | RegexMatch        | 1941312     | 97.07%  |
-+----------+-------------------+-------------+---------+
-| Category | TypeCheck         | 0           | 0.00%   |
-+----------+-------------------+-------------+---------+
-| Currency | StringLengthCheck | 1           | 0.00%   |
-+----------+-------------------+-------------+---------+
-| Currency | TypeCheck         | 0           | 0.00%   |
-+----------+-------------------+-------------+---------+
+
+### Output Formats
+
+**Standard Output** (default):
+```
+DataGuard v0.1.0 - Validation Report
+====================================
+Loading data...
+  [1/2] products_large
+  [2/2] customers_medium
+
+Validating...
+
+products_large (20.0M rows) - FAILED
+  Name:
+    StringLengthCheck .......... 249.2K (1.25%)
+    TypeCheck ..................      0 (0.00%)
+    UnicityCheck ...............  19.1M (95.48%)
+  Error: Too much errors found
+
+customers_medium (2.0M rows) - PASSED
+  Index:
+    NumericRange ...............      0 (0.00%)
+    TypeCheck ..................      0 (0.00%)
+
+===================================
+Result: 1 failed, 1 passed
+```
+
+**JSON Output**: Structured validation results with detailed error information
+
+### Available Validation Rules
+
+**String Rules**:
+- `with_min_length`: Minimum string length
+- `with_max_length`: Maximum string length
+- `with_regex`: Pattern matching
+- `isin`: Value must be in a specified set
+
+**Numeric Rules** (integer/float):
+- `min`: Minimum value
+- `max`: Maximum value
+- `is_non_negative`: Value must be >= 0
+
+**Generic Rules**:
+- `is_not_null`: Column cannot contain null values
+- `is_unique`: All values must be unique
+
+## CLI Options
+
+```
+Options:
+  -c, --config <FILE>    Path to TOML configuration file
+  -o, --output <FORMAT>  Output format: stdout or json [default: stdout]
+  -p, --path <PATH>      Path for JSON output (file or directory)
+  -b, --brief            Enable brief report (PASS/FAIL per table)
+  -d, --debug            Enable debug mode with stack traces
+  -w, --watch            Watch mode: auto-validate on file changes
+  -h, --help             Print help
+  -V, --version          Print version
 ```
 
 ## Roadmap
 
-This project is still in its early phase. Here's what we have planned for the near future:
+### Planned Features
 
-- **Integer Column Rules**:
-  - Enumeration checks
-
-- **String Column Rules**:
-  - `isin`: check if all value in the array is in a given set of words (e.g., "SEND", "ORDERED", "RECEIVED").
-
-- **Declarative Rules**:
-  - We are working on a `TOML` based configuration file to declare the rules that should be applied to a validation. This will allow you to define your validation rules in a simple and readable format.
+- **Statistical Validation Rules**: Z-score outlier detection, IQR-based validation, percentile checks
+- **Error Sampling**: Collect sample values that violate rules for easier debugging
+- **Additional Data Types**: Date/time validation, custom type support
+- **Enhanced Reporting**: More detailed error context and statistics
