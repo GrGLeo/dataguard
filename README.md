@@ -19,7 +19,7 @@ DataGuard is a high-performance data validation CLI tool written in Rust. It pro
 ### From Source
 
 ```bash
-git clone https://github.com/yourusername/dataguard.git
+git clone https://codeberg.org/Deretz/dataguard.git
 cd dataguard
 cargo build --release -p dataguard-cli
 ```
