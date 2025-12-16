@@ -42,6 +42,7 @@ pub enum ColumnRule {
 
     // Generic rules
     Unicity,
+    NullCheck,
 }
 
 /// Builder for String columns
@@ -71,6 +72,12 @@ impl StringColumnBuilder {
             name,
             rules: Vec::new(),
         }
+    }
+
+    /// Add a not null constraint
+    pub fn is_not_null(&mut self) -> &mut Self {
+        self.rules.push(ColumnRule::NullCheck);
+        self
     }
 
     /// Add uniqueness constraint
@@ -212,6 +219,12 @@ impl IntegerColumnBuilder {
         }
     }
 
+    /// Add a not null constraint
+    pub fn is_not_null(&mut self) -> &mut Self {
+        self.rules.push(ColumnRule::NullCheck);
+        self
+    }
+
     /// Set numeric range (both min and max)
     pub fn between(&mut self, min: i64, max: i64) -> &mut Self {
         self.rules.push(ColumnRule::NumericRange {
@@ -317,6 +330,12 @@ impl FloatColumnBuilder {
             name,
             rules: Vec::new(),
         }
+    }
+
+    /// Add a not null constraint
+    pub fn is_not_null(&mut self) -> &mut Self {
+        self.rules.push(ColumnRule::NullCheck);
+        self
     }
 
     /// Set numeric range (both min and max)

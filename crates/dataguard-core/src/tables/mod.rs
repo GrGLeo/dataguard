@@ -8,7 +8,7 @@ use arrow_array::{ArrowPrimitiveType, RecordBatch};
 use crate::{
     column::ColumnBuilder,
     report::ValidationReport,
-    rules::{NumericRule, StringRule, TypeCheck, UnicityCheck},
+    rules::{generic::NullCheck, NumericRule, StringRule, TypeCheck, UnicityCheck},
     validator::ExecutableColumn,
     RuleError, ValidationResult,
 };
@@ -30,6 +30,7 @@ pub trait Table {
         rules: &[Box<dyn StringRule>],
         type_check: &TypeCheck,
         unicity: &Option<UnicityCheck>,
+        null_check: &Option<NullCheck>,
         report: &ValidationReport,
         error_count: &AtomicUsize,
         total_rows: usize,
@@ -40,6 +41,7 @@ pub trait Table {
         name: &str,
         rules: &[Box<dyn NumericRule<T>>],
         type_check: &TypeCheck,
+        null_check: &Option<NullCheck>,
         report: &ValidationReport,
         error_count: &AtomicUsize,
     );

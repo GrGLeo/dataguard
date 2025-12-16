@@ -15,6 +15,10 @@ fn apply_string_rule(
     column_name: String,
 ) -> Result<(), CliError> {
     match rule.name.as_str() {
+        "is_not_null" => {
+            builder.is_not_null();
+            Ok(())
+        }
         "is_unique" => {
             builder.is_unique();
             Ok(())
@@ -130,6 +134,10 @@ fn apply_integer_rule(
     column_name: String,
 ) -> Result<(), CliError> {
     match rule.name.as_str() {
+        "is_not_null" => {
+            builder.is_not_null();
+            Ok(())
+        }
         "between" => {
             let min = rule
                 .min
@@ -248,6 +256,10 @@ fn apply_float_rule(
     column_name: String,
 ) -> Result<(), CliError> {
     match rule.name.as_str() {
+        "is_not_null" => {
+            builder.is_not_null();
+            Ok(())
+        }
         "between" => {
             let min = rule
                 .min
@@ -405,7 +417,8 @@ pub fn construct_csv_table(table: &ConfigTable) -> Result<CsvTable> {
     }
     let mut t = CsvTable::new(path.clone(), table.name.clone())
         .with_context(|| format!("Failed to create validation table: {}", table.name))?;
-    t.commit(all_builder).unwrap();
+    t.commit(all_builder)?;
+    println!("{:?}", t.get_rules());
     Ok(t)
 }
 

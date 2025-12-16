@@ -2,7 +2,7 @@ use crate::column::{ColumnBuilder, ColumnRule, ColumnType};
 use crate::errors::RuleError;
 use crate::reader::read_csv_parallel;
 use crate::report::ValidationReport;
-use crate::rules::generic::{TypeCheck, UnicityCheck};
+use crate::rules::generic::{NullCheck, TypeCheck, UnicityCheck};
 use crate::rules::numeric::{Monotonicity, NumericRule, Range};
 use crate::rules::string::{IsInCheck, RegexMatch, StringLengthCheck, StringRule};
 use crate::tables::Table;
@@ -67,12 +67,14 @@ impl Table for CsvTable {
                     rules,
                     type_check,
                     unicity,
+                    null_check,
                 } => self.validate_string_column(
                     &batches,
                     name,
                     rules,
                     type_check,
                     unicity,
+                    null_check,
                     &report,
                     &error_count,
                     total_rows,
@@ -81,11 +83,13 @@ impl Table for CsvTable {
                     name,
                     rules,
                     type_check,
+                    null_check
                 } => self.validate_numeric_column::<Int64Type>(
                     &batches,
                     name,
                     rules,
                     type_check,
+                    null_check,
                     &report,
                     &error_count,
                 ),
@@ -93,11 +97,13 @@ impl Table for CsvTable {
                     name,
                     rules,
                     type_check,
+                    null_check
                 } => self.validate_numeric_column::<Float64Type>(
                     &batches,
                     name,
                     rules,
                     type_check,
+                    null_check,
                     &report,
                     &error_count,
                 ),
@@ -121,18 +127,27 @@ impl Table for CsvTable {
         let mut result = HashMap::new();
         for column in &self.executable_columns {
             match column {
-                ExecutableColumn::String { name, rules, .. } => {
+                ExecutableColumn::String { name, rules, null_check, .. } => {
                     let mut rule_names = vec!["TypeCheck".to_string()];
+                    if let Some(null_rule) = null_check {
+                        rule_names.push(null_rule.name().to_string());
+                    }
                     rule_names.extend(rules.iter().map(|r| r.name().to_string()));
                     result.insert(name.clone(), rule_names);
                 }
-                ExecutableColumn::Integer { name, rules, .. } => {
+                ExecutableColumn::Integer { name, rules, null_check, .. } => {
                     let mut rule_names = vec!["TypeCheck".to_string()];
+                    if let Some(null_rule) = null_check {
+                        rule_names.push(null_rule.name().to_string());
+                    }
                     rule_names.extend(rules.iter().map(|r| r.name().to_string()));
                     result.insert(name.clone(), rule_names);
                 }
-                ExecutableColumn::Float { name, rules, .. } => {
+                ExecutableColumn::Float { name, rules, null_check, .. } => {
                     let mut rule_names = vec!["TypeCheck".to_string()];
+                    if let Some(null_rule) = null_check {
+                        rule_names.push(null_rule.name().to_string());
+                    }
                     rule_names.extend(rules.iter().map(|r| r.name().to_string()));
                     result.insert(name.clone(), rule_names);
                 }
@@ -150,6 +165,7 @@ impl Table for CsvTable {
             ColumnType::String => {
                 let mut executable_rules: Vec<Box<dyn StringRule>> = Vec::new();
                 let mut unicity = None;
+                let mut null_check = None;
 
                 for rule in builder.rules() {
                     match rule {
@@ -166,6 +182,9 @@ impl Table for CsvTable {
                         ColumnRule::Unicity => {
                             unicity = Some(UnicityCheck::new());
                         }
+                        ColumnRule::NullCheck => {
+                            null_check = Some(NullCheck::default());
+                        }
                         _ => {
                             return Err(RuleError::ValidationError(format!(
                                 "Invalid rule {:?} for String column '{}'",
@@ -181,10 +200,12 @@ impl Table for CsvTable {
                     rules: executable_rules,
                     type_check: TypeCheck::new(builder.name().to_string(), DataType::Utf8),
                     unicity,
+                    null_check,
                 })
             }
             ColumnType::Integer => {
                 let mut executable_rules: Vec<Box<dyn NumericRule<Int64Type>>> = Vec::new();
+                let mut null_check = None;
 
                 for rule in builder.rules() {
                     match rule {
@@ -196,6 +217,9 @@ impl Table for CsvTable {
                         }
                         ColumnRule::Monotonicity { ascending } => {
                             executable_rules.push(Box::new(Monotonicity::<i64>::new(*ascending)));
+                        }
+                        ColumnRule::NullCheck => {
+                            null_check = Some(NullCheck::new());
                         }
                         _ => {
                             return Err(RuleError::ValidationError(format!(
@@ -211,10 +235,12 @@ impl Table for CsvTable {
                     name: builder.name().to_string(),
                     rules: executable_rules,
                     type_check: TypeCheck::new(builder.name().to_string(), DataType::Int64),
+                    null_check,
                 })
             }
             ColumnType::Float => {
                 let mut executable_rules: Vec<Box<dyn NumericRule<Float64Type>>> = Vec::new();
+                let mut null_check = None;
 
                 for rule in builder.rules() {
                     match rule {
@@ -223,6 +249,9 @@ impl Table for CsvTable {
                         }
                         ColumnRule::Monotonicity { ascending } => {
                             executable_rules.push(Box::new(Monotonicity::<f64>::new(*ascending)));
+                        }
+                        ColumnRule::NullCheck => {
+                            null_check = Some(NullCheck::default());
                         }
                         _ => {
                             return Err(RuleError::ValidationError(format!(
@@ -238,6 +267,7 @@ impl Table for CsvTable {
                     name: builder.name().to_string(),
                     rules: executable_rules,
                     type_check: TypeCheck::new(builder.name().to_string(), DataType::Float64),
+                    null_check,
                 })
             }
         }
@@ -250,6 +280,7 @@ impl Table for CsvTable {
         rules: &[Box<dyn StringRule>],
         type_check: &TypeCheck,
         unicity: &Option<UnicityCheck>,
+        null_check: &Option<NullCheck>,
         report: &ValidationReport,
         error_count: &AtomicUsize,
         total_rows: usize,
@@ -260,6 +291,8 @@ impl Table for CsvTable {
                 .map(|batch| {
                     let mut local_hash = HashSet::with_hasher(Xxh3Builder);
                     if let Ok(col_index) = batch.schema().index_of(name) {
+                        if let Some(null_rule) = null_check {
+                        }
                         let array = batch.column(col_index);
                         match type_check.validate(array.as_ref()) {
                             Ok((errors, casted_array)) => {
@@ -342,12 +375,18 @@ impl Table for CsvTable {
         name: &str,
         rules: &[Box<dyn NumericRule<T>>],
         type_check: &TypeCheck,
+        null_check: &Option<NullCheck>,
         report: &ValidationReport,
         error_count: &AtomicUsize,
     ) {
         batches.par_iter().for_each(|batch| {
             if let Ok(col_index) = batch.schema().index_of(name) {
                 let array = batch.column(col_index);
+                if let Some(null_rule) = null_check {
+                    let errors =  null_rule.validate(array.as_ref());
+                    error_count.fetch_add(errors, Ordering::Relaxed);
+                    report.record_result(name, null_rule.name(), errors);
+                }
                 match type_check.validate(array.as_ref()) {
                     Ok((errors, casted_array)) => {
                         error_count.fetch_add(errors, Ordering::Relaxed);

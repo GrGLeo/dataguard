@@ -1,4 +1,4 @@
-use crate::rules::generic::{TypeCheck, UnicityCheck};
+use crate::rules::generic::{NullCheck, TypeCheck, UnicityCheck};
 use crate::rules::numeric::NumericRule;
 use crate::rules::string::StringRule;
 use arrow::datatypes::{Float64Type, Int64Type};
@@ -11,16 +11,19 @@ pub enum ExecutableColumn {
         rules: Vec<Box<dyn StringRule>>,
         type_check: TypeCheck,
         unicity: Option<UnicityCheck>,
+        null_check: Option<NullCheck>,
     },
     Integer {
         name: String,
         rules: Vec<Box<dyn NumericRule<Int64Type>>>,
         type_check: TypeCheck,
+        null_check: Option<NullCheck>,
     },
     Float {
         name: String,
         rules: Vec<Box<dyn NumericRule<Float64Type>>>,
         type_check: TypeCheck,
+        null_check: Option<NullCheck>,
     },
 }
 
