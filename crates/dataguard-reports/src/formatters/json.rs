@@ -10,6 +10,8 @@ pub struct JsonFormatter {
     timestamp: String,
     #[serde(skip)]
     timestamp_compact: String,
+    #[serde(skip)]
+    brief: bool,
     tables: Vec<TableFormatter>,
 }
 
@@ -18,7 +20,8 @@ struct TableFormatter {
     name: String,
     n_rows: usize,
     pass: bool,
-    columns: Vec<ColumnFomatter>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    columns: Option<Vec<ColumnFomatter>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -35,7 +38,7 @@ struct RuleFormatter {
 }
 
 impl JsonFormatter {
-    pub fn new(version: String) -> Self {
+    pub fn new(version: String, brief: bool) -> Self {
         let now = Local::now();
         let timestamp = now.format("%Y-%m-%d %H:%M:%S").to_string();
         let timestamp_compact = now.format("%Y%m%d-%H%M%S").to_string();
@@ -43,6 +46,7 @@ impl JsonFormatter {
             version,
             timestamp,
             timestamp_compact,
+            brief,
             tables: Vec::new(),
         }
     }
@@ -68,21 +72,30 @@ impl Reporter for JsonFormatter {
     fn on_table_result(&mut self, result: &dataguard_core::ValidationResult) {
         let name = result.table_name.clone();
         let n_rows = result.total_rows;
-        let columns: Vec<ColumnFomatter> = result
-            .get_column_results()
-            .into_iter()
-            .map(|(n, c)| {
-                let rules: Vec<RuleFormatter> = c
+
+        // Only include columns if not in brief mode
+        let columns = if self.brief {
+            None
+        } else {
+            Some(
+                result
+                    .get_column_results()
                     .into_iter()
-                    .map(|r| RuleFormatter {
-                        name: r.rule_name.clone(),
-                        errors: r.error_count,
-                        error_percent: r.error_percentage,
+                    .map(|(n, c)| {
+                        let rules: Vec<RuleFormatter> = c
+                            .into_iter()
+                            .map(|r| RuleFormatter {
+                                name: r.rule_name.clone(),
+                                errors: r.error_count,
+                                error_percent: r.error_percentage,
+                            })
+                            .collect();
+                        ColumnFomatter { name: n, rules }
                     })
-                    .collect();
-                ColumnFomatter { name: n, rules }
-            })
-            .collect();
+                    .collect(),
+            )
+        };
+
         let table = TableFormatter {
             name,
             n_rows,
@@ -92,7 +105,7 @@ impl Reporter for JsonFormatter {
         self.tables.push(table);
     }
 
-    fn on_summary(&self, _passed: usize, _failed: usize) {}
+    fn on_complete(&self, _passed: usize, _failed: usize) {}
 
     fn on_waiting(&self) {}
 }

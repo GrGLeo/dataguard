@@ -5,17 +5,17 @@ use crate::{utils::numbers::format_numbers, Reporter};
 pub struct StdOutFormatter {
     intro: String,
     intro_len: usize,
-    summary: bool,
+    brief: bool,
 }
 
 impl StdOutFormatter {
-    pub fn new(version: String, summary: bool) -> Self {
+    pub fn new(version: String, brief: bool) -> Self {
         let s = format!("DataGuard v{} - Validation Report", version);
         let n = s.len();
         Self {
             intro: s,
             intro_len: n,
-            summary,
+            brief,
         }
     }
     pub fn print_loading_start(&self) {
@@ -42,8 +42,8 @@ impl StdOutFormatter {
             "\n{} ({} rows) - {}",
             result.table_name, rows_formatted, status
         );
-        // If in summary mode, we simply print the above line and stop early
-        if self.summary {
+        // If in brief mode, we simply print the above line and stop early
+        if self.brief {
             return;
         }
 
@@ -71,7 +71,7 @@ impl StdOutFormatter {
         }
     }
 
-    pub fn print_summary(&self, passed: usize, failed: usize) {
+    pub fn print_complete(&self, passed: usize, failed: usize) {
         println!("\n===================================");
         println!("Result: {} failed, {} passed", failed, passed);
     }
@@ -108,8 +108,8 @@ impl Reporter for StdOutFormatter {
         self.print_table_result(result);
     }
 
-    fn on_summary(&self, passed: usize, failed: usize) {
-        self.print_summary(passed, failed);
+    fn on_complete(&self, passed: usize, failed: usize) {
+        self.print_complete(passed, failed);
     }
 
     fn on_waiting(&self) {
