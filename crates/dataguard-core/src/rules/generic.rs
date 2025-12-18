@@ -25,6 +25,12 @@ impl NullCheck {
     }
 }
 
+impl Default for NullCheck {
+    fn default() -> Self {
+       Self::new() 
+    }
+}
+
 pub struct TypeCheck {
     column: String,
     expected: DataType,

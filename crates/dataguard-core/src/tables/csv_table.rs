@@ -370,6 +370,7 @@ impl Table for CsvTable {
     }
 }
 
+#[allow(clippy::type_complexity)]
 fn compile_numeric_rules<N, A>(
     rules: &[ColumnRule],
     column_name: &str,
