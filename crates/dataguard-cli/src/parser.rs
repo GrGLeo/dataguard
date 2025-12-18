@@ -26,16 +26,89 @@ pub struct Column {
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct Rule {
-    pub name: String,
-    pub min_length: Option<usize>,
-    pub max_length: Option<usize>,
-    pub length: Option<usize>,
-    pub members: Option<Vec<String>>,
-    pub pattern: Option<String>,
-    pub flag: Option<String>,
-    pub min: Option<Value>,
-    pub max: Option<Value>,
+#[serde(tag = "name", rename_all = "snake_case")]
+pub enum Rule {
+    IsUnique,
+    WithLengthBetween {
+        min_length: usize,
+        max_length: usize,
+    },
+    WithMinLength {
+        min_length: usize,
+    },
+    WithMaxLength {
+        max_length: usize,
+    },
+    IsExactLength {
+        length: usize,
+    },
+    IsIn {
+        members: Vec<String>,
+    },
+    WithRegex {
+        pattern: String,
+        flag: Option<String>,
+    },
+    IsNumeric,
+    IsAlpha,
+    #[serde(rename = "is_alphanumeric")]
+    IsAlphaNumeric,
+    #[serde(rename = "is_uppercase")]
+    IsUpperCase,
+    #[serde(rename = "is_lowercase")]
+    IsLowerCase,
+    IsUrl,
+    IsEmail,
+    IsUuid,
+
+    // Numeric Rule
+    Between {
+        min: Value,
+        max: Value,
+    },
+    Min {
+        min: Value,
+    },
+    Max {
+        max: Value,
+    },
+    IsPositive,
+    IsNonPositive,
+    IsNegative,
+    IsNonNegative,
+    IsIncreasing,
+    IsDecreasing,
+}
+
+impl std::fmt::Display for Rule {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Rule::IsUnique => write!(f, "is_unique"),
+            Rule::WithLengthBetween { .. } => write!(f, "with_length_between"),
+            Rule::WithMinLength { .. } => write!(f, "with_min_length"),
+            Rule::WithMaxLength { .. } => write!(f, "with_max_length"),
+            Rule::IsExactLength { .. } => write!(f, "is_exact_length"),
+            Rule::IsIn { .. } => write!(f, "is_in"),
+            Rule::WithRegex { .. } => write!(f, "with_regex"),
+            Rule::IsNumeric => write!(f, "is_numeric"),
+            Rule::IsAlpha => write!(f, "is_alpha"),
+            Rule::IsAlphaNumeric => write!(f, "is_alphanumeric"),
+            Rule::IsUpperCase => write!(f, "is_uppercase"),
+            Rule::IsLowerCase => write!(f, "is_lowercase"),
+            Rule::IsUrl => write!(f, "is_url"),
+            Rule::IsEmail => write!(f, "is_email"),
+            Rule::IsUuid => write!(f, "is_uuid"),
+            Rule::Between { .. } => write!(f, "between"),
+            Rule::Min { .. } => write!(f, "min"),
+            Rule::Max { .. } => write!(f, "max"),
+            Rule::IsPositive => write!(f, "is_positive"),
+            Rule::IsNonPositive => write!(f, "is_non_positive"),
+            Rule::IsNegative => write!(f, "is_negative"),
+            Rule::IsNonNegative => write!(f, "is_non_negative"),
+            Rule::IsIncreasing => write!(f, "is_increasing"),
+            Rule::IsDecreasing => write!(f, "is_decreasing"),
+        }
+    }
 }
 
 pub fn validate_config(config: &Config) -> Result<(), ConfigError> {
@@ -67,35 +140,37 @@ pub fn parse_config(path: String) -> Result<Config> {
 
 fn validate_column(col: &Column) -> Result<(), ConfigError> {
     for rule in &col.rule {
-        if let (Some(min), Some(max)) = (rule.min_length, rule.max_length) {
-            if min > max {
-                return Err(ConfigError::RuleError {
-                    rule_name: rule.name.clone(),
-                    column_name: col.name.clone(),
-                    message: format!(
-                        "min length ({}) must be less than max length ({})",
-                        min, max
-                    ),
-                });
-            }
-            if min == max {
-                return Err(ConfigError::RuleError {
-                    rule_name: rule.name.clone(),
-                    column_name: col.name.clone(),
-                    message: format!(
+        match rule {
+            Rule::WithLengthBetween {
+                min_length,
+                max_length,
+            } => {
+                if min_length > max_length {
+                    return Err(ConfigError::RuleError {
+                        rule_name: "with_length_between".to_string(),
+                        column_name: col.name.clone(),
+                        message: format!(
+                            "min length ({}) must be less than max length ({})",
+                            min_length, max_length
+                        ),
+                    });
+                }
+                if min_length == max_length {
+                    return Err(ConfigError::RuleError {
+                        rule_name: "with_length_between".to_string(),
+                        column_name: col.name.clone(),
+                        message: format!(
                         "min length ({}) is equal max length ({})\n Hint: use 'is_exact_length'",
-                        min, max
+                        min_length, max_length
                     ),
-                });
+                    });
+                }
             }
-        }
-
-        if let (Some(i), Some(j)) = (&rule.min, &rule.max) {
-            match (&i, &j) {
+            Rule::Between { min, max } => match (&min, &max) {
                 (Value::Float(min_f), Value::Float(max_f)) => {
                     if min_f > max_f {
                         return Err(ConfigError::RuleError {
-                            rule_name: rule.name.clone(),
+                            rule_name: "with_length_between".to_string(),
                             column_name: col.name.clone(),
                             message: format!(
                                 "min value ({}) must be less than max value ({}) for float rule.",
@@ -105,7 +180,7 @@ fn validate_column(col: &Column) -> Result<(), ConfigError> {
                     }
                     if min_f == max_f {
                         return Err(ConfigError::RuleError {
-                         rule_name: rule.name.clone(),
+                         rule_name: "with_length_between".to_string(),
                          column_name: col.name.clone(),
                         message: format!("min value ({}) is equal max value ({})\n Hint: use 'is_exact_length'", min_f, max_f)
                      });
@@ -114,7 +189,7 @@ fn validate_column(col: &Column) -> Result<(), ConfigError> {
                 (Value::Integer(min_i), Value::Integer(max_i)) => {
                     if min_i > max_i {
                         return Err(ConfigError::RuleError {
-                            rule_name: rule.name.clone(),
+                            rule_name: "between".to_string(),
                             column_name: col.name.clone(),
                             message: format!(
                                 "min value ({}) must be less than max value ({}) for integer rule.",
@@ -124,7 +199,7 @@ fn validate_column(col: &Column) -> Result<(), ConfigError> {
                     }
                     if min_i == max_i {
                         return Err(ConfigError::RuleError {
-                         rule_name: rule.name.clone(),
+                         rule_name: "between".to_string(),
                          column_name: col.name.clone(),
                         message: format!("min value ({}) is equal max value ({})\n Hint: use 'is_exact_length'", min_i, max_i)
                      });
@@ -132,19 +207,20 @@ fn validate_column(col: &Column) -> Result<(), ConfigError> {
                 }
                 (Value::Integer(_), Value::Float(_)) | (Value::Float(_), Value::Integer(_)) => {
                     return Err(ConfigError::RuleError {
-                    rule_name: rule.name.clone(),
+                    rule_name: "between".to_string(),
                     column_name: col.name.clone(),
-                    message: format!("type mismatch min and max must be the same type (both integer or both float). Got min: {:?}, max: {:?}", i, j)
+                    message: format!("type mismatch min and max must be the same type (both integer or both float). Got min: {:?}, max: {:?}", min, max)
                 });
                 }
                 _ => {
                     return Err(ConfigError::RuleError {
-                    rule_name: rule.name.clone(),
+                    rule_name: "between".to_string(),
                     column_name: col.name.clone(),
-                    message: format!("Unsupported type for min/max. Expected Integer or Float, got min: {:?}, max: {:?}", i, j)
+                    message: format!("Unsupported type for min/max. Expected Integer or Float, got min: {:?}, max: {:?}", min, max)
                 });
                 }
-            }
+            },
+            _ => {}
         }
     }
     Ok(())
@@ -163,25 +239,12 @@ mod test {
         }
     }
 
-    fn create_rule(name: &str) -> Rule {
-        Rule {
-            name: name.to_string(),
-            min_length: None,
-            max_length: None,
-            length: None,
-            members: None,
-            pattern: None,
-            flag: None,
-            min: None,
-            max: None,
-        }
-    }
-
     #[test]
     fn test_validate_column_min_max_length_valid() {
-        let mut rule = create_rule("test_rule");
-        rule.min_length = Some(3);
-        rule.max_length = Some(10);
+        let rule = Rule::WithLengthBetween {
+            min_length: 3,
+            max_length: 10,
+        };
         let column = create_column("test_col", vec![rule]);
 
         let result = validate_column(&column);
@@ -190,9 +253,10 @@ mod test {
 
     #[test]
     fn test_validate_column_min_greater_than_max_length() {
-        let mut rule = create_rule("test_rule");
-        rule.min_length = Some(10);
-        rule.max_length = Some(3);
+        let rule = Rule::WithLengthBetween {
+            min_length: 10,
+            max_length: 3,
+        };
         let column = create_column("test_col", vec![rule]);
 
         let result = validate_column(&column);
@@ -208,9 +272,10 @@ mod test {
 
     #[test]
     fn test_validate_column_min_equal_max_length() {
-        let mut rule = create_rule("test_rule");
-        rule.min_length = Some(5);
-        rule.max_length = Some(5);
+        let rule = Rule::WithLengthBetween {
+            min_length: 5,
+            max_length: 5,
+        };
         let column = create_column("test_col", vec![rule]);
 
         let result = validate_column(&column);
@@ -227,9 +292,10 @@ mod test {
 
     #[test]
     fn test_validate_column_integer_min_max_valid() {
-        let mut rule = create_rule("test_rule");
-        rule.min = Some(Value::Integer(1));
-        rule.max = Some(Value::Integer(10));
+        let rule = Rule::Between {
+            min: Value::Integer(1),
+            max: Value::Integer(10),
+        };
         let column = create_column("test_col", vec![rule]);
 
         let result = validate_column(&column);
@@ -238,9 +304,10 @@ mod test {
 
     #[test]
     fn test_validate_column_integer_min_greater_than_max() {
-        let mut rule = create_rule("test_rule");
-        rule.min = Some(Value::Integer(10));
-        rule.max = Some(Value::Integer(1));
+        let rule = Rule::Between {
+            min: Value::Integer(10),
+            max: Value::Integer(1),
+        };
         let column = create_column("test_col", vec![rule]);
 
         let result = validate_column(&column);
@@ -257,9 +324,10 @@ mod test {
 
     #[test]
     fn test_validate_column_integer_min_equal_max() {
-        let mut rule = create_rule("test_rule");
-        rule.min = Some(Value::Integer(5));
-        rule.max = Some(Value::Integer(5));
+        let rule = Rule::Between {
+            min: Value::Integer(5),
+            max: Value::Integer(5),
+        };
         let column = create_column("test_col", vec![rule]);
 
         let result = validate_column(&column);
@@ -276,9 +344,10 @@ mod test {
 
     #[test]
     fn test_validate_column_integer_negative_values() {
-        let mut rule = create_rule("test_rule");
-        rule.min = Some(Value::Integer(-10));
-        rule.max = Some(Value::Integer(-1));
+        let rule = Rule::Between {
+            min: Value::Integer(-10),
+            max: Value::Integer(-1),
+        };
         let column = create_column("test_col", vec![rule]);
 
         let result = validate_column(&column);
@@ -287,9 +356,10 @@ mod test {
 
     #[test]
     fn test_validate_column_float_min_max_valid() {
-        let mut rule = create_rule("test_rule");
-        rule.min = Some(Value::Float(1.5));
-        rule.max = Some(Value::Float(10.5));
+        let rule = Rule::Between {
+            min: Value::Float(1.5),
+            max: Value::Float(10.5),
+        };
         let column = create_column("test_col", vec![rule]);
 
         let result = validate_column(&column);
@@ -298,9 +368,10 @@ mod test {
 
     #[test]
     fn test_validate_column_float_min_greater_than_max() {
-        let mut rule = create_rule("test_rule");
-        rule.min = Some(Value::Float(10.5));
-        rule.max = Some(Value::Float(1.5));
+        let rule = Rule::Between {
+            min: Value::Float(10.5),
+            max: Value::Float(1.5),
+        };
         let column = create_column("test_col", vec![rule]);
 
         let result = validate_column(&column);
@@ -317,9 +388,10 @@ mod test {
 
     #[test]
     fn test_validate_column_float_min_equal_max() {
-        let mut rule = create_rule("test_rule");
-        rule.min = Some(Value::Float(5.5));
-        rule.max = Some(Value::Float(5.5));
+        let rule = Rule::Between {
+            min: Value::Float(5.5),
+            max: Value::Float(5.5),
+        };
         let column = create_column("test_col", vec![rule]);
 
         let result = validate_column(&column);
@@ -336,9 +408,10 @@ mod test {
 
     #[test]
     fn test_validate_column_float_negative_values() {
-        let mut rule = create_rule("test_rule");
-        rule.min = Some(Value::Float(-10.5));
-        rule.max = Some(Value::Float(-1.5));
+        let rule = Rule::Between {
+            min: Value::Float(-10.5),
+            max: Value::Float(-1.5),
+        };
         let column = create_column("test_col", vec![rule]);
 
         let result = validate_column(&column);
@@ -347,9 +420,10 @@ mod test {
 
     #[test]
     fn test_validate_column_type_mismatch_int_float() {
-        let mut rule = create_rule("test_rule");
-        rule.min = Some(Value::Integer(1));
-        rule.max = Some(Value::Float(10.0));
+        let rule = Rule::Between {
+            min: Value::Integer(1),
+            max: Value::Float(10.0),
+        };
         let column = create_column("test_col", vec![rule]);
 
         let result = validate_column(&column);
@@ -366,9 +440,10 @@ mod test {
 
     #[test]
     fn test_validate_column_type_mismatch_float_int() {
-        let mut rule = create_rule("test_rule");
-        rule.min = Some(Value::Float(1.0));
-        rule.max = Some(Value::Integer(10));
+        let rule = Rule::Between {
+            min: Value::Float(1.0),
+            max: Value::Integer(10),
+        };
         let column = create_column("test_col", vec![rule]);
 
         let result = validate_column(&column);
@@ -385,9 +460,10 @@ mod test {
 
     #[test]
     fn test_validate_column_unsupported_type_string() {
-        let mut rule = create_rule("test_rule");
-        rule.min = Some(Value::String("1".to_string()));
-        rule.max = Some(Value::String("10".to_string()));
+        let rule = Rule::Between {
+            min: Value::String("1".to_string()),
+            max: Value::String("10".to_string()),
+        };
         let column = create_column("test_col", vec![rule]);
 
         let result = validate_column(&column);
@@ -404,9 +480,10 @@ mod test {
 
     #[test]
     fn test_validate_column_unsupported_type_boolean() {
-        let mut rule = create_rule("test_rule");
-        rule.min = Some(Value::Boolean(true));
-        rule.max = Some(Value::Boolean(false));
+        let rule = Rule::Between {
+            min: Value::Boolean(true),
+            max: Value::Boolean(false),
+        };
         let column = create_column("test_col", vec![rule]);
 
         let result = validate_column(&column);
@@ -423,17 +500,20 @@ mod test {
 
     #[test]
     fn test_validate_column_multiple_rules_all_valid() {
-        let mut rule1 = create_rule("rule1");
-        rule1.min_length = Some(3);
-        rule1.max_length = Some(10);
+        let rule1 = Rule::WithLengthBetween {
+            min_length: 3,
+            max_length: 10,
+        };
 
-        let mut rule2 = create_rule("rule2");
-        rule2.min = Some(Value::Integer(1));
-        rule2.max = Some(Value::Integer(100));
+        let rule2 = Rule::Between {
+            min: Value::Integer(1),
+            max: Value::Integer(100),
+        };
 
-        let mut rule3 = create_rule("rule3");
-        rule3.min = Some(Value::Float(0.5));
-        rule3.max = Some(Value::Float(99.5));
+        let rule3 = Rule::Between {
+            min: Value::Float(0.5),
+            max: Value::Float(99.5),
+        };
 
         let column = create_column("test_col", vec![rule1, rule2, rule3]);
 
@@ -443,17 +523,20 @@ mod test {
 
     #[test]
     fn test_validate_column_multiple_rules_one_invalid() {
-        let mut rule1 = create_rule("rule1");
-        rule1.min_length = Some(3);
-        rule1.max_length = Some(10);
+        let rule1 = Rule::WithLengthBetween {
+            min_length: 3,
+            max_length: 10,
+        };
 
-        let mut rule2 = create_rule("rule2");
-        rule2.min = Some(Value::Integer(100));
-        rule2.max = Some(Value::Integer(1)); // Invalid: min > max
+        let rule2 = Rule::Between {
+            min: Value::Integer(100),
+            max: Value::Integer(1), // Invalid: min > max
+        };
 
-        let mut rule3 = create_rule("rule3");
-        rule3.min = Some(Value::Float(0.5));
-        rule3.max = Some(Value::Float(99.5));
+        let rule3 = Rule::Between {
+            min: Value::Float(0.5),
+            max: Value::Float(99.5),
+        };
 
         let column = create_column("test_col", vec![rule1, rule2, rule3]);
 
@@ -462,7 +545,7 @@ mod test {
         let err = result.unwrap_err();
         match err {
             ConfigError::RuleError { rule_name, .. } => {
-                assert_eq!(rule_name, "rule2");
+                assert_eq!(rule_name, "between");
             }
             _ => panic!("Expected RuleError"),
         }
@@ -478,7 +561,7 @@ mod test {
 
     #[test]
     fn test_validate_column_no_constraints() {
-        let rule = create_rule("test_rule");
+        let rule = Rule::IsUnique;
         let column = create_column("test_col", vec![rule]);
 
         let result = validate_column(&column);

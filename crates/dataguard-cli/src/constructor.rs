@@ -14,228 +14,154 @@ fn apply_string_rule(
     rule: Rule,
     column_name: String,
 ) -> Result<(), CliError> {
-    match rule.name.as_str() {
-        "is_unique" => {
+    match rule {
+        Rule::IsUnique => {
             builder.is_unique();
             Ok(())
         }
-        "with_length_between" => {
-            let min = rule.min_length.ok_or_else(|| CliError::MissingRuleField {
-                rule_name: rule.name.clone(),
-                column_name: column_name.to_string(),
-                field_name: "min_length".to_string(),
-            })?;
-            let max = rule.max_length.ok_or_else(|| CliError::MissingRuleField {
-                rule_name: rule.name.clone(),
-                column_name: column_name.to_string(),
-                field_name: "max_length".to_string(),
-            })?;
-            builder.with_length_between(min, max);
+        Rule::WithLengthBetween {
+            min_length,
+            max_length,
+        } => {
+            builder.with_length_between(min_length, max_length);
             Ok(())
         }
-        "with_min_length" => {
-            let min = rule.min_length.ok_or_else(|| CliError::MissingRuleField {
-                rule_name: rule.name.clone(),
-                column_name: column_name.to_string(),
-                field_name: "min_length".to_string(),
-            })?;
-            builder.with_min_length(min);
+        Rule::WithMinLength { min_length } => {
+            builder.with_min_length(min_length);
             Ok(())
         }
-        "with_max_length" => {
-            let max = rule.max_length.ok_or_else(|| CliError::MissingRuleField {
-                rule_name: rule.name.clone(),
-                column_name: column_name.to_string(),
-                field_name: "max_length".to_string(),
-            })?;
-            builder.with_max_length(max);
+        Rule::WithMaxLength { max_length } => {
+            builder.with_max_length(max_length);
             Ok(())
         }
-        "is_exact_length" => {
-            let length = rule.length.ok_or_else(|| CliError::MissingRuleField {
-                rule_name: rule.name.clone(),
-                column_name: column_name.to_string(),
-                field_name: "length".to_string(),
-            })?;
+        Rule::IsExactLength { length } => {
             builder.is_exact_length(length);
             Ok(())
         }
-        "is_in" => {
-            let members = rule.members.ok_or_else(|| CliError::MissingRuleField {
-                rule_name: rule.name.clone(),
-                column_name: column_name.to_string(),
-                field_name: "length".to_string(),
-            })?;
+        Rule::IsIn { members } => {
             builder.is_in(members);
             Ok(())
         }
-        "with_regex" => {
-            let pattern = rule
-                .pattern
-                .as_ref()
-                .ok_or_else(|| CliError::MissingRuleField {
-                    rule_name: rule.name.clone(),
-                    column_name,
-                    field_name: "pattern".to_string(),
-                })?;
-            let flags = &rule.flag;
-            builder.with_regex(pattern.to_owned(), flags.to_owned())?;
+        Rule::WithRegex { pattern, flag } => {
+            builder.with_regex(pattern.to_owned(), flag)?;
             Ok(())
         }
-        "is_numeric" => {
+        Rule::IsNumeric => {
             builder.is_numeric()?;
             Ok(())
         }
-        "is_alpha" => {
+        Rule::IsAlpha => {
             builder.is_alpha()?;
             Ok(())
         }
-        "is_alphanumeric" => {
+        Rule::IsAlphaNumeric => {
             builder.is_alphanumeric()?;
             Ok(())
         }
-        "is_uppercase" => {
+        Rule::IsUpperCase => {
             builder.is_uppercase()?;
             Ok(())
         }
-        "is_lowercase" => {
+        Rule::IsLowerCase => {
             builder.is_lowercase()?;
             Ok(())
         }
-        "is_url" => {
+        Rule::IsUrl => {
             builder.is_url()?;
             Ok(())
         }
-        "is_email" => {
+        Rule::IsEmail => {
             builder.is_email()?;
             Ok(())
         }
-        "is_uuid" => {
+        Rule::IsUuid => {
             builder.is_uuid()?;
             Ok(())
         }
         _ => Err(CliError::UnknownRule {
-            rule_name: rule.name.clone(),
+            rule_name: rule.to_string(),
             column_type: "string".to_string(),
             column_name: column_name.to_string(),
         }),
     }
 }
 
-// TODO: we could refactor both numeric apply to a generic one. But we need to revisite
-// dataguard-core
+fn extract_integer(value: &Value, rule_name: String, column_name: String) -> Result<i64, CliError> {
+    let i = match value {
+        Value::Integer(i) => i,
+        _ => {
+            return Err(CliError::WrongRuleData {
+                rule_name,
+                column_name,
+                field_type: "integer".to_string(),
+            })
+        }
+    };
+    Ok(*i)
+}
+
+fn extract_float(value: &Value, rule_name: String, column_name: String) -> Result<f64, CliError> {
+    let f = match value {
+        Value::Float(f) => f,
+        _ => {
+            return Err(CliError::WrongRuleData {
+                rule_name,
+                column_name,
+                field_type: "float".to_string(),
+            })
+        }
+    };
+    Ok(*f)
+}
+
 fn apply_integer_rule(
     builder: &mut IntegerColumnBuilder,
     rule: Rule,
     column_name: String,
 ) -> Result<(), CliError> {
-    match rule.name.as_str() {
-        "between" => {
-            let min = rule
-                .min
-                .to_owned()
-                .ok_or_else(|| CliError::MissingRuleField {
-                    rule_name: rule.name.clone(),
-                    column_name: column_name.to_string(),
-                    field_name: "min_length".to_string(),
-                })?;
-            let i_min = match min {
-                Value::Integer(i) => i,
-                _ => {
-                    return Err(CliError::WrongRuleData {
-                        rule_name: rule.name.clone(),
-                        column_name: column_name.to_string(),
-                        field_type: "integer".to_string(),
-                    })
-                }
-            };
-            let max = rule
-                .max
-                .to_owned()
-                .ok_or_else(|| CliError::MissingRuleField {
-                    rule_name: rule.name.clone(),
-                    column_name: column_name.to_string(),
-                    field_name: "min_length".to_string(),
-                })?;
-            let i_max = match max {
-                Value::Integer(i) => i,
-                _ => {
-                    return Err(CliError::WrongRuleData {
-                        rule_name: rule.name.clone(),
-                        column_name: column_name.to_string(),
-                        field_type: "integer".to_string(),
-                    })
-                }
-            };
+    match rule {
+        Rule::Between { ref min, ref max } => {
+            let i_min = extract_integer(min, rule.to_string(), column_name.clone())?;
+            let i_max = extract_integer(max, rule.to_string(), column_name.clone())?;
             builder.between(i_min, i_max);
             Ok(())
         }
-        "min" => {
-            let min = rule
-                .min
-                .to_owned()
-                .ok_or_else(|| CliError::MissingRuleField {
-                    rule_name: rule.name.clone(),
-                    column_name: column_name.to_string(),
-                    field_name: "min".to_string(),
-                })?;
-            if let Value::Integer(i) = min {
-                builder.min(i);
-                Ok(())
-            } else {
-                Err(CliError::WrongRuleData {
-                    rule_name: rule.name.clone(),
-                    column_name: column_name.to_string(),
-                    field_type: "integer".to_string(),
-                })
-            }
+        Rule::Min { ref min } => {
+            let i_min = extract_integer(min, rule.to_string(), column_name.clone())?;
+            builder.min(i_min);
+            Ok(())
         }
-        "max" => {
-            let max = rule
-                .max
-                .to_owned()
-                .ok_or_else(|| CliError::MissingRuleField {
-                    rule_name: rule.name.clone(),
-                    column_name: column_name.to_string(),
-                    field_name: "max".to_string(),
-                })?;
-            if let Value::Integer(i) = max {
-                builder.max(i);
-                Ok(())
-            } else {
-                Err(CliError::WrongRuleData {
-                    rule_name: rule.name.clone(),
-                    column_name: column_name.to_string(),
-                    field_type: "integer".to_string(),
-                })
-            }
+        Rule::Max { ref max } => {
+            let i_max = extract_integer(max, rule.to_string(), column_name.clone())?;
+            builder.max(i_max);
+            Ok(())
         }
-        "is_positive" => {
+        Rule::IsPositive => {
             builder.is_positive();
             Ok(())
         }
-        "is_negative" => {
+        Rule::IsNegative => {
             builder.is_negative();
             Ok(())
         }
-        "is_non_positive" => {
+        Rule::IsNonPositive => {
             builder.is_non_positive();
             Ok(())
         }
-        "is_non_negative" => {
+        Rule::IsNonNegative => {
             builder.is_non_negative();
             Ok(())
         }
-        "is_monotonically_increasing" => {
+        Rule::IsIncreasing => {
             builder.is_monotonically_increasing();
             Ok(())
         }
-        "is_monotonically_descreasing" => {
+        Rule::IsDecreasing => {
             builder.is_monotonically_decreasing();
             Ok(())
         }
         _ => Err(CliError::UnknownRule {
-            rule_name: rule.name.clone(),
+            rule_name: rule.to_string(),
             column_type: "integer".to_string(),
             column_name: column_name.to_string(),
         }),
@@ -247,113 +173,49 @@ fn apply_float_rule(
     rule: Rule,
     column_name: String,
 ) -> Result<(), CliError> {
-    match rule.name.as_str() {
-        "between" => {
-            let min = rule
-                .min
-                .to_owned()
-                .ok_or_else(|| CliError::MissingRuleField {
-                    rule_name: rule.name.clone(),
-                    column_name: column_name.to_string(),
-                    field_name: "between".to_string(),
-                })?;
-            let i_min = match min {
-                Value::Float(i) => i,
-                _ => {
-                    return Err(CliError::WrongRuleData {
-                        rule_name: rule.name.clone(),
-                        column_name: column_name.to_string(),
-                        field_type: "float".to_string(),
-                    })
-                }
-            };
-            let max = rule
-                .max
-                .to_owned()
-                .ok_or_else(|| CliError::MissingRuleField {
-                    rule_name: rule.name.clone(),
-                    column_name: column_name.to_string(),
-                    field_name: "between".to_string(),
-                })?;
-            let i_max = match max {
-                Value::Float(i) => i,
-                _ => {
-                    return Err(CliError::WrongRuleData {
-                        rule_name: rule.name.clone(),
-                        column_name: column_name.to_string(),
-                        field_type: "float".to_string(),
-                    })
-                }
-            };
-            builder.between(i_min, i_max);
+    match rule {
+        Rule::Between { ref min, ref max } => {
+            let f_min = extract_float(min, rule.to_string(), column_name.clone())?;
+            let f_max = extract_float(max, rule.to_string(), column_name.clone())?;
+            builder.between(f_min, f_max);
             Ok(())
         }
-        "min" => {
-            let min = rule
-                .min
-                .to_owned()
-                .ok_or_else(|| CliError::MissingRuleField {
-                    rule_name: rule.name.clone(),
-                    column_name: column_name.to_string(),
-                    field_name: "min".to_string(),
-                })?;
-            if let Value::Float(i) = min {
-                builder.min(i);
-                Ok(())
-            } else {
-                Err(CliError::WrongRuleData {
-                    rule_name: rule.name.clone(),
-                    column_name: column_name.to_string(),
-                    field_type: "float".to_string(),
-                })
-            }
+        Rule::Min { ref min } => {
+            let f_min = extract_float(min, rule.to_string(), column_name.clone())?;
+            builder.min(f_min);
+            Ok(())
         }
-        "max" => {
-            let max = rule
-                .max
-                .to_owned()
-                .ok_or_else(|| CliError::MissingRuleField {
-                    rule_name: rule.name.clone(),
-                    column_name: column_name.to_string(),
-                    field_name: "max".to_string(),
-                })?;
-            if let Value::Float(i) = max {
-                builder.max(i);
-                Ok(())
-            } else {
-                Err(CliError::WrongRuleData {
-                    rule_name: rule.name.clone(),
-                    column_name: column_name.to_string(),
-                    field_type: "float".to_string(),
-                })
-            }
+        Rule::Max { ref max } => {
+            let f_max = extract_float(max, rule.to_string(), column_name.clone())?;
+            builder.max(f_max);
+            Ok(())
         }
-        "is_positive" => {
+        Rule::IsPositive => {
             builder.is_positive();
             Ok(())
         }
-        "is_negative" => {
+        Rule::IsNegative => {
             builder.is_negative();
             Ok(())
         }
-        "is_non_positive" => {
+        Rule::IsNonPositive => {
             builder.is_non_positive();
             Ok(())
         }
-        "is_non_negative" => {
+        Rule::IsNonNegative => {
             builder.is_non_negative();
             Ok(())
         }
-        "is_monotonically_increasing" => {
+        Rule::IsIncreasing => {
             builder.is_monotonically_increasing();
             Ok(())
         }
-        "is_monotonically_descreasing" => {
+        Rule::IsDecreasing => {
             builder.is_monotonically_decreasing();
             Ok(())
         }
         _ => Err(CliError::UnknownRule {
-            rule_name: rule.name.clone(),
+            rule_name: rule.to_string(),
             column_type: "float".to_string(),
             column_name: column_name.to_string(),
         }),
@@ -413,28 +275,13 @@ pub fn construct_csv_table(table: &ConfigTable) -> Result<CsvTable> {
 mod tests {
     use super::*;
 
-    // Helper function to create a basic Rule with all fields set to None
-    fn create_rule(name: &str) -> Rule {
-        Rule {
-            name: name.to_string(),
-            min_length: None,
-            max_length: None,
-            length: None,
-            members: None,
-            pattern: None,
-            flag: None,
-            min: None,
-            max: None,
-        }
-    }
-
     // ==================== STRING RULE TESTS ====================
 
     // Success cases
     #[test]
     fn test_apply_string_rule_is_unique() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("is_unique");
+        let rule = Rule::IsUnique;
         let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -442,9 +289,10 @@ mod tests {
     #[test]
     fn test_apply_string_rule_with_length_between() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let mut rule = create_rule("with_length_between");
-        rule.min_length = Some(5);
-        rule.max_length = Some(10);
+        let rule = Rule::WithLengthBetween {
+            min_length: 5,
+            max_length: 10,
+        };
         let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -452,8 +300,7 @@ mod tests {
     #[test]
     fn test_apply_string_rule_with_min_length() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let mut rule = create_rule("with_min_length");
-        rule.min_length = Some(5);
+        let rule = Rule::WithMinLength { min_length: 5 };
         let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -461,8 +308,7 @@ mod tests {
     #[test]
     fn test_apply_string_rule_with_max_length() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let mut rule = create_rule("with_max_length");
-        rule.max_length = Some(10);
+        let rule = Rule::WithMaxLength { max_length: 10 };
         let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -470,8 +316,7 @@ mod tests {
     #[test]
     fn test_apply_string_rule_is_exact_length() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let mut rule = create_rule("is_exact_length");
-        rule.length = Some(5);
+        let rule = Rule::IsExactLength { length: 5 };
         let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -479,8 +324,9 @@ mod tests {
     #[test]
     fn test_apply_string_rule_is_in() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let mut rule = create_rule("is_in");
-        rule.members = Some(vec!["a".to_string(), "b".to_string(), "c".to_string()]);
+        let rule = Rule::IsIn {
+            members: vec!["a".to_string(), "b".to_string(), "c".to_string()],
+        };
         let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -488,8 +334,10 @@ mod tests {
     #[test]
     fn test_apply_string_rule_with_regex() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let mut rule = create_rule("with_regex");
-        rule.pattern = Some("^[a-z]+$".to_string());
+        let rule = Rule::WithRegex {
+            pattern: "^[a-z]+$".to_string(),
+            flag: None,
+        };
         let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -497,7 +345,7 @@ mod tests {
     #[test]
     fn test_apply_string_rule_is_numeric() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("is_numeric");
+        let rule = Rule::IsNumeric;
         let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -505,7 +353,7 @@ mod tests {
     #[test]
     fn test_apply_string_rule_is_alpha() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("is_alpha");
+        let rule = Rule::IsAlpha;
         let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -513,7 +361,7 @@ mod tests {
     #[test]
     fn test_apply_string_rule_is_alphanumeric() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("is_alphanumeric");
+        let rule = Rule::IsAlphaNumeric;
         let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -521,7 +369,7 @@ mod tests {
     #[test]
     fn test_apply_string_rule_is_uppercase() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("is_uppercase");
+        let rule = Rule::IsUpperCase;
         let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -529,7 +377,7 @@ mod tests {
     #[test]
     fn test_apply_string_rule_is_lowercase() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("is_lowercase");
+        let rule = Rule::IsLowerCase;
         let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -537,7 +385,7 @@ mod tests {
     #[test]
     fn test_apply_string_rule_is_url() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("is_url");
+        let rule = Rule::IsUrl;
         let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -545,7 +393,7 @@ mod tests {
     #[test]
     fn test_apply_string_rule_is_email() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("is_email");
+        let rule = Rule::IsEmail;
         let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -553,7 +401,7 @@ mod tests {
     #[test]
     fn test_apply_string_rule_is_uuid() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("is_uuid");
+        let rule = Rule::IsUuid;
         let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -562,7 +410,10 @@ mod tests {
     #[test]
     fn test_apply_string_rule_unknown_rule() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("unknown_rule");
+        let rule = Rule::Between {
+            min: Value::Integer(1),
+            max: Value::Integer(10),
+        };
         let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -571,94 +422,12 @@ mod tests {
                 column_type,
                 column_name,
             } => {
-                assert_eq!(rule_name, "unknown_rule");
+                assert_eq!(rule_name, "between");
                 assert_eq!(column_type, "string");
                 assert_eq!(column_name, "test_col");
             }
             _ => panic!("Expected UnknownRule error"),
         }
-    }
-
-    #[test]
-    fn test_apply_string_rule_with_length_between_missing_min() {
-        let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let mut rule = create_rule("with_length_between");
-        rule.max_length = Some(10);
-        let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            CliError::MissingRuleField {
-                rule_name,
-                column_name,
-                field_name,
-            } => {
-                assert_eq!(rule_name, "with_length_between");
-                assert_eq!(column_name, "test_col");
-                assert_eq!(field_name, "min_length");
-            }
-            _ => panic!("Expected MissingRuleField error"),
-        }
-    }
-
-    #[test]
-    fn test_apply_string_rule_with_length_between_missing_max() {
-        let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let mut rule = create_rule("with_length_between");
-        rule.min_length = Some(5);
-        let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            CliError::MissingRuleField {
-                rule_name,
-                column_name,
-                field_name,
-            } => {
-                assert_eq!(rule_name, "with_length_between");
-                assert_eq!(column_name, "test_col");
-                assert_eq!(field_name, "max_length");
-            }
-            _ => panic!("Expected MissingRuleField error"),
-        }
-    }
-
-    #[test]
-    fn test_apply_string_rule_with_min_length_missing_field() {
-        let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("with_min_length");
-        let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_apply_string_rule_with_max_length_missing_field() {
-        let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("with_max_length");
-        let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_apply_string_rule_is_exact_length_missing_field() {
-        let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("is_exact_length");
-        let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_apply_string_rule_is_in_missing_field() {
-        let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("is_in");
-        let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_apply_string_rule_with_regex_missing_pattern() {
-        let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("with_regex");
-        let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
-        assert!(result.is_err());
     }
 
     // ==================== INTEGER RULE TESTS ====================
@@ -667,9 +436,10 @@ mod tests {
     #[test]
     fn test_apply_integer_rule_between() {
         let mut builder = IntegerColumnBuilder::new("test_col".to_string());
-        let mut rule = create_rule("between");
-        rule.min = Some(Value::Integer(1));
-        rule.max = Some(Value::Integer(10));
+        let rule = Rule::Between {
+            min: Value::Integer(1),
+            max: Value::Integer(10),
+        };
         let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -677,8 +447,9 @@ mod tests {
     #[test]
     fn test_apply_integer_rule_min() {
         let mut builder = IntegerColumnBuilder::new("test_col".to_string());
-        let mut rule = create_rule("min");
-        rule.min = Some(Value::Integer(5));
+        let rule = Rule::Min {
+            min: Value::Integer(5),
+        };
         let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -686,8 +457,9 @@ mod tests {
     #[test]
     fn test_apply_integer_rule_max() {
         let mut builder = IntegerColumnBuilder::new("test_col".to_string());
-        let mut rule = create_rule("max");
-        rule.max = Some(Value::Integer(100));
+        let rule = Rule::Max {
+            max: Value::Integer(100),
+        };
         let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -695,7 +467,7 @@ mod tests {
     #[test]
     fn test_apply_integer_rule_is_positive() {
         let mut builder = IntegerColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("is_positive");
+        let rule = Rule::IsPositive;
         let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -703,7 +475,7 @@ mod tests {
     #[test]
     fn test_apply_integer_rule_is_negative() {
         let mut builder = IntegerColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("is_negative");
+        let rule = Rule::IsNegative;
         let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -711,7 +483,7 @@ mod tests {
     #[test]
     fn test_apply_integer_rule_is_non_positive() {
         let mut builder = IntegerColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("is_non_positive");
+        let rule = Rule::IsNonPositive;
         let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -719,7 +491,7 @@ mod tests {
     #[test]
     fn test_apply_integer_rule_is_non_negative() {
         let mut builder = IntegerColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("is_non_negative");
+        let rule = Rule::IsNonNegative;
         let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -727,7 +499,7 @@ mod tests {
     #[test]
     fn test_apply_integer_rule_is_monotonically_increasing() {
         let mut builder = IntegerColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("is_monotonically_increasing");
+        let rule = Rule::IsIncreasing;
         let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -735,7 +507,7 @@ mod tests {
     #[test]
     fn test_apply_integer_rule_is_monotonically_descreasing() {
         let mut builder = IntegerColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("is_monotonically_descreasing");
+        let rule = Rule::IsDecreasing;
         let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -744,7 +516,7 @@ mod tests {
     #[test]
     fn test_apply_integer_rule_unknown_rule() {
         let mut builder = IntegerColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("unknown_rule");
+        let rule = Rule::IsUnique;
         let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -753,7 +525,7 @@ mod tests {
                 column_type,
                 column_name,
             } => {
-                assert_eq!(rule_name, "unknown_rule");
+                assert_eq!(rule_name, "is_unique");
                 assert_eq!(column_type, "integer");
                 assert_eq!(column_name, "test_col");
             }
@@ -762,29 +534,12 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_integer_rule_between_missing_min() {
-        let mut builder = IntegerColumnBuilder::new("test_col".to_string());
-        let mut rule = create_rule("between");
-        rule.max = Some(Value::Integer(10));
-        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_apply_integer_rule_between_missing_max() {
-        let mut builder = IntegerColumnBuilder::new("test_col".to_string());
-        let mut rule = create_rule("between");
-        rule.min = Some(Value::Integer(1));
-        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
-        assert!(result.is_err());
-    }
-
-    #[test]
     fn test_apply_integer_rule_between_wrong_type_min() {
         let mut builder = IntegerColumnBuilder::new("test_col".to_string());
-        let mut rule = create_rule("between");
-        rule.min = Some(Value::String("not_an_integer".to_string()));
-        rule.max = Some(Value::Integer(10));
+        let rule = Rule::Between {
+            min: Value::String("not_an_integer".to_string()),
+            max: Value::Integer(10),
+        };
         let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -804,17 +559,10 @@ mod tests {
     #[test]
     fn test_apply_integer_rule_between_wrong_type_max() {
         let mut builder = IntegerColumnBuilder::new("test_col".to_string());
-        let mut rule = create_rule("between");
-        rule.min = Some(Value::Integer(1));
-        rule.max = Some(Value::String("not_an_integer".to_string()));
-        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_apply_integer_rule_min_missing_field() {
-        let mut builder = IntegerColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("min");
+        let rule = Rule::Between {
+            min: Value::Integer(1),
+            max: Value::String("not_an_integer".to_string()),
+        };
         let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_err());
     }
@@ -822,16 +570,9 @@ mod tests {
     #[test]
     fn test_apply_integer_rule_min_wrong_type() {
         let mut builder = IntegerColumnBuilder::new("test_col".to_string());
-        let mut rule = create_rule("min");
-        rule.min = Some(Value::Float(5.5));
-        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_apply_integer_rule_max_missing_field() {
-        let mut builder = IntegerColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("max");
+        let rule = Rule::Min {
+            min: Value::Float(5.5),
+        };
         let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_err());
     }
@@ -839,8 +580,9 @@ mod tests {
     #[test]
     fn test_apply_integer_rule_max_wrong_type() {
         let mut builder = IntegerColumnBuilder::new("test_col".to_string());
-        let mut rule = create_rule("max");
-        rule.max = Some(Value::Float(100.5));
+        let rule = Rule::Max {
+            max: Value::Float(100.5),
+        };
         let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_err());
     }
@@ -851,9 +593,10 @@ mod tests {
     #[test]
     fn test_apply_float_rule_between() {
         let mut builder = FloatColumnBuilder::new("test_col".to_string());
-        let mut rule = create_rule("between");
-        rule.min = Some(Value::Float(1.5));
-        rule.max = Some(Value::Float(10.5));
+        let rule = Rule::Between {
+            min: Value::Float(1.5),
+            max: Value::Float(10.5),
+        };
         let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -861,8 +604,9 @@ mod tests {
     #[test]
     fn test_apply_float_rule_min() {
         let mut builder = FloatColumnBuilder::new("test_col".to_string());
-        let mut rule = create_rule("min");
-        rule.min = Some(Value::Float(5.5));
+        let rule = Rule::Min {
+            min: Value::Float(5.5),
+        };
         let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -870,8 +614,9 @@ mod tests {
     #[test]
     fn test_apply_float_rule_max() {
         let mut builder = FloatColumnBuilder::new("test_col".to_string());
-        let mut rule = create_rule("max");
-        rule.max = Some(Value::Float(100.5));
+        let rule = Rule::Max {
+            max: Value::Float(100.5),
+        };
         let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -879,7 +624,7 @@ mod tests {
     #[test]
     fn test_apply_float_rule_is_positive() {
         let mut builder = FloatColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("is_positive");
+        let rule = Rule::IsPositive;
         let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -887,7 +632,7 @@ mod tests {
     #[test]
     fn test_apply_float_rule_is_negative() {
         let mut builder = FloatColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("is_negative");
+        let rule = Rule::IsNegative;
         let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -895,7 +640,7 @@ mod tests {
     #[test]
     fn test_apply_float_rule_is_non_positive() {
         let mut builder = FloatColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("is_non_positive");
+        let rule = Rule::IsNonPositive;
         let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -903,7 +648,7 @@ mod tests {
     #[test]
     fn test_apply_float_rule_is_non_negative() {
         let mut builder = FloatColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("is_non_negative");
+        let rule = Rule::IsNonNegative;
         let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -911,7 +656,7 @@ mod tests {
     #[test]
     fn test_apply_float_rule_is_monotonically_increasing() {
         let mut builder = FloatColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("is_monotonically_increasing");
+        let rule = Rule::IsIncreasing;
         let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -919,7 +664,7 @@ mod tests {
     #[test]
     fn test_apply_float_rule_is_monotonically_descreasing() {
         let mut builder = FloatColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("is_monotonically_descreasing");
+        let rule = Rule::IsDecreasing;
         let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
     }
@@ -928,7 +673,7 @@ mod tests {
     #[test]
     fn test_apply_float_rule_unknown_rule() {
         let mut builder = FloatColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("unknown_rule");
+        let rule = Rule::IsUnique;
         let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -937,7 +682,7 @@ mod tests {
                 column_type,
                 column_name,
             } => {
-                assert_eq!(rule_name, "unknown_rule");
+                assert_eq!(rule_name, "is_unique");
                 assert_eq!(column_type, "float");
                 assert_eq!(column_name, "test_col");
             }
@@ -946,29 +691,12 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_float_rule_between_missing_min() {
-        let mut builder = FloatColumnBuilder::new("test_col".to_string());
-        let mut rule = create_rule("between");
-        rule.max = Some(Value::Float(10.5));
-        let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_apply_float_rule_between_missing_max() {
-        let mut builder = FloatColumnBuilder::new("test_col".to_string());
-        let mut rule = create_rule("between");
-        rule.min = Some(Value::Float(1.5));
-        let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
-        assert!(result.is_err());
-    }
-
-    #[test]
     fn test_apply_float_rule_between_wrong_type_min() {
         let mut builder = FloatColumnBuilder::new("test_col".to_string());
-        let mut rule = create_rule("between");
-        rule.min = Some(Value::String("not_a_float".to_string()));
-        rule.max = Some(Value::Float(10.5));
+        let rule = Rule::Between {
+            min: Value::String("not_a_float".to_string()),
+            max: Value::Float(10.5),
+        };
         let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -988,17 +716,10 @@ mod tests {
     #[test]
     fn test_apply_float_rule_between_wrong_type_max() {
         let mut builder = FloatColumnBuilder::new("test_col".to_string());
-        let mut rule = create_rule("between");
-        rule.min = Some(Value::Float(1.5));
-        rule.max = Some(Value::String("not_a_float".to_string()));
-        let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_apply_float_rule_min_missing_field() {
-        let mut builder = FloatColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("min");
+        let rule = Rule::Between {
+            min: Value::Float(1.5),
+            max: Value::String("not_a_float".to_string()),
+        };
         let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_err());
     }
@@ -1006,16 +727,9 @@ mod tests {
     #[test]
     fn test_apply_float_rule_min_wrong_type() {
         let mut builder = FloatColumnBuilder::new("test_col".to_string());
-        let mut rule = create_rule("min");
-        rule.min = Some(Value::Integer(5));
-        let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_apply_float_rule_max_missing_field() {
-        let mut builder = FloatColumnBuilder::new("test_col".to_string());
-        let rule = create_rule("max");
+        let rule = Rule::Min {
+            min: Value::Integer(5),
+        };
         let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_err());
     }
@@ -1023,8 +737,9 @@ mod tests {
     #[test]
     fn test_apply_float_rule_max_wrong_type() {
         let mut builder = FloatColumnBuilder::new("test_col".to_string());
-        let mut rule = create_rule("max");
-        rule.max = Some(Value::Integer(100));
+        let rule = Rule::Max {
+            max: Value::Integer(100),
+        };
         let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_err());
     }
