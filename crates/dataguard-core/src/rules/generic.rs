@@ -9,6 +9,28 @@ use xxhash_rust::xxh3::xxh3_64;
 
 use crate::{errors::RuleError, utils::hasher::Xxh3Builder};
 
+pub struct NullCheck {}
+
+impl NullCheck {
+    pub fn new() -> Self {
+        Self {}
+    }
+
+    pub fn name(&self) -> &'static str {
+        "NullCheck"
+    }
+
+    pub fn validate(&self, array: &dyn Array) -> usize {
+        array.null_count()
+    }
+}
+
+impl Default for NullCheck {
+    fn default() -> Self {
+       Self::new() 
+    }
+}
+
 pub struct TypeCheck {
     column: String,
     expected: DataType,

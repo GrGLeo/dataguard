@@ -14,6 +14,10 @@ fn apply_string_rule(
     column_name: String,
 ) -> Result<(), CliError> {
     match rule {
+        Rule::IsNotNull => {
+            builder.is_not_null();
+            Ok(())
+        }
         Rule::IsUnique => {
             builder.is_unique();
             Ok(())
@@ -119,6 +123,10 @@ fn apply_integer_rule(
     column_name: String,
 ) -> Result<(), CliError> {
     match rule {
+        Rule::IsNotNull => {
+            builder.is_not_null();
+            Ok(())
+        }
         Rule::Between { ref min, ref max } => {
             let i_min = extract_integer(min, rule.to_string(), column_name.clone())?;
             let i_max = extract_integer(max, rule.to_string(), column_name.clone())?;

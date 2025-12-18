@@ -28,7 +28,11 @@ pub struct Column {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "name", rename_all = "snake_case")]
 pub enum Rule {
+    // Generic rules
     IsUnique,
+    IsNotNull,
+
+    //String rules
     WithLengthBetween {
         min_length: usize,
         max_length: usize,
@@ -83,6 +87,7 @@ pub enum Rule {
 impl std::fmt::Display for Rule {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Rule::IsNotNull => write!(f, "is_not_null"),
             Rule::IsUnique => write!(f, "is_unique"),
             Rule::WithLengthBetween { .. } => write!(f, "with_length_between"),
             Rule::WithMinLength { .. } => write!(f, "with_min_length"),
