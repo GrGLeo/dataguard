@@ -121,18 +121,18 @@ fn apply_integer_rule(
 ) -> Result<(), CliError> {
     match rule {
         Rule::Between { ref min, ref max } => {
-            let i_min = extract_integer(&min, rule.to_string(), column_name.clone())?;
-            let i_max = extract_integer(&max, rule.to_string(), column_name.clone())?;
+            let i_min = extract_integer(min, rule.to_string(), column_name.clone())?;
+            let i_max = extract_integer(max, rule.to_string(), column_name.clone())?;
             builder.between(i_min, i_max);
             Ok(())
         }
         Rule::Min { ref min } => {
-            let i_min = extract_integer(&min, rule.to_string(), column_name.clone())?;
+            let i_min = extract_integer(min, rule.to_string(), column_name.clone())?;
             builder.min(i_min);
             Ok(())
         }
         Rule::Max { ref max } => {
-            let i_max = extract_integer(&max, rule.to_string(), column_name.clone())?;
+            let i_max = extract_integer(max, rule.to_string(), column_name.clone())?;
             builder.max(i_max);
             Ok(())
         }
@@ -175,18 +175,18 @@ fn apply_float_rule(
 ) -> Result<(), CliError> {
     match rule {
         Rule::Between { ref min, ref max } => {
-            let f_min = extract_float(&min, rule.to_string(), column_name.clone())?;
-            let f_max = extract_float(&max, rule.to_string(), column_name.clone())?;
+            let f_min = extract_float(min, rule.to_string(), column_name.clone())?;
+            let f_max = extract_float(max, rule.to_string(), column_name.clone())?;
             builder.between(f_min, f_max);
             Ok(())
         }
         Rule::Min { ref min } => {
-            let f_min = extract_float(&min, rule.to_string(), column_name.clone())?;
+            let f_min = extract_float(min, rule.to_string(), column_name.clone())?;
             builder.min(f_min);
             Ok(())
         }
         Rule::Max { ref max } => {
-            let f_max = extract_float(&max, rule.to_string(), column_name.clone())?;
+            let f_max = extract_float(max, rule.to_string(), column_name.clone())?;
             builder.max(f_max);
             Ok(())
         }

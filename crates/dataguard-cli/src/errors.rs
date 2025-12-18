@@ -10,12 +10,6 @@ pub enum CliError {
         column_type: String,
         column_name: String,
     },
-    #[error("Rule '{rule_name}' for column '{column_name}' requires field '{field_name}'")]
-    MissingRuleField {
-        rule_name: String,
-        column_name: String,
-        field_name: String,
-    },
     #[error("Rule '{rule_name}' for column '{column_name}' expected field to be '{field_type}'")]
     WrongRuleData {
         rule_name: String,
