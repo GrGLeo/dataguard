@@ -1,6 +1,4 @@
-use dataguard_core::{
-    CsvTable, FloatColumnBuilder, IntegerColumnBuilder, StringColumnBuilder, Table,
-};
+use dataguard_core::{CsvTable, NumericColumnBuilder, StringColumnBuilder, Table};
 use std::fs::File;
 use std::io::Write;
 use tempfile::tempdir;
@@ -59,10 +57,10 @@ fn test_table_integer_column_validation() {
     writeln!(file, "30,105").unwrap(); // score fail (>100)
     writeln!(file, "45,50").unwrap(); // ok
 
-    let mut age_col = IntegerColumnBuilder::new("age".to_string());
+    let mut age_col = NumericColumnBuilder::<i64>::new("age".to_string());
     age_col.between(0, 120);
 
-    let mut score_col = IntegerColumnBuilder::new("score".to_string());
+    let mut score_col = NumericColumnBuilder::<i64>::new("score".to_string());
     score_col.between(0, 100);
 
     let file_path = file_path.into_os_string().into_string().unwrap();
@@ -94,7 +92,7 @@ fn test_table_float_column_validation() {
 
     let file_path = file_path.into_os_string().into_string().unwrap();
 
-    let mut price_col = FloatColumnBuilder::new("price".to_string());
+    let mut price_col = NumericColumnBuilder::<f64>::new("price".to_string());
     price_col.is_monotonically_increasing();
 
     let mut csv_table = CsvTable::new(file_path, "stdout".to_string()).unwrap();
@@ -116,7 +114,7 @@ fn test_table_get_rules() {
     let mut col2 = StringColumnBuilder::new("col2".to_string());
     col2.with_regex("^[a-z]+$".to_string(), None).unwrap();
 
-    let mut col3 = IntegerColumnBuilder::new("col3".to_string());
+    let mut col3 = NumericColumnBuilder::<i64>::new("col3".to_string());
     col3.between(2, 5);
 
     let mut csv_table = CsvTable::new("hi".to_string(), "stdout".to_string()).unwrap();
@@ -188,7 +186,7 @@ fn test_table_all_pass() {
     let mut name_col = StringColumnBuilder::new("name".to_string());
     name_col.with_min_length(3);
 
-    let mut age_col = IntegerColumnBuilder::new("age".to_string());
+    let mut age_col = NumericColumnBuilder::<i64>::new("age".to_string());
     age_col.is_positive();
 
     let file_path = file_path.into_os_string().into_string().unwrap();
@@ -241,13 +239,13 @@ fn test_table_mixed_column_types() {
     let mut name_col = StringColumnBuilder::new("name".to_string());
     name_col.with_min_length(3);
 
-    let mut age_col = IntegerColumnBuilder::new("age".to_string());
+    let mut age_col = NumericColumnBuilder::<i64>::new("age".to_string());
     age_col.between(0, 120);
 
-    let mut score_col = IntegerColumnBuilder::new("score".to_string());
+    let mut score_col = NumericColumnBuilder::<i64>::new("score".to_string());
     score_col.between(0, 100);
 
-    let mut price_col = FloatColumnBuilder::new("price".to_string());
+    let mut price_col = NumericColumnBuilder::<f64>::new("price".to_string());
     price_col.is_monotonically_increasing();
 
     let email_col = StringColumnBuilder::new("email".to_string());
