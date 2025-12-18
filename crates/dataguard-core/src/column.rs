@@ -1,5 +1,7 @@
 use crate::errors::RuleError;
+use core::f64;
 use regex::Regex;
+use std::marker::PhantomData;
 
 pub trait ColumnBuilder {
     fn name(&self) -> &str;
@@ -13,6 +15,43 @@ pub enum ColumnType {
     String,
     Integer,
     Float,
+}
+
+pub trait NumericType: Copy {
+    fn column_type() -> ColumnType;
+    fn to_f64(self) -> f64;
+    fn positive_threshold() -> f64;
+    fn negative_threshold() -> f64;
+}
+
+impl NumericType for i64 {
+    fn column_type() -> ColumnType {
+        ColumnType::Integer
+    }
+    fn to_f64(self) -> f64 {
+        self as f64
+    }
+    fn positive_threshold() -> f64 {
+        1.
+    }
+    fn negative_threshold() -> f64 {
+        -1.
+    }
+}
+
+impl NumericType for f64 {
+    fn column_type() -> ColumnType {
+        ColumnType::Float
+    }
+    fn to_f64(self) -> f64 {
+        self
+    }
+    fn positive_threshold() -> f64 {
+        f64::EPSILON
+    }
+    fn negative_threshold() -> f64 {
+        -f64::EPSILON
+    }
 }
 
 /// Rule enum representing all possible validation rules
@@ -183,20 +222,20 @@ impl StringColumnBuilder {
     }
 }
 
-/// Builder for Integer columns
 #[derive(Debug, Clone)]
-pub struct IntegerColumnBuilder {
+pub struct NumericColumnBuilder<T: NumericType> {
     name: String,
     rules: Vec<ColumnRule>,
+    _phantom: PhantomData<T>,
 }
 
-impl ColumnBuilder for IntegerColumnBuilder {
+impl<T: NumericType> ColumnBuilder for NumericColumnBuilder<T> {
     fn name(&self) -> &str {
         self.name.as_str()
     }
 
     fn column_type(&self) -> ColumnType {
-        ColumnType::Integer
+        T::column_type()
     }
 
     fn rules(&self) -> &[ColumnRule] {
@@ -204,37 +243,38 @@ impl ColumnBuilder for IntegerColumnBuilder {
     }
 }
 
-impl IntegerColumnBuilder {
+impl<T: NumericType> NumericColumnBuilder<T> {
     pub fn new(name: String) -> Self {
         Self {
             name,
             rules: Vec::new(),
+            _phantom: PhantomData,
         }
     }
 
     /// Set numeric range (both min and max)
-    pub fn between(&mut self, min: i64, max: i64) -> &mut Self {
+    pub fn between(&mut self, min: T, max: T) -> &mut Self {
         self.rules.push(ColumnRule::NumericRange {
-            min: Some(min as f64),
-            max: Some(max as f64),
+            min: Some(min.to_f64()),
+            max: Some(max.to_f64()),
         });
         self
     }
 
     /// Set minimum value
-    pub fn min(&mut self, min: i64) -> &mut Self {
+    pub fn min(&mut self, min: T) -> &mut Self {
         self.rules.push(ColumnRule::NumericRange {
-            min: Some(min as f64),
+            min: Some(min.to_f64()),
             max: None,
         });
         self
     }
 
     /// Set maximum value
-    pub fn max(&mut self, max: i64) -> &mut Self {
+    pub fn max(&mut self, max: T) -> &mut Self {
         self.rules.push(ColumnRule::NumericRange {
             min: None,
-            max: Some(max as f64),
+            max: Some(max.to_f64()),
         });
         self
     }
@@ -242,7 +282,7 @@ impl IntegerColumnBuilder {
     /// Check if values are positive (> 0)
     pub fn is_positive(&mut self) -> &mut Self {
         self.rules.push(ColumnRule::NumericRange {
-            min: Some(1.0),
+            min: Some(T::positive_threshold()),
             max: None,
         });
         self
@@ -252,114 +292,7 @@ impl IntegerColumnBuilder {
     pub fn is_negative(&mut self) -> &mut Self {
         self.rules.push(ColumnRule::NumericRange {
             min: None,
-            max: Some(-1.0),
-        });
-        self
-    }
-
-    /// Check if values are non-negative (>= 0)
-    pub fn is_non_negative(&mut self) -> &mut Self {
-        self.rules.push(ColumnRule::NumericRange {
-            min: Some(0.0),
-            max: None,
-        });
-        self
-    }
-
-    /// Check if values are non-positive (<= 0)
-    pub fn is_non_positive(&mut self) -> &mut Self {
-        self.rules.push(ColumnRule::NumericRange {
-            min: None,
-            max: Some(0.0),
-        });
-        self
-    }
-
-    /// Check if values are monotonically increasing
-    pub fn is_monotonically_increasing(&mut self) -> &mut Self {
-        self.rules
-            .push(ColumnRule::Monotonicity { ascending: true });
-        self
-    }
-
-    /// Check if values are monotonically decreasing
-    pub fn is_monotonically_decreasing(&mut self) -> &mut Self {
-        self.rules
-            .push(ColumnRule::Monotonicity { ascending: false });
-        self
-    }
-}
-
-/// Builder for Float columns
-#[derive(Debug, Clone)]
-pub struct FloatColumnBuilder {
-    name: String,
-    rules: Vec<ColumnRule>,
-}
-
-impl ColumnBuilder for FloatColumnBuilder {
-    fn name(&self) -> &str {
-        self.name.as_str()
-    }
-
-    fn column_type(&self) -> ColumnType {
-        ColumnType::Float
-    }
-
-    fn rules(&self) -> &[ColumnRule] {
-        self.rules.as_slice()
-    }
-}
-
-impl FloatColumnBuilder {
-    pub fn new(name: String) -> Self {
-        Self {
-            name,
-            rules: Vec::new(),
-        }
-    }
-
-    /// Set numeric range (both min and max)
-    pub fn between(&mut self, min: f64, max: f64) -> &mut Self {
-        self.rules.push(ColumnRule::NumericRange {
-            min: Some(min),
-            max: Some(max),
-        });
-        self
-    }
-
-    /// Set minimum value
-    pub fn min(&mut self, min: f64) -> &mut Self {
-        self.rules.push(ColumnRule::NumericRange {
-            min: Some(min),
-            max: None,
-        });
-        self
-    }
-
-    /// Set maximum value
-    pub fn max(&mut self, max: f64) -> &mut Self {
-        self.rules.push(ColumnRule::NumericRange {
-            min: None,
-            max: Some(max),
-        });
-        self
-    }
-
-    /// Check if values are positive (> 0)
-    pub fn is_positive(&mut self) -> &mut Self {
-        self.rules.push(ColumnRule::NumericRange {
-            min: Some(0.0 + f64::EPSILON),
-            max: None,
-        });
-        self
-    }
-
-    /// Check if values are negative (< 0)
-    pub fn is_negative(&mut self) -> &mut Self {
-        self.rules.push(ColumnRule::NumericRange {
-            min: None,
-            max: Some(0.0 - f64::EPSILON),
+            max: Some(T::negative_threshold()),
         });
         self
     }
@@ -436,7 +369,7 @@ mod tests {
 
     #[test]
     fn test_integer_column_builder() {
-        let mut builder = IntegerColumnBuilder::new("age".to_string());
+        let mut builder = NumericColumnBuilder::<i64>::new("age".to_string());
         builder.between(0, 120);
 
         assert_eq!(builder.name(), "age");
@@ -446,7 +379,7 @@ mod tests {
 
     #[test]
     fn test_integer_column_is_positive() {
-        let mut builder = IntegerColumnBuilder::new("count".to_string());
+        let mut builder = NumericColumnBuilder::<i64>::new("count".to_string());
         builder.is_positive();
 
         match &builder.rules()[0] {
@@ -460,7 +393,7 @@ mod tests {
 
     #[test]
     fn test_float_column_builder() {
-        let mut builder = FloatColumnBuilder::new("price".to_string());
+        let mut builder = NumericColumnBuilder::<f64>::new("price".to_string());
         builder.between(0.0, 1000.0);
 
         assert_eq!(builder.name(), "price");
@@ -470,7 +403,7 @@ mod tests {
 
     #[test]
     fn test_float_column_monotonicity() {
-        let mut builder = FloatColumnBuilder::new("timestamp".to_string());
+        let mut builder = NumericColumnBuilder::<f64>::new("timestamp".to_string());
         builder.is_monotonically_increasing();
 
         match &builder.rules()[0] {

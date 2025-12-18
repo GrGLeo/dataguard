@@ -4,8 +4,7 @@ use crate::{
 };
 use anyhow::{Context, Result};
 use dataguard_core::{
-    column::ColumnBuilder, CsvTable, FloatColumnBuilder, IntegerColumnBuilder, StringColumnBuilder,
-    Table,
+    column::ColumnBuilder, CsvTable, NumericColumnBuilder, StringColumnBuilder, Table,
 };
 use toml::Value;
 
@@ -115,7 +114,7 @@ fn extract_float(value: &Value, rule_name: String, column_name: String) -> Resul
 }
 
 fn apply_integer_rule(
-    builder: &mut IntegerColumnBuilder,
+    builder: &mut NumericColumnBuilder<i64>,
     rule: Rule,
     column_name: String,
 ) -> Result<(), CliError> {
@@ -169,7 +168,7 @@ fn apply_integer_rule(
 }
 
 fn apply_float_rule(
-    builder: &mut FloatColumnBuilder,
+    builder: &mut NumericColumnBuilder<f64>,
     rule: Rule,
     column_name: String,
 ) -> Result<(), CliError> {
@@ -228,7 +227,7 @@ pub fn construct_csv_table(table: &ConfigTable) -> Result<CsvTable> {
     for column in &table.column {
         match column.datatype.as_str() {
             "float" => {
-                let mut builder = FloatColumnBuilder::new(column.name.clone());
+                let mut builder = NumericColumnBuilder::<f64>::new(column.name.clone());
                 for rule in &column.rule {
                     apply_float_rule(&mut builder, rule.clone(), column.name.clone()).with_context(
                         || format!("Failed to apply rule to column '{}'", column.name.clone()),
@@ -237,7 +236,7 @@ pub fn construct_csv_table(table: &ConfigTable) -> Result<CsvTable> {
                 all_builder.push(Box::new(builder));
             }
             "integer" => {
-                let mut builder = IntegerColumnBuilder::new(column.name.clone());
+                let mut builder = NumericColumnBuilder::<i64>::new(column.name.clone());
                 for rule in &column.rule {
                     apply_integer_rule(&mut builder, rule.clone(), column.name.clone())
                         .with_context(|| {
@@ -435,7 +434,7 @@ mod tests {
     // Success cases
     #[test]
     fn test_apply_integer_rule_between() {
-        let mut builder = IntegerColumnBuilder::new("test_col".to_string());
+        let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
         let rule = Rule::Between {
             min: Value::Integer(1),
             max: Value::Integer(10),
@@ -446,7 +445,7 @@ mod tests {
 
     #[test]
     fn test_apply_integer_rule_min() {
-        let mut builder = IntegerColumnBuilder::new("test_col".to_string());
+        let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
         let rule = Rule::Min {
             min: Value::Integer(5),
         };
@@ -456,7 +455,7 @@ mod tests {
 
     #[test]
     fn test_apply_integer_rule_max() {
-        let mut builder = IntegerColumnBuilder::new("test_col".to_string());
+        let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
         let rule = Rule::Max {
             max: Value::Integer(100),
         };
@@ -466,7 +465,7 @@ mod tests {
 
     #[test]
     fn test_apply_integer_rule_is_positive() {
-        let mut builder = IntegerColumnBuilder::new("test_col".to_string());
+        let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
         let rule = Rule::IsPositive;
         let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
@@ -474,7 +473,7 @@ mod tests {
 
     #[test]
     fn test_apply_integer_rule_is_negative() {
-        let mut builder = IntegerColumnBuilder::new("test_col".to_string());
+        let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
         let rule = Rule::IsNegative;
         let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
@@ -482,7 +481,7 @@ mod tests {
 
     #[test]
     fn test_apply_integer_rule_is_non_positive() {
-        let mut builder = IntegerColumnBuilder::new("test_col".to_string());
+        let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
         let rule = Rule::IsNonPositive;
         let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
@@ -490,7 +489,7 @@ mod tests {
 
     #[test]
     fn test_apply_integer_rule_is_non_negative() {
-        let mut builder = IntegerColumnBuilder::new("test_col".to_string());
+        let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
         let rule = Rule::IsNonNegative;
         let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
@@ -498,7 +497,7 @@ mod tests {
 
     #[test]
     fn test_apply_integer_rule_is_monotonically_increasing() {
-        let mut builder = IntegerColumnBuilder::new("test_col".to_string());
+        let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
         let rule = Rule::IsIncreasing;
         let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
@@ -506,7 +505,7 @@ mod tests {
 
     #[test]
     fn test_apply_integer_rule_is_monotonically_descreasing() {
-        let mut builder = IntegerColumnBuilder::new("test_col".to_string());
+        let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
         let rule = Rule::IsDecreasing;
         let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
@@ -515,7 +514,7 @@ mod tests {
     // Error cases
     #[test]
     fn test_apply_integer_rule_unknown_rule() {
-        let mut builder = IntegerColumnBuilder::new("test_col".to_string());
+        let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
         let rule = Rule::IsUnique;
         let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_err());
@@ -535,7 +534,7 @@ mod tests {
 
     #[test]
     fn test_apply_integer_rule_between_wrong_type_min() {
-        let mut builder = IntegerColumnBuilder::new("test_col".to_string());
+        let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
         let rule = Rule::Between {
             min: Value::String("not_an_integer".to_string()),
             max: Value::Integer(10),
@@ -558,7 +557,7 @@ mod tests {
 
     #[test]
     fn test_apply_integer_rule_between_wrong_type_max() {
-        let mut builder = IntegerColumnBuilder::new("test_col".to_string());
+        let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
         let rule = Rule::Between {
             min: Value::Integer(1),
             max: Value::String("not_an_integer".to_string()),
@@ -569,7 +568,7 @@ mod tests {
 
     #[test]
     fn test_apply_integer_rule_min_wrong_type() {
-        let mut builder = IntegerColumnBuilder::new("test_col".to_string());
+        let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
         let rule = Rule::Min {
             min: Value::Float(5.5),
         };
@@ -579,7 +578,7 @@ mod tests {
 
     #[test]
     fn test_apply_integer_rule_max_wrong_type() {
-        let mut builder = IntegerColumnBuilder::new("test_col".to_string());
+        let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
         let rule = Rule::Max {
             max: Value::Float(100.5),
         };
@@ -592,7 +591,7 @@ mod tests {
     // Success cases
     #[test]
     fn test_apply_float_rule_between() {
-        let mut builder = FloatColumnBuilder::new("test_col".to_string());
+        let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
         let rule = Rule::Between {
             min: Value::Float(1.5),
             max: Value::Float(10.5),
@@ -603,7 +602,7 @@ mod tests {
 
     #[test]
     fn test_apply_float_rule_min() {
-        let mut builder = FloatColumnBuilder::new("test_col".to_string());
+        let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
         let rule = Rule::Min {
             min: Value::Float(5.5),
         };
@@ -613,7 +612,7 @@ mod tests {
 
     #[test]
     fn test_apply_float_rule_max() {
-        let mut builder = FloatColumnBuilder::new("test_col".to_string());
+        let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
         let rule = Rule::Max {
             max: Value::Float(100.5),
         };
@@ -623,7 +622,7 @@ mod tests {
 
     #[test]
     fn test_apply_float_rule_is_positive() {
-        let mut builder = FloatColumnBuilder::new("test_col".to_string());
+        let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
         let rule = Rule::IsPositive;
         let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
@@ -631,7 +630,7 @@ mod tests {
 
     #[test]
     fn test_apply_float_rule_is_negative() {
-        let mut builder = FloatColumnBuilder::new("test_col".to_string());
+        let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
         let rule = Rule::IsNegative;
         let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
@@ -639,7 +638,7 @@ mod tests {
 
     #[test]
     fn test_apply_float_rule_is_non_positive() {
-        let mut builder = FloatColumnBuilder::new("test_col".to_string());
+        let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
         let rule = Rule::IsNonPositive;
         let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
@@ -647,7 +646,7 @@ mod tests {
 
     #[test]
     fn test_apply_float_rule_is_non_negative() {
-        let mut builder = FloatColumnBuilder::new("test_col".to_string());
+        let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
         let rule = Rule::IsNonNegative;
         let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
@@ -655,7 +654,7 @@ mod tests {
 
     #[test]
     fn test_apply_float_rule_is_monotonically_increasing() {
-        let mut builder = FloatColumnBuilder::new("test_col".to_string());
+        let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
         let rule = Rule::IsIncreasing;
         let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
@@ -663,7 +662,7 @@ mod tests {
 
     #[test]
     fn test_apply_float_rule_is_monotonically_descreasing() {
-        let mut builder = FloatColumnBuilder::new("test_col".to_string());
+        let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
         let rule = Rule::IsDecreasing;
         let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_ok());
@@ -672,7 +671,7 @@ mod tests {
     // Error cases
     #[test]
     fn test_apply_float_rule_unknown_rule() {
-        let mut builder = FloatColumnBuilder::new("test_col".to_string());
+        let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
         let rule = Rule::IsUnique;
         let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_err());
@@ -692,7 +691,7 @@ mod tests {
 
     #[test]
     fn test_apply_float_rule_between_wrong_type_min() {
-        let mut builder = FloatColumnBuilder::new("test_col".to_string());
+        let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
         let rule = Rule::Between {
             min: Value::String("not_a_float".to_string()),
             max: Value::Float(10.5),
@@ -715,7 +714,7 @@ mod tests {
 
     #[test]
     fn test_apply_float_rule_between_wrong_type_max() {
-        let mut builder = FloatColumnBuilder::new("test_col".to_string());
+        let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
         let rule = Rule::Between {
             min: Value::Float(1.5),
             max: Value::String("not_a_float".to_string()),
@@ -726,7 +725,7 @@ mod tests {
 
     #[test]
     fn test_apply_float_rule_min_wrong_type() {
-        let mut builder = FloatColumnBuilder::new("test_col".to_string());
+        let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
         let rule = Rule::Min {
             min: Value::Integer(5),
         };
@@ -736,7 +735,7 @@ mod tests {
 
     #[test]
     fn test_apply_float_rule_max_wrong_type() {
-        let mut builder = FloatColumnBuilder::new("test_col".to_string());
+        let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
         let rule = Rule::Max {
             max: Value::Integer(100),
         };

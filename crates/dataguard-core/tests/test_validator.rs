@@ -1,4 +1,4 @@
-use dataguard_core::{CsvTable, IntegerColumnBuilder, StringColumnBuilder, Table, Validator};
+use dataguard_core::{CsvTable, NumericColumnBuilder, StringColumnBuilder, Table, Validator};
 use std::fs::File;
 use std::io::Write;
 use tempfile::tempdir;
@@ -56,7 +56,7 @@ fn test_validator_validate_existing_table() {
     let mut name_col = StringColumnBuilder::new("name".to_string());
     name_col.with_min_length(3);
 
-    let mut age_col = IntegerColumnBuilder::new("age".to_string());
+    let mut age_col = NumericColumnBuilder::<i64>::new("age".to_string());
     age_col.is_positive();
 
     let file_path_str = file_path.into_os_string().into_string().unwrap();

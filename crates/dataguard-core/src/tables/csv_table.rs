@@ -12,9 +12,11 @@ use crate::ValidationResult;
 use arrow::array::{Array, PrimitiveArray, StringArray};
 use arrow::datatypes::{DataType, Float64Type, Int64Type};
 use arrow::record_batch::RecordBatch;
-use arrow_array::ArrowPrimitiveType;
+use arrow_array::{ArrowNumericType, ArrowPrimitiveType};
+use num_traits::{Num, NumCast};
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
+use std::fmt::Debug;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
@@ -184,61 +186,26 @@ impl Table for CsvTable {
                 })
             }
             ColumnType::Integer => {
-                let mut executable_rules: Vec<Box<dyn NumericRule<Int64Type>>> = Vec::new();
-
-                for rule in builder.rules() {
-                    match rule {
-                        ColumnRule::NumericRange { min, max } => {
-                            executable_rules.push(Box::new(Range::<i64>::new(
-                                min.map(|v| v as i64),
-                                max.map(|v| v as i64),
-                            )));
-                        }
-                        ColumnRule::Monotonicity { ascending } => {
-                            executable_rules.push(Box::new(Monotonicity::<i64>::new(*ascending)));
-                        }
-                        _ => {
-                            return Err(RuleError::ValidationError(format!(
-                                "Invalid rule {:?} for Integer column '{}'",
-                                rule,
-                                builder.name()
-                            )))
-                        }
-                    }
+                let res = compile_numeric_rules(builder.rules(), builder.name());
+                match res {
+                    Ok(executable_rules) => Ok(ExecutableColumn::Integer {
+                        name: builder.name().to_string(),
+                        rules: executable_rules,
+                        type_check: TypeCheck::new(builder.name().to_string(), DataType::Int64),
+                    }),
+                    Err(e) => Err(e),
                 }
-
-                Ok(ExecutableColumn::Integer {
-                    name: builder.name().to_string(),
-                    rules: executable_rules,
-                    type_check: TypeCheck::new(builder.name().to_string(), DataType::Int64),
-                })
             }
             ColumnType::Float => {
-                let mut executable_rules: Vec<Box<dyn NumericRule<Float64Type>>> = Vec::new();
-
-                for rule in builder.rules() {
-                    match rule {
-                        ColumnRule::NumericRange { min, max } => {
-                            executable_rules.push(Box::new(Range::<f64>::new(*min, *max)));
-                        }
-                        ColumnRule::Monotonicity { ascending } => {
-                            executable_rules.push(Box::new(Monotonicity::<f64>::new(*ascending)));
-                        }
-                        _ => {
-                            return Err(RuleError::ValidationError(format!(
-                                "Invalid rule {:?} for Float column '{}'",
-                                rule,
-                                builder.name()
-                            )))
-                        }
-                    }
+                let res = compile_numeric_rules(builder.rules(), builder.name());
+                match res {
+                    Ok(executable_rules) => Ok(ExecutableColumn::Float {
+                        name: builder.name().to_string(),
+                        rules: executable_rules,
+                        type_check: TypeCheck::new(builder.name().to_string(), DataType::Float64),
+                    }),
+                    Err(e) => Err(e),
                 }
-
-                Ok(ExecutableColumn::Float {
-                    name: builder.name().to_string(),
-                    rules: executable_rules,
-                    type_check: TypeCheck::new(builder.name().to_string(), DataType::Float64),
-                })
             }
         }
     }
@@ -373,4 +340,34 @@ impl Table for CsvTable {
             }
         });
     }
+}
+
+fn compile_numeric_rules<N, A>(
+    rules: &[ColumnRule],
+    column_name: &str,
+) -> Result<Vec<Box<dyn NumericRule<A>>>, RuleError>
+where
+    N: Num + PartialOrd + Copy + Debug + Send + Sync + NumCast + 'static,
+    A: ArrowNumericType<Native = N>,
+{
+    let mut executable_rules: Vec<Box<dyn NumericRule<A>>> = Vec::new();
+    for rule in rules {
+        match rule {
+            ColumnRule::NumericRange { min, max } => {
+                let min_conv = min.and_then(|v| N::from(v));
+                let max_conv = max.and_then(|v| N::from(v));
+                executable_rules.push(Box::new(Range::<N>::new(min_conv, max_conv)));
+            }
+            ColumnRule::Monotonicity { ascending } => {
+                executable_rules.push(Box::new(Monotonicity::<N>::new(*ascending)));
+            }
+            _ => {
+                return Err(RuleError::ValidationError(format!(
+                    "Invalid rule {:?} for numeric column '{}'",
+                    rule, column_name
+                )))
+            }
+        }
+    }
+    Ok(executable_rules)
 }
