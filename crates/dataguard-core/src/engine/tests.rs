@@ -461,9 +461,9 @@ mod validation_engine_tests {
         let batch = create_string_batch(
             "name",
             vec![
-                Some("abc"),      // Valid (3 chars)
-                Some("abcdefghi"), // Valid (9 chars)
-                Some("ab"),        // Invalid (too short)
+                Some("abc"),         // Valid (3 chars)
+                Some("abcdefghi"),   // Valid (9 chars)
+                Some("ab"),          // Invalid (too short)
                 Some("abcdefghijk"), // Invalid (too long)
             ],
         );

@@ -193,26 +193,14 @@ fn validate_string_column(
     // We always run type check
     match type_check.validate(array) {
         Ok((errors, casted_array)) => {
-            record_validation_result(
-                name,
-                type_check.name(),
-                errors,
-                error_count,
-                report,
-            );
+            record_validation_result(name, type_check.name(), errors, error_count, report);
 
             // We downcast once the array
             if let Some(string_array) = casted_array.as_any().downcast_ref::<StringArray>() {
                 // We run all domain level rules
                 for rule in rules {
                     if let Ok(count) = rule.validate(string_array, name.to_string()) {
-                        record_validation_result(
-                            name,
-                            rule.name(),
-                            count,
-                            error_count,
-                            report,
-                        );
+                        record_validation_result(name, rule.name(), count, error_count, report);
                     }
                 }
                 // If we have a unicity rule in place, update the global hashset
@@ -223,13 +211,7 @@ fn validate_string_column(
             }
         }
         Err(_) => {
-            record_type_check_error(
-                array.len(),
-                name,
-                type_check.name(),
-                error_count,
-                report,
-            );
+            record_type_check_error(array.len(), name, type_check.name(), error_count, report);
         }
     }
 }
@@ -246,7 +228,7 @@ fn validate_numeric_column<T>(
     report: &ResultAccumulator,
     unicity_accumulators: &UnicityAccumulator,
 ) where
-T: ArrowNumericType,
+    T: ArrowNumericType,
 {
     // Run null check if present
     validate_null_check(null_check, array, name, report);
@@ -254,28 +236,14 @@ T: ArrowNumericType,
     // We always run type check
     match type_check.validate(array) {
         Ok((errors, casted_array)) => {
-            record_validation_result(
-                name,
-                type_check.name(),
-                errors,
-                error_count,
-                report,
-            );
+            record_validation_result(name, type_check.name(), errors, error_count, report);
 
             // We downcast once the array
-            if let Some(numeric_array) =
-                casted_array.as_any().downcast_ref::<PrimitiveArray<T>>()
-            {
+            if let Some(numeric_array) = casted_array.as_any().downcast_ref::<PrimitiveArray<T>>() {
                 // We run all domain level rules
                 for rule in rules {
                     if let Ok(count) = rule.validate(numeric_array, name.to_string()) {
-                        record_validation_result(
-                            name,
-                            rule.name(),
-                            count,
-                            error_count,
-                            report,
-                        );
+                        record_validation_result(name, rule.name(), count, error_count, report);
                     }
                 }
                 // If we have a unicity rule in place, update the global hashset
@@ -286,13 +254,7 @@ T: ArrowNumericType,
             }
         }
         Err(_) => {
-            record_type_check_error(
-                array.len(),
-                name,
-                type_check.name(),
-                error_count,
-                report,
-            );
+            record_type_check_error(array.len(), name, type_check.name(), error_count, report);
         }
     }
 }
