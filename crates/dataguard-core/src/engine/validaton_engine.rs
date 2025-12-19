@@ -42,7 +42,7 @@ impl<'a> ValidationEngine<'a> {
         let total_rows: usize = batches.iter().map(|batch| batch.num_rows()).sum();
         report.set_total_rows(total_rows);
 
-        let unicity_accumulators = UnicityAccumulator::new(&self.columns);
+        let unicity_accumulators = UnicityAccumulator::new(self.columns);
 
         batches.par_iter().for_each(|batch| {
             for executable_col in self.columns {
