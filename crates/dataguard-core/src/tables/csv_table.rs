@@ -226,6 +226,16 @@ impl Table for CsvTable {
             }
         });
 
+        // We need to calculate the unicity errors now 
+        // We unwrap all lock should have been clearer from the earlier loop
+        for (c, h) in unicity_accumulators {
+            let i  = h.as_ref().lock().unwrap().len();
+            let errors = total_rows - i;
+            error_count.fetch_add(errors, Ordering::Relaxed);
+            report.record_result(c.as_str(), "Unicity", errors);
+        }
+
+        // We create the validation result for report formatting
         let column_results = report.to_results();
         let total_errors = error_count.load(Ordering::Relaxed);
         let mut results = ValidationResult::new(self.table_name.clone(), total_rows);
