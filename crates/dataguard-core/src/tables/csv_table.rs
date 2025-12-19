@@ -12,7 +12,7 @@ use crate::validator::ExecutableColumn;
 use crate::ValidationResult;
 use arrow::array::{Array, PrimitiveArray, StringArray};
 use arrow::datatypes::{DataType, Float64Type, Int64Type};
-use arrow_array::{ArrowNumericType};
+use arrow_array::ArrowNumericType;
 use num_traits::{Num, NumCast};
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
@@ -81,7 +81,7 @@ impl Table for CsvTable {
                         name,
                         rules,
                         type_check,
-                        unicity,
+                        unicity_check: unicity,
                         null_check,
                     } => {
                         // We get the associated array
@@ -116,7 +116,8 @@ impl Table for CsvTable {
                                         // here and update the global one
                                         // Safety: the column should always be instanciate
                                         if let Some(unicity_rule) = unicity {
-                                            let local_hash = unicity_rule.validate(string_array);
+                                            let local_hash =
+                                                unicity_rule.validate_str(string_array);
                                             unicity_accumulators
                                                 .get(name)
                                                 .unwrap()
@@ -138,6 +139,7 @@ impl Table for CsvTable {
                         name,
                         rules,
                         type_check,
+                        unicity_check,
                         null_check,
                     } => {
                         // We get the associated array
@@ -156,8 +158,9 @@ impl Table for CsvTable {
                                     report.record_result(name, type_check.name(), errors);
 
                                     // We downcast once the array
-                                    if let Some(int_array) =
-                                        casted_array.as_any().downcast_ref::<PrimitiveArray<Int64Type>>()
+                                    if let Some(int_array) = casted_array
+                                        .as_any()
+                                        .downcast_ref::<PrimitiveArray<Int64Type>>()
                                     {
                                         // We run all domain level rule
                                         for rule in rules {
@@ -167,6 +170,19 @@ impl Table for CsvTable {
                                                 error_count.fetch_add(count, Ordering::Relaxed);
                                                 report.record_result(name, rule.name(), count);
                                             }
+                                        }
+                                        // If we have a unicity rule in place, we get the hashset
+                                        // here and update the global one
+                                        // Safety: the column should always be instanciate
+                                        if let Some(unicity_rule) = unicity_check {
+                                            let local_hash =
+                                                unicity_rule.validate_numeric(int_array);
+                                            unicity_accumulators
+                                                .get(name)
+                                                .unwrap()
+                                                .lock()
+                                                .unwrap()
+                                                .extend(local_hash);
                                         }
                                     }
                                 }
@@ -182,6 +198,7 @@ impl Table for CsvTable {
                         name,
                         rules,
                         type_check,
+                        unicity_check,
                         null_check,
                     } => {
                         // We get the associated array
@@ -200,17 +217,31 @@ impl Table for CsvTable {
                                     report.record_result(name, type_check.name(), errors);
 
                                     // We downcast once the array
-                                    if let Some(int_array) =
-                                        casted_array.as_any().downcast_ref::<PrimitiveArray<Float64Type>>()
+                                    if let Some(float_array) = casted_array
+                                        .as_any()
+                                        .downcast_ref::<PrimitiveArray<Float64Type>>()
                                     {
                                         // We run all domain level rule
                                         for rule in rules {
                                             if let Ok(count) =
-                                                rule.validate(int_array, name.to_string())
+                                                rule.validate(float_array, name.to_string())
                                             {
                                                 error_count.fetch_add(count, Ordering::Relaxed);
                                                 report.record_result(name, rule.name(), count);
                                             }
+                                        }
+                                        // If we have a unicity rule in place, we get the hashset
+                                        // here and update the global one
+                                        // Safety: the column should always be instanciate
+                                        if let Some(unicity_rule) = unicity_check {
+                                            let local_hash =
+                                                unicity_rule.validate_numeric(float_array);
+                                            unicity_accumulators
+                                                .get(name)
+                                                .unwrap()
+                                                .lock()
+                                                .unwrap()
+                                                .extend(local_hash);
                                         }
                                     }
                                 }
@@ -226,10 +257,10 @@ impl Table for CsvTable {
             }
         });
 
-        // We need to calculate the unicity errors now 
+        // We need to calculate the unicity errors now
         // We unwrap all lock should have been clearer from the earlier loop
         for (c, h) in unicity_accumulators {
-            let i  = h.as_ref().lock().unwrap().len();
+            let i = h.as_ref().lock().unwrap().len();
             let errors = total_rows - i;
             error_count.fetch_add(errors, Ordering::Relaxed);
             report.record_result(c.as_str(), "Unicity", errors);
@@ -281,7 +312,7 @@ impl Table for CsvTable {
         match builder.column_type() {
             ColumnType::String => {
                 let mut executable_rules: Vec<Box<dyn StringRule>> = Vec::new();
-                let mut unicity = None;
+                let mut unicity_check = None;
                 let mut null_check = None;
 
                 for rule in builder.rules() {
@@ -297,7 +328,7 @@ impl Table for CsvTable {
                             executable_rules.push(Box::new(IsInCheck::new(members.to_vec())));
                         }
                         ColumnRule::Unicity => {
-                            unicity = Some(UnicityCheck::new());
+                            unicity_check = Some(UnicityCheck::new());
                         }
                         ColumnRule::NullCheck => {
                             null_check = Some(NullCheck::new());
@@ -316,31 +347,40 @@ impl Table for CsvTable {
                     name: builder.name().to_string(),
                     rules: executable_rules,
                     type_check: TypeCheck::new(builder.name().to_string(), DataType::Utf8),
-                    unicity,
+                    unicity_check,
                     null_check,
                 })
             }
             ColumnType::Integer => {
                 let res = compile_numeric_rules(builder.rules(), builder.name());
                 match res {
-                    Ok((executable_rules, null_check)) => Ok(ExecutableColumn::Integer {
-                        name: builder.name().to_string(),
-                        rules: executable_rules,
-                        type_check: TypeCheck::new(builder.name().to_string(), DataType::Int64),
-                        null_check,
-                    }),
+                    Ok((executable_rules, unicity_check, null_check)) => {
+                        Ok(ExecutableColumn::Integer {
+                            name: builder.name().to_string(),
+                            rules: executable_rules,
+                            type_check: TypeCheck::new(builder.name().to_string(), DataType::Int64),
+                            unicity_check,
+                            null_check,
+                        })
+                    }
                     Err(e) => Err(e),
                 }
             }
             ColumnType::Float => {
                 let res = compile_numeric_rules(builder.rules(), builder.name());
                 match res {
-                    Ok((executable_rules, null_check)) => Ok(ExecutableColumn::Float {
-                        name: builder.name().to_string(),
-                        rules: executable_rules,
-                        type_check: TypeCheck::new(builder.name().to_string(), DataType::Float64),
-                        null_check,
-                    }),
+                    Ok((executable_rules, unicity_check, null_check)) => {
+                        Ok(ExecutableColumn::Float {
+                            name: builder.name().to_string(),
+                            rules: executable_rules,
+                            type_check: TypeCheck::new(
+                                builder.name().to_string(),
+                                DataType::Float64,
+                            ),
+                            unicity_check,
+                            null_check,
+                        })
+                    }
                     Err(e) => Err(e),
                 }
             }
@@ -352,11 +392,19 @@ impl Table for CsvTable {
 fn compile_numeric_rules<N, A>(
     rules: &[ColumnRule],
     column_name: &str,
-) -> Result<(Vec<Box<dyn NumericRule<A>>>, Option<NullCheck>), RuleError>
+) -> Result<
+    (
+        Vec<Box<dyn NumericRule<A>>>,
+        Option<UnicityCheck>,
+        Option<NullCheck>,
+    ),
+    RuleError,
+>
 where
     N: Num + PartialOrd + Copy + Debug + Send + Sync + NumCast + 'static,
     A: ArrowNumericType<Native = N>,
 {
+    let mut unicity = None;
     let mut null_rule = None;
     let mut executable_rules: Vec<Box<dyn NumericRule<A>>> = Vec::new();
     for rule in rules {
@@ -370,6 +418,9 @@ where
                 executable_rules.push(Box::new(Monotonicity::<N>::new(*ascending)));
             }
             ColumnRule::NullCheck => null_rule = Some(NullCheck::new()),
+            ColumnRule::Unicity => {
+                unicity = Some(UnicityCheck::new());
+            }
             _ => {
                 return Err(RuleError::ValidationError(format!(
                     "Invalid rule {:?} for numeric column '{}'",
@@ -378,5 +429,5 @@ where
             }
         }
     }
-    Ok((executable_rules, null_rule))
+    Ok((executable_rules, unicity, null_rule))
 }

@@ -10,19 +10,21 @@ pub enum ExecutableColumn {
         name: String,
         rules: Vec<Box<dyn StringRule>>,
         type_check: TypeCheck,
-        unicity: Option<UnicityCheck>,
+        unicity_check: Option<UnicityCheck>,
         null_check: Option<NullCheck>,
     },
     Integer {
         name: String,
         rules: Vec<Box<dyn NumericRule<Int64Type>>>,
         type_check: TypeCheck,
+        unicity_check: Option<UnicityCheck>,
         null_check: Option<NullCheck>,
     },
     Float {
         name: String,
         rules: Vec<Box<dyn NumericRule<Float64Type>>>,
         type_check: TypeCheck,
+        unicity_check: Option<UnicityCheck>,
         null_check: Option<NullCheck>,
     },
 }
@@ -38,9 +40,9 @@ impl ExecutableColumn {
 
     pub fn has_unicity(&self) -> bool {
         match self {
-            ExecutableColumn::String { unicity, .. } => unicity.is_some(),
-            ExecutableColumn::Integer { .. } => false,
-            ExecutableColumn::Float { .. } => false,
+            ExecutableColumn::String { unicity_check, .. } => unicity_check.is_some(),
+            ExecutableColumn::Integer { unicity_check, .. } => unicity_check.is_some(),
+            ExecutableColumn::Float { unicity_check, .. } => unicity_check.is_some(),
         }
     }
 }

@@ -127,6 +127,10 @@ fn apply_integer_rule(
             builder.is_not_null();
             Ok(())
         }
+        Rule::IsUnique => {
+            builder.is_unique();
+            Ok(())
+        }
         Rule::Between { ref min, ref max } => {
             let i_min = extract_integer(min, rule.to_string(), column_name.clone())?;
             let i_max = extract_integer(max, rule.to_string(), column_name.clone())?;
@@ -181,6 +185,10 @@ fn apply_float_rule(
     column_name: String,
 ) -> Result<(), CliError> {
     match rule {
+        Rule::IsUnique => {
+            builder.is_unique();
+            Ok(())
+        }
         Rule::Between { ref min, ref max } => {
             let f_min = extract_float(min, rule.to_string(), column_name.clone())?;
             let f_max = extract_float(max, rule.to_string(), column_name.clone())?;

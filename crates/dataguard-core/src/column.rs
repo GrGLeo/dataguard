@@ -265,6 +265,12 @@ impl<T: NumericType> NumericColumnBuilder<T> {
         self
     }
 
+    /// Add uniqueness constraint
+    pub fn is_unique(&mut self) -> &mut Self {
+        self.rules.push(ColumnRule::Unicity);
+        self
+    }
+
     /// Set numeric range (both min and max)
     pub fn between(&mut self, min: T, max: T) -> &mut Self {
         self.rules.push(ColumnRule::NumericRange {
