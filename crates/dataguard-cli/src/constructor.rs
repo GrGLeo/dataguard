@@ -531,7 +531,7 @@ mod tests {
     #[test]
     fn test_apply_integer_rule_unknown_rule() {
         let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
-        let rule = Rule::IsUnique;
+        let rule = Rule::IsAlphaNumeric;
         let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -540,7 +540,7 @@ mod tests {
                 column_type,
                 column_name,
             } => {
-                assert_eq!(rule_name, "is_unique");
+                assert_eq!(rule_name, "is_alphanumeric");
                 assert_eq!(column_type, "integer");
                 assert_eq!(column_name, "test_col");
             }
@@ -688,7 +688,7 @@ mod tests {
     #[test]
     fn test_apply_float_rule_unknown_rule() {
         let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
-        let rule = Rule::IsUnique;
+        let rule = Rule::IsAlphaNumeric;
         let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -697,7 +697,7 @@ mod tests {
                 column_type,
                 column_name,
             } => {
-                assert_eq!(rule_name, "is_unique");
+                assert_eq!(rule_name, "is_alphanumeric");
                 assert_eq!(column_type, "float");
                 assert_eq!(column_name, "test_col");
             }
