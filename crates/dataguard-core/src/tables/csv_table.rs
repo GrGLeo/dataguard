@@ -19,7 +19,7 @@ use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 pub struct CsvTable {
     path: String,
@@ -63,55 +63,169 @@ impl Table for CsvTable {
         let total_rows: usize = batches.iter().map(|batch| batch.num_rows()).sum();
         report.set_total_rows(total_rows);
 
-        for executable_col in &self.executable_columns {
-            match executable_col {
-                ExecutableColumn::String {
-                    name,
-                    rules,
-                    type_check,
-                    unicity,
-                    null_check,
-                } => self.validate_string_column(
-                    &batches,
-                    name,
-                    rules,
-                    type_check,
-                    unicity,
-                    null_check,
-                    &report,
-                    &error_count,
-                    total_rows,
-                ),
-                ExecutableColumn::Integer {
-                    name,
-                    rules,
-                    type_check,
-                    null_check,
-                } => self.validate_numeric_column::<Int64Type>(
-                    &batches,
-                    name,
-                    rules,
-                    type_check,
-                    null_check,
-                    &report,
-                    &error_count,
-                ),
-                ExecutableColumn::Float {
-                    name,
-                    rules,
-                    type_check,
-                    null_check,
-                } => self.validate_numeric_column::<Float64Type>(
-                    &batches,
-                    name,
-                    rules,
-                    type_check,
-                    null_check,
-                    &report,
-                    &error_count,
-                ),
+        let mut unicity_accumulators: HashMap<String, Arc<Mutex<HashSet<u64, Xxh3Builder>>>> =
+            HashMap::new();
+
+        for column in &self.executable_columns {
+            if column.has_unicity() {
+                unicity_accumulators.insert(
+                    column.get_name(),
+                    Arc::new(Mutex::new(HashSet::with_hasher(Xxh3Builder))),
+                );
             }
         }
+
+        batches.par_iter().for_each(|batch| {
+            for executable_col in &self.executable_columns {
+                match executable_col {
+                    ExecutableColumn::String {
+                        name,
+                        rules,
+                        type_check,
+                        unicity,
+                        null_check,
+                    } => {
+                        // We get the associated array
+                        if let Ok(col_index) = batch.schema().index_of(name) {
+                            let array = batch.column(col_index);
+                            // If we have a null check in place for this column we run the null
+                            // check, maybe later we also filter the array ?
+                            if let Some(null_rule) = null_check {
+                                let null_count = null_rule.validate(array);
+                                report.record_result(name, null_rule.name(), null_count);
+                            }
+                            // We always run type check
+                            match type_check.validate(array.as_ref()) {
+                                Ok((errors, casted_array)) => {
+                                    error_count.fetch_add(errors, Ordering::Relaxed);
+                                    report.record_result(name, type_check.name(), errors);
+
+                                    // We downcast once the array
+                                    if let Some(string_array) =
+                                        casted_array.as_any().downcast_ref::<StringArray>()
+                                    {
+                                        // We run all domain level rule
+                                        for rule in rules {
+                                            if let Ok(count) =
+                                                rule.validate(string_array, name.to_string())
+                                            {
+                                                error_count.fetch_add(count, Ordering::Relaxed);
+                                                report.record_result(name, rule.name(), count);
+                                            }
+                                        }
+                                        // If we have a unicity rule in place, we get the hashset
+                                        // here and update the global one
+                                        // Safety: the column should always be instanciate
+                                        if let Some(unicity_rule) = unicity {
+                                            let local_hash = unicity_rule.validate(string_array);
+                                            unicity_accumulators
+                                                .get(name)
+                                                .unwrap()
+                                                .lock()
+                                                .unwrap()
+                                                .extend(local_hash);
+                                        }
+                                    }
+                                }
+                                Err(_) => {
+                                    let count = array.len();
+                                    error_count.fetch_add(count, Ordering::Relaxed);
+                                    report.record_result(name, type_check.name(), count);
+                                }
+                            }
+                        }
+                    }
+                    ExecutableColumn::Integer {
+                        name,
+                        rules,
+                        type_check,
+                        null_check,
+                    } => {
+                        // We get the associated array
+                        if let Ok(col_index) = batch.schema().index_of(name) {
+                            let array = batch.column(col_index);
+                            // If we have a null check in place for this column we run the null
+                            // check, maybe later we also filter the array ?
+                            if let Some(null_rule) = null_check {
+                                let null_count = null_rule.validate(array);
+                                report.record_result(name, null_rule.name(), null_count);
+                            }
+                            // We always run type check
+                            match type_check.validate(array.as_ref()) {
+                                Ok((errors, casted_array)) => {
+                                    error_count.fetch_add(errors, Ordering::Relaxed);
+                                    report.record_result(name, type_check.name(), errors);
+
+                                    // We downcast once the array
+                                    if let Some(int_array) =
+                                        casted_array.as_any().downcast_ref::<PrimitiveArray<Int64Type>>()
+                                    {
+                                        // We run all domain level rule
+                                        for rule in rules {
+                                            if let Ok(count) =
+                                                rule.validate(int_array, name.to_string())
+                                            {
+                                                error_count.fetch_add(count, Ordering::Relaxed);
+                                                report.record_result(name, rule.name(), count);
+                                            }
+                                        }
+                                    }
+                                }
+                                Err(_) => {
+                                    let count = array.len();
+                                    error_count.fetch_add(count, Ordering::Relaxed);
+                                    report.record_result(name, type_check.name(), count);
+                                }
+                            }
+                        }
+                    }
+                    ExecutableColumn::Float {
+                        name,
+                        rules,
+                        type_check,
+                        null_check,
+                    } => {
+                        // We get the associated array
+                        if let Ok(col_index) = batch.schema().index_of(name) {
+                            let array = batch.column(col_index);
+                            // If we have a null check in place for this column we run the null
+                            // check, maybe later we also filter the array ?
+                            if let Some(null_rule) = null_check {
+                                let null_count = null_rule.validate(array);
+                                report.record_result(name, null_rule.name(), null_count);
+                            }
+                            // We always run type check
+                            match type_check.validate(array.as_ref()) {
+                                Ok((errors, casted_array)) => {
+                                    error_count.fetch_add(errors, Ordering::Relaxed);
+                                    report.record_result(name, type_check.name(), errors);
+
+                                    // We downcast once the array
+                                    if let Some(int_array) =
+                                        casted_array.as_any().downcast_ref::<PrimitiveArray<Float64Type>>()
+                                    {
+                                        // We run all domain level rule
+                                        for rule in rules {
+                                            if let Ok(count) =
+                                                rule.validate(int_array, name.to_string())
+                                            {
+                                                error_count.fetch_add(count, Ordering::Relaxed);
+                                                report.record_result(name, rule.name(), count);
+                                            }
+                                        }
+                                    }
+                                }
+                                Err(_) => {
+                                    let count = array.len();
+                                    error_count.fetch_add(count, Ordering::Relaxed);
+                                    report.record_result(name, type_check.name(), count);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
 
         let column_results = report.to_results();
         let total_errors = error_count.load(Ordering::Relaxed);

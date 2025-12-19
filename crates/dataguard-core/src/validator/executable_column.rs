@@ -35,4 +35,12 @@ impl ExecutableColumn {
             ExecutableColumn::Float { name, .. } => name.clone(),
         }
     }
+
+    pub fn has_unicity(&self) -> bool {
+        match self {
+            ExecutableColumn::String { unicity, .. } => unicity.is_some(),
+            ExecutableColumn::Integer { .. } => false,
+            ExecutableColumn::Float { .. } => false,
+        }
+    }
 }
