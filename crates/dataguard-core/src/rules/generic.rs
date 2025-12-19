@@ -27,7 +27,7 @@ impl NullCheck {
 
 impl Default for NullCheck {
     fn default() -> Self {
-       Self::new() 
+        Self::new()
     }
 }
 
@@ -85,7 +85,10 @@ impl UnicityCheck {
         local_hash
     }
 
-    pub fn validate_numeric<T: ArrowPrimitiveType>(&self, array: &PrimitiveArray<T>) -> HashSet<u64, Xxh3Builder> {
+    pub fn validate_numeric<T: ArrowPrimitiveType>(
+        &self,
+        array: &PrimitiveArray<T>,
+    ) -> HashSet<u64, Xxh3Builder> {
         let mut local_hash = HashSet::with_hasher(Xxh3Builder);
         array.iter().for_each(|v_option| {
             if let Some(v) = v_option {
@@ -94,7 +97,6 @@ impl UnicityCheck {
             }
         });
         local_hash
-
     }
 }
 
