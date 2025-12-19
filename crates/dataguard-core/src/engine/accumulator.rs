@@ -1,3 +1,7 @@
+//! Result accumulation during validation.
+//!
+//! `ResultAccumulator` provides thread-safe collection of validation errors
+//! during parallel batch processing.
 use dashmap::DashMap;
 use std::{
     collections::HashMap,
@@ -6,6 +10,10 @@ use std::{
 
 use crate::RuleResult;
 
+/// Thread-safe accumulator for validation errors.
+///
+/// Collects error counts per (column, rule) pair during parallel validation.
+/// After all batches are processed, converts to structured results with percentages.
 pub struct ResultAccumulator {
     results: DashMap<(String, String), AtomicUsize>, // (column_name, rule_name) -> error_count
     total_rows: AtomicUsize,
@@ -18,6 +26,7 @@ impl Default for ResultAccumulator {
 }
 
 impl ResultAccumulator {
+    /// Create a new empty accumulator.
     pub fn new() -> Self {
         Self {
             results: DashMap::new(),
@@ -25,6 +34,16 @@ impl ResultAccumulator {
         }
     }
 
+    /// Set the total number of rows being validated.
+    ///
+    /// Must be called before `to_results()` to get correct percentages.
+    pub fn set_total_rows(&self, total_rows: usize) {
+        self.total_rows.store(total_rows, Ordering::Relaxed);
+    }
+
+    /// Record errors for a specific column and rule.
+    ///
+    /// Thread-safe - can be called from multiple threads concurrently.
     pub fn record_result(&self, column_name: &str, rule_name: &str, error_count: usize) {
         self.results
             .entry((column_name.to_string(), rule_name.to_string()))
@@ -32,10 +51,10 @@ impl ResultAccumulator {
             .fetch_add(error_count, Ordering::Relaxed);
     }
 
-    pub fn set_total_rows(&self, total_rows: usize) {
-        self.total_rows.store(total_rows, Ordering::Relaxed);
-    }
-
+    /// Convert accumulated results to structured format.
+    ///
+    /// Returns a map of column names to their rule results, sorted by column then rule name.
+    /// Error percentages are calculated based on `total_rows`.
     pub fn to_results(&self) -> HashMap<String, Vec<RuleResult>> {
         let mut results: HashMap<String, Vec<RuleResult>> = HashMap::new();
         let total_rows = self.total_rows.load(Ordering::Relaxed);
@@ -70,9 +89,5 @@ impl ResultAccumulator {
         }
 
         results
-    }
-
-    pub fn get_total_rows(&self) -> usize {
-        self.total_rows.load(Ordering::Relaxed)
     }
 }

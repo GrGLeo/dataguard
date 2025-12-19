@@ -1,20 +1,18 @@
 mod accumulator;
+mod unicity_accumulator;
 use accumulator::ResultAccumulator;
 use arrow::datatypes::{Float64Type, Int64Type};
-use std::{
-    collections::{HashMap, HashSet},
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc, Mutex,
-    },
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
 };
 
 use arrow_array::{Array, ArrowNumericType, PrimitiveArray, RecordBatch, StringArray};
 use rayon::prelude::*;
 
 use crate::{
+    engine::unicity_accumulator::UnicityAccumulator,
     rules::{NullCheck, NumericRule, StringRule, TypeCheck, UnicityCheck},
-    utils::hasher::Xxh3Builder,
     validator::ExecutableColumn,
     RuleError, ValidationResult,
 };
@@ -46,17 +44,7 @@ impl<'a> ValidationEngine<'a> {
         let total_rows: usize = batches.iter().map(|batch| batch.num_rows()).sum();
         report.set_total_rows(total_rows);
 
-        let mut unicity_accumulators: HashMap<String, Arc<Mutex<HashSet<u64, Xxh3Builder>>>> =
-            HashMap::new();
-
-        for column in self.columns {
-            if column.has_unicity() {
-                unicity_accumulators.insert(
-                    column.get_name(),
-                    Arc::new(Mutex::new(HashSet::with_hasher(Xxh3Builder))),
-                );
-            }
-        }
+        let unicity_accumulators = UnicityAccumulator::new(&self.columns);
 
         batches.par_iter().for_each(|batch| {
             for executable_col in self.columns {
@@ -133,11 +121,10 @@ impl<'a> ValidationEngine<'a> {
 
         // We need to calculate the unicity errors now
         // We unwrap all lock should have been clearer from the earlier loop
-        for (c, h) in unicity_accumulators {
-            let i = h.as_ref().lock().unwrap().len();
-            let errors = total_rows - i;
-            error_count.fetch_add(errors, Ordering::Relaxed);
-            report.record_result(c.as_str(), "Unicity", errors);
+        let unicity_errors = unicity_accumulators.finalize(total_rows);
+        for (column_name, unicity_error) in unicity_errors {
+            error_count.fetch_add(unicity_error, Ordering::Relaxed);
+            report.record_result(&column_name, "Unicity", unicity_error);
         }
 
         // We create the validation result for report formatting
@@ -189,20 +176,6 @@ impl<'a> ValidationEngine<'a> {
         report.record_result(column_name, type_check_name, array_len);
     }
 
-    /// Update the global unicity accumulator with local hashes
-    fn update_unicity_accumulator(
-        local_hash: HashSet<u64, Xxh3Builder>,
-        column_name: &str,
-        unicity_accumulators: &HashMap<String, Arc<Mutex<HashSet<u64, Xxh3Builder>>>>,
-    ) {
-        unicity_accumulators
-            .get(column_name)
-            .unwrap()
-            .lock()
-            .unwrap()
-            .extend(local_hash);
-    }
-
     fn validate_string_column(
         name: &str,
         rules: &[Box<dyn StringRule>],
@@ -212,7 +185,7 @@ impl<'a> ValidationEngine<'a> {
         array: &dyn Array,
         error_count: &AtomicUsize,
         report: &ResultAccumulator,
-        unicity_accumulators: &HashMap<String, Arc<Mutex<HashSet<u64, Xxh3Builder>>>>,
+        unicity_accumulators: &UnicityAccumulator,
     ) {
         // Run null check if present
         Self::validate_null_check(null_check, array, name, report);
@@ -245,7 +218,7 @@ impl<'a> ValidationEngine<'a> {
                     // If we have a unicity rule in place, update the global hashset
                     if let Some(unicity_rule) = unicity_check {
                         let local_hash = unicity_rule.validate_str(string_array);
-                        Self::update_unicity_accumulator(local_hash, name, unicity_accumulators);
+                        unicity_accumulators.record_hashes(name, local_hash);
                     }
                 }
             }
@@ -271,7 +244,7 @@ impl<'a> ValidationEngine<'a> {
         array: &dyn Array,
         error_count: &AtomicUsize,
         report: &ResultAccumulator,
-        unicity_accumulators: &HashMap<String, Arc<Mutex<HashSet<u64, Xxh3Builder>>>>,
+        unicity_accumulators: &UnicityAccumulator,
     ) where
         T: ArrowNumericType,
     {
@@ -290,9 +263,8 @@ impl<'a> ValidationEngine<'a> {
                 );
 
                 // We downcast once the array
-                if let Some(numeric_array) = casted_array
-                    .as_any()
-                    .downcast_ref::<PrimitiveArray<T>>()
+                if let Some(numeric_array) =
+                    casted_array.as_any().downcast_ref::<PrimitiveArray<T>>()
                 {
                     // We run all domain level rules
                     for rule in rules {
@@ -309,7 +281,7 @@ impl<'a> ValidationEngine<'a> {
                     // If we have a unicity rule in place, update the global hashset
                     if let Some(unicity_rule) = unicity_check {
                         let local_hash = unicity_rule.validate_numeric(numeric_array);
-                        Self::update_unicity_accumulator(local_hash, name, unicity_accumulators);
+                        unicity_accumulators.record_hashes(name, local_hash);
                     }
                 }
             }
