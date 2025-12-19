@@ -1,22 +1,20 @@
-use crate::column::{ColumnBuilder, ColumnRule, ColumnType};
+use crate::column::ColumnBuilder;
 use crate::errors::RuleError;
 use crate::reader::read_csv_parallel;
 use crate::report::ValidationReport;
 use crate::rules::generic::{TypeCheck, UnicityCheck};
-use crate::rules::numeric::{Monotonicity, NumericRule, Range};
-use crate::rules::string::{IsInCheck, RegexMatch, StringLengthCheck, StringRule};
+use crate::rules::numeric::NumericRule;
+use crate::rules::string::StringRule;
 use crate::rules::NullCheck;
 use crate::tables::Table;
 use crate::utils::hasher::Xxh3Builder;
 use crate::validator::ExecutableColumn;
-use crate::ValidationResult;
+use crate::{compiler, ValidationResult};
 use arrow::array::{Array, PrimitiveArray, StringArray};
-use arrow::datatypes::{DataType, Float64Type, Int64Type};
+use arrow::datatypes::{Float64Type, Int64Type};
 use arrow_array::ArrowNumericType;
-use num_traits::{Num, NumCast};
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
-use std::fmt::Debug;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -42,7 +40,7 @@ impl Table for CsvTable {
     fn commit(&mut self, columns: Vec<Box<dyn ColumnBuilder>>) -> Result<(), RuleError> {
         self.executable_columns = columns
             .into_iter()
-            .map(|col| self.compile_column_builder(col))
+            .map(compiler::compile_column)
             .collect::<Result<Vec<_>, _>>()?;
         Ok(())
     }
@@ -192,89 +190,6 @@ impl Table for CsvTable {
             }
         }
         result
-    }
-
-    // Private helper methods
-    fn compile_column_builder(
-        &self,
-        builder: Box<dyn ColumnBuilder>,
-    ) -> Result<ExecutableColumn, RuleError> {
-        match builder.column_type() {
-            ColumnType::String => {
-                let mut executable_rules: Vec<Box<dyn StringRule>> = Vec::new();
-                let mut unicity_check = None;
-                let mut null_check = None;
-
-                for rule in builder.rules() {
-                    match rule {
-                        ColumnRule::StringLength { min, max } => {
-                            executable_rules.push(Box::new(StringLengthCheck::new(*min, *max)));
-                        }
-                        ColumnRule::StringRegex { pattern, flags } => {
-                            executable_rules
-                                .push(Box::new(RegexMatch::new(pattern.clone(), flags.clone())));
-                        }
-                        ColumnRule::StringMembers { members } => {
-                            executable_rules.push(Box::new(IsInCheck::new(members.to_vec())));
-                        }
-                        ColumnRule::Unicity => {
-                            unicity_check = Some(UnicityCheck::new());
-                        }
-                        ColumnRule::NullCheck => {
-                            null_check = Some(NullCheck::new());
-                        }
-                        _ => {
-                            return Err(RuleError::ValidationError(format!(
-                                "Invalid rule {:?} for String column '{}'",
-                                rule,
-                                builder.name()
-                            )))
-                        }
-                    }
-                }
-
-                Ok(ExecutableColumn::String {
-                    name: builder.name().to_string(),
-                    rules: executable_rules,
-                    type_check: TypeCheck::new(builder.name().to_string(), DataType::Utf8),
-                    unicity_check,
-                    null_check,
-                })
-            }
-            ColumnType::Integer => {
-                let res = compile_numeric_rules(builder.rules(), builder.name());
-                match res {
-                    Ok((executable_rules, unicity_check, null_check)) => {
-                        Ok(ExecutableColumn::Integer {
-                            name: builder.name().to_string(),
-                            rules: executable_rules,
-                            type_check: TypeCheck::new(builder.name().to_string(), DataType::Int64),
-                            unicity_check,
-                            null_check,
-                        })
-                    }
-                    Err(e) => Err(e),
-                }
-            }
-            ColumnType::Float => {
-                let res = compile_numeric_rules(builder.rules(), builder.name());
-                match res {
-                    Ok((executable_rules, unicity_check, null_check)) => {
-                        Ok(ExecutableColumn::Float {
-                            name: builder.name().to_string(),
-                            rules: executable_rules,
-                            type_check: TypeCheck::new(
-                                builder.name().to_string(),
-                                DataType::Float64,
-                            ),
-                            unicity_check,
-                            null_check,
-                        })
-                    }
-                    Err(e) => Err(e),
-                }
-            }
-        }
     }
 }
 
@@ -451,48 +366,4 @@ impl CsvTable {
             }
         }
     }
-}
-
-#[allow(clippy::type_complexity)]
-fn compile_numeric_rules<N, A>(
-    rules: &[ColumnRule],
-    column_name: &str,
-) -> Result<
-    (
-        Vec<Box<dyn NumericRule<A>>>,
-        Option<UnicityCheck>,
-        Option<NullCheck>,
-    ),
-    RuleError,
->
-where
-    N: Num + PartialOrd + Copy + Debug + Send + Sync + NumCast + 'static,
-    A: ArrowNumericType<Native = N>,
-{
-    let mut unicity = None;
-    let mut null_rule = None;
-    let mut executable_rules: Vec<Box<dyn NumericRule<A>>> = Vec::new();
-    for rule in rules {
-        match rule {
-            ColumnRule::NumericRange { min, max } => {
-                let min_conv = min.and_then(|v| N::from(v));
-                let max_conv = max.and_then(|v| N::from(v));
-                executable_rules.push(Box::new(Range::<N>::new(min_conv, max_conv)));
-            }
-            ColumnRule::Monotonicity { ascending } => {
-                executable_rules.push(Box::new(Monotonicity::<N>::new(*ascending)));
-            }
-            ColumnRule::NullCheck => null_rule = Some(NullCheck::new()),
-            ColumnRule::Unicity => {
-                unicity = Some(UnicityCheck::new());
-            }
-            _ => {
-                return Err(RuleError::ValidationError(format!(
-                    "Invalid rule {:?} for numeric column '{}'",
-                    rule, column_name
-                )))
-            }
-        }
-    }
-    Ok((executable_rules, unicity, null_rule))
 }
