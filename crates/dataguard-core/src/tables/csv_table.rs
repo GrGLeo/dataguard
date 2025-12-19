@@ -29,7 +29,7 @@ impl Table for CsvTable {
     fn commit(&mut self, columns: Vec<Box<dyn ColumnBuilder>>) -> Result<(), RuleError> {
         self.executable_columns = columns
             .into_iter()
-            .map(compiler::compile_column)
+            .map(|col| compiler::compile_column(col, true))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(())
     }

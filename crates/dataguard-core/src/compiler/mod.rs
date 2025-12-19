@@ -136,15 +136,22 @@ where
 /// Returns `RuleError::ValidationError` if:
 /// - A rule doesn't match the column type (e.g., StringLength on an Integer column)
 /// - Invalid regex pattern in StringRegex rule
-pub fn compile_column(builder: Box<dyn ColumnBuilder>) -> Result<ExecutableColumn, RuleError> {
+pub fn compile_column(
+    builder: Box<dyn ColumnBuilder>,
+    need_type_check: bool,
+) -> Result<ExecutableColumn, RuleError> {
     match builder.column_type() {
         ColumnType::String => {
             let (executable_rules, unicity_check, null_check) =
                 compile_string_rules(builder.rules(), builder.name())?;
+            let mut type_check = None;
+            if need_type_check {
+                type_check = Some(TypeCheck::new(builder.name().to_string(), DataType::Utf8));
+            }
             Ok(ExecutableColumn::String {
                 name: builder.name().to_string(),
                 rules: executable_rules,
-                type_check: TypeCheck::new(builder.name().to_string(), DataType::Utf8),
+                type_check,
                 unicity_check,
                 null_check,
             })
@@ -152,10 +159,14 @@ pub fn compile_column(builder: Box<dyn ColumnBuilder>) -> Result<ExecutableColum
         ColumnType::Integer => {
             let (executable_rules, unicity_check, null_check) =
                 compile_numeric_rules(builder.rules(), builder.name())?;
+            let mut type_check = None;
+            if need_type_check {
+                type_check = Some(TypeCheck::new(builder.name().to_string(), DataType::Int64));
+            }
             Ok(ExecutableColumn::Integer {
                 name: builder.name().to_string(),
                 rules: executable_rules,
-                type_check: TypeCheck::new(builder.name().to_string(), DataType::Int64),
+                type_check,
                 unicity_check,
                 null_check,
             })
@@ -163,10 +174,17 @@ pub fn compile_column(builder: Box<dyn ColumnBuilder>) -> Result<ExecutableColum
         ColumnType::Float => {
             let (executable_rules, unicity_check, null_check) =
                 compile_numeric_rules(builder.rules(), builder.name())?;
+            let mut type_check = None;
+            if need_type_check {
+                type_check = Some(TypeCheck::new(
+                    builder.name().to_string(),
+                    DataType::Float64,
+                ));
+            }
             Ok(ExecutableColumn::Float {
                 name: builder.name().to_string(),
                 rules: executable_rules,
-                type_check: TypeCheck::new(builder.name().to_string(), DataType::Float64),
+                type_check,
                 unicity_check,
                 null_check,
             })

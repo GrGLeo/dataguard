@@ -179,7 +179,7 @@ fn record_type_check_error(
 fn validate_string_column(
     name: &str,
     rules: &[Box<dyn StringRule>],
-    type_check: &TypeCheck,
+    type_check: &Option<TypeCheck>,
     unicity_check: &Option<UnicityCheck>,
     null_check: &Option<NullCheck>,
     array: &dyn Array,
@@ -190,28 +190,30 @@ fn validate_string_column(
     // Run null check if present
     validate_null_check(null_check, array, name, report);
 
-    // We always run type check
-    match type_check.validate(array) {
-        Ok((errors, casted_array)) => {
-            record_validation_result(name, type_check.name(), errors, error_count, report);
+    // we only run a type check if the table is a CsvTable
+    if let Some(type_rule) = type_check {
+        match type_rule.validate(array) {
+            Ok((errors, casted_array)) => {
+                record_validation_result(name, type_rule.name(), errors, error_count, report);
 
-            // We downcast once the array
-            if let Some(string_array) = casted_array.as_any().downcast_ref::<StringArray>() {
-                // We run all domain level rules
-                for rule in rules {
-                    if let Ok(count) = rule.validate(string_array, name.to_string()) {
-                        record_validation_result(name, rule.name(), count, error_count, report);
+                // We downcast once the array
+                if let Some(string_array) = casted_array.as_any().downcast_ref::<StringArray>() {
+                    // We run all domain level rules
+                    for rule in rules {
+                        if let Ok(count) = rule.validate(string_array, name.to_string()) {
+                            record_validation_result(name, rule.name(), count, error_count, report);
+                        }
+                    }
+                    // If we have a unicity rule in place, update the global hashset
+                    if let Some(unicity_rule) = unicity_check {
+                        let local_hash = unicity_rule.validate_str(string_array);
+                        unicity_accumulators.record_hashes(name, local_hash);
                     }
                 }
-                // If we have a unicity rule in place, update the global hashset
-                if let Some(unicity_rule) = unicity_check {
-                    let local_hash = unicity_rule.validate_str(string_array);
-                    unicity_accumulators.record_hashes(name, local_hash);
-                }
             }
-        }
-        Err(_) => {
-            record_type_check_error(array.len(), name, type_check.name(), error_count, report);
+            Err(_) => {
+                record_type_check_error(array.len(), name, type_rule.name(), error_count, report);
+            }
         }
     }
 }
@@ -220,7 +222,7 @@ fn validate_string_column(
 fn validate_numeric_column<T>(
     name: &str,
     rules: &[Box<dyn NumericRule<T>>],
-    type_check: &TypeCheck,
+    type_check: &Option<TypeCheck>,
     unicity_check: &Option<UnicityCheck>,
     null_check: &Option<NullCheck>,
     array: &dyn Array,
@@ -233,28 +235,32 @@ fn validate_numeric_column<T>(
     // Run null check if present
     validate_null_check(null_check, array, name, report);
 
-    // We always run type check
-    match type_check.validate(array) {
-        Ok((errors, casted_array)) => {
-            record_validation_result(name, type_check.name(), errors, error_count, report);
+    // Type check is not needed for table other than CSV
+    if let Some(type_rule) = type_check {
+        match type_rule.validate(array) {
+            Ok((errors, casted_array)) => {
+                record_validation_result(name, type_rule.name(), errors, error_count, report);
 
-            // We downcast once the array
-            if let Some(numeric_array) = casted_array.as_any().downcast_ref::<PrimitiveArray<T>>() {
-                // We run all domain level rules
-                for rule in rules {
-                    if let Ok(count) = rule.validate(numeric_array, name.to_string()) {
-                        record_validation_result(name, rule.name(), count, error_count, report);
+                // We downcast once the array
+                if let Some(numeric_array) =
+                    casted_array.as_any().downcast_ref::<PrimitiveArray<T>>()
+                {
+                    // We run all domain level rules
+                    for rule in rules {
+                        if let Ok(count) = rule.validate(numeric_array, name.to_string()) {
+                            record_validation_result(name, rule.name(), count, error_count, report);
+                        }
+                    }
+                    // If we have a unicity rule in place, update the global hashset
+                    if let Some(unicity_rule) = unicity_check {
+                        let local_hash = unicity_rule.validate_numeric(numeric_array);
+                        unicity_accumulators.record_hashes(name, local_hash);
                     }
                 }
-                // If we have a unicity rule in place, update the global hashset
-                if let Some(unicity_rule) = unicity_check {
-                    let local_hash = unicity_rule.validate_numeric(numeric_array);
-                    unicity_accumulators.record_hashes(name, local_hash);
-                }
             }
-        }
-        Err(_) => {
-            record_type_check_error(array.len(), name, type_check.name(), error_count, report);
+            Err(_) => {
+                record_type_check_error(array.len(), name, type_rule.name(), error_count, report);
+            }
         }
     }
 }

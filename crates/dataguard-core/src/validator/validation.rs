@@ -36,7 +36,7 @@ pub enum ExecutableColumn {
         /// Domain-level string rules (length, regex, membership)
         rules: Vec<Box<dyn StringRule>>,
         /// Type checking (CSV: string → validated string)
-        type_check: TypeCheck,
+        type_check: Option<TypeCheck>,
         /// Optional uniqueness constraint
         unicity_check: Option<UnicityCheck>,
         /// Optional null constraint
@@ -49,7 +49,7 @@ pub enum ExecutableColumn {
         /// Domain-level numeric rules (range, monotonicity)
         rules: Vec<Box<dyn NumericRule<Int64Type>>>,
         /// Type checking (CSV: string → i64)
-        type_check: TypeCheck,
+        type_check: Option<TypeCheck>,
         /// Optional uniqueness constraint
         unicity_check: Option<UnicityCheck>,
         /// Optional null constraint
@@ -62,7 +62,7 @@ pub enum ExecutableColumn {
         /// Domain-level numeric rules (range, monotonicity)
         rules: Vec<Box<dyn NumericRule<Float64Type>>>,
         /// Type checking (CSV: string → f64)
-        type_check: TypeCheck,
+        type_check: Option<TypeCheck>,
         /// Optional uniqueness constraint
         unicity_check: Option<UnicityCheck>,
         /// Optional null constraint
