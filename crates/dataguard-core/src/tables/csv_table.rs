@@ -81,58 +81,22 @@ impl Table for CsvTable {
                         name,
                         rules,
                         type_check,
-                        unicity_check: unicity,
+                        unicity_check,
                         null_check,
                     } => {
-                        // We get the associated array
                         if let Ok(col_index) = batch.schema().index_of(name) {
                             let array = batch.column(col_index);
-                            // If we have a null check in place for this column we run the null
-                            // check, maybe later we also filter the array ?
-                            if let Some(null_rule) = null_check {
-                                let null_count = null_rule.validate(array);
-                                report.record_result(name, null_rule.name(), null_count);
-                            }
-                            // We always run type check
-                            match type_check.validate(array.as_ref()) {
-                                Ok((errors, casted_array)) => {
-                                    error_count.fetch_add(errors, Ordering::Relaxed);
-                                    report.record_result(name, type_check.name(), errors);
-
-                                    // We downcast once the array
-                                    if let Some(string_array) =
-                                        casted_array.as_any().downcast_ref::<StringArray>()
-                                    {
-                                        // We run all domain level rule
-                                        for rule in rules {
-                                            if let Ok(count) =
-                                                rule.validate(string_array, name.to_string())
-                                            {
-                                                error_count.fetch_add(count, Ordering::Relaxed);
-                                                report.record_result(name, rule.name(), count);
-                                            }
-                                        }
-                                        // If we have a unicity rule in place, we get the hashset
-                                        // here and update the global one
-                                        // Safety: the column should always be instanciate
-                                        if let Some(unicity_rule) = unicity {
-                                            let local_hash =
-                                                unicity_rule.validate_str(string_array);
-                                            unicity_accumulators
-                                                .get(name)
-                                                .unwrap()
-                                                .lock()
-                                                .unwrap()
-                                                .extend(local_hash);
-                                        }
-                                    }
-                                }
-                                Err(_) => {
-                                    let count = array.len();
-                                    error_count.fetch_add(count, Ordering::Relaxed);
-                                    report.record_result(name, type_check.name(), count);
-                                }
-                            }
+                            Self::validate_string_column(
+                                name,
+                                rules,
+                                type_check,
+                                unicity_check,
+                                null_check,
+                                array,
+                                &error_count,
+                                &report,
+                                &unicity_accumulators,
+                            );
                         }
                     }
                     ExecutableColumn::Integer {
@@ -142,56 +106,19 @@ impl Table for CsvTable {
                         unicity_check,
                         null_check,
                     } => {
-                        // We get the associated array
                         if let Ok(col_index) = batch.schema().index_of(name) {
                             let array = batch.column(col_index);
-                            // If we have a null check in place for this column we run the null
-                            // check, maybe later we also filter the array ?
-                            if let Some(null_rule) = null_check {
-                                let null_count = null_rule.validate(array);
-                                report.record_result(name, null_rule.name(), null_count);
-                            }
-                            // We always run type check
-                            match type_check.validate(array.as_ref()) {
-                                Ok((errors, casted_array)) => {
-                                    error_count.fetch_add(errors, Ordering::Relaxed);
-                                    report.record_result(name, type_check.name(), errors);
-
-                                    // We downcast once the array
-                                    if let Some(int_array) = casted_array
-                                        .as_any()
-                                        .downcast_ref::<PrimitiveArray<Int64Type>>()
-                                    {
-                                        // We run all domain level rule
-                                        for rule in rules {
-                                            if let Ok(count) =
-                                                rule.validate(int_array, name.to_string())
-                                            {
-                                                error_count.fetch_add(count, Ordering::Relaxed);
-                                                report.record_result(name, rule.name(), count);
-                                            }
-                                        }
-                                        // If we have a unicity rule in place, we get the hashset
-                                        // here and update the global one
-                                        // Safety: the column should always be instanciate
-                                        if let Some(unicity_rule) = unicity_check {
-                                            let local_hash =
-                                                unicity_rule.validate_numeric(int_array);
-                                            unicity_accumulators
-                                                .get(name)
-                                                .unwrap()
-                                                .lock()
-                                                .unwrap()
-                                                .extend(local_hash);
-                                        }
-                                    }
-                                }
-                                Err(_) => {
-                                    let count = array.len();
-                                    error_count.fetch_add(count, Ordering::Relaxed);
-                                    report.record_result(name, type_check.name(), count);
-                                }
-                            }
+                            Self::validate_numeric_column::<Int64Type>(
+                                name,
+                                rules,
+                                type_check,
+                                unicity_check,
+                                null_check,
+                                array,
+                                &error_count,
+                                &report,
+                                &unicity_accumulators,
+                            );
                         }
                     }
                     ExecutableColumn::Float {
@@ -201,56 +128,19 @@ impl Table for CsvTable {
                         unicity_check,
                         null_check,
                     } => {
-                        // We get the associated array
                         if let Ok(col_index) = batch.schema().index_of(name) {
                             let array = batch.column(col_index);
-                            // If we have a null check in place for this column we run the null
-                            // check, maybe later we also filter the array ?
-                            if let Some(null_rule) = null_check {
-                                let null_count = null_rule.validate(array);
-                                report.record_result(name, null_rule.name(), null_count);
-                            }
-                            // We always run type check
-                            match type_check.validate(array.as_ref()) {
-                                Ok((errors, casted_array)) => {
-                                    error_count.fetch_add(errors, Ordering::Relaxed);
-                                    report.record_result(name, type_check.name(), errors);
-
-                                    // We downcast once the array
-                                    if let Some(float_array) = casted_array
-                                        .as_any()
-                                        .downcast_ref::<PrimitiveArray<Float64Type>>()
-                                    {
-                                        // We run all domain level rule
-                                        for rule in rules {
-                                            if let Ok(count) =
-                                                rule.validate(float_array, name.to_string())
-                                            {
-                                                error_count.fetch_add(count, Ordering::Relaxed);
-                                                report.record_result(name, rule.name(), count);
-                                            }
-                                        }
-                                        // If we have a unicity rule in place, we get the hashset
-                                        // here and update the global one
-                                        // Safety: the column should always be instanciate
-                                        if let Some(unicity_rule) = unicity_check {
-                                            let local_hash =
-                                                unicity_rule.validate_numeric(float_array);
-                                            unicity_accumulators
-                                                .get(name)
-                                                .unwrap()
-                                                .lock()
-                                                .unwrap()
-                                                .extend(local_hash);
-                                        }
-                                    }
-                                }
-                                Err(_) => {
-                                    let count = array.len();
-                                    error_count.fetch_add(count, Ordering::Relaxed);
-                                    report.record_result(name, type_check.name(), count);
-                                }
-                            }
+                            Self::validate_numeric_column::<Float64Type>(
+                                name,
+                                rules,
+                                type_check,
+                                unicity_check,
+                                null_check,
+                                array,
+                                &error_count,
+                                &report,
+                                &unicity_accumulators,
+                            );
                         }
                     }
                 }
@@ -383,6 +273,143 @@ impl Table for CsvTable {
                     }
                     Err(e) => Err(e),
                 }
+            }
+        }
+    }
+}
+
+impl CsvTable {
+    /// Validate null check and record results
+    fn validate_null_check(
+        null_check: &Option<NullCheck>,
+        array: &dyn Array,
+        column_name: &str,
+        report: &ValidationReport,
+    ) {
+        if let Some(null_rule) = null_check {
+            let null_count = null_rule.validate(array);
+            report.record_result(column_name, null_rule.name(), null_count);
+        }
+    }
+
+    /// Record validation result and update error count
+    fn record_validation_result(
+        column_name: &str,
+        rule_name: &'static str,
+        error_count_value: usize,
+        error_count: &AtomicUsize,
+        report: &ValidationReport,
+    ) {
+        error_count.fetch_add(error_count_value, Ordering::Relaxed);
+        report.record_result(column_name, rule_name, error_count_value);
+    }
+
+    /// Record type check error when casting fails completely
+    fn record_type_check_error(
+        array_len: usize,
+        column_name: &str,
+        type_check_name: &'static str,
+        error_count: &AtomicUsize,
+        report: &ValidationReport,
+    ) {
+        error_count.fetch_add(array_len, Ordering::Relaxed);
+        report.record_result(column_name, type_check_name, array_len);
+    }
+
+    /// Update the global unicity accumulator with local hashes
+    fn update_unicity_accumulator(
+        local_hash: HashSet<u64, Xxh3Builder>,
+        column_name: &str,
+        unicity_accumulators: &HashMap<String, Arc<Mutex<HashSet<u64, Xxh3Builder>>>>,
+    ) {
+        unicity_accumulators
+            .get(column_name)
+            .unwrap()
+            .lock()
+            .unwrap()
+            .extend(local_hash);
+    }
+
+    /// Validate a string column
+    fn validate_string_column(
+        name: &str,
+        rules: &[Box<dyn StringRule>],
+        type_check: &TypeCheck,
+        unicity_check: &Option<UnicityCheck>,
+        null_check: &Option<NullCheck>,
+        array: &dyn Array,
+        error_count: &AtomicUsize,
+        report: &ValidationReport,
+        unicity_accumulators: &HashMap<String, Arc<Mutex<HashSet<u64, Xxh3Builder>>>>,
+    ) {
+        // Run null check if present
+        Self::validate_null_check(null_check, array, name, report);
+
+        // We always run type check
+        match type_check.validate(array) {
+            Ok((errors, casted_array)) => {
+                Self::record_validation_result(name, type_check.name(), errors, error_count, report);
+
+                // We downcast once the array
+                if let Some(string_array) = casted_array.as_any().downcast_ref::<StringArray>() {
+                    // We run all domain level rules
+                    for rule in rules {
+                        if let Ok(count) = rule.validate(string_array, name.to_string()) {
+                            Self::record_validation_result(name, rule.name(), count, error_count, report);
+                        }
+                    }
+                    // If we have a unicity rule in place, update the global hashset
+                    if let Some(unicity_rule) = unicity_check {
+                        let local_hash = unicity_rule.validate_str(string_array);
+                        Self::update_unicity_accumulator(local_hash, name, unicity_accumulators);
+                    }
+                }
+            }
+            Err(_) => {
+                Self::record_type_check_error(array.len(), name, type_check.name(), error_count, report);
+            }
+        }
+    }
+
+    /// Validate a numeric column (generic over Int64Type and Float64Type)
+    fn validate_numeric_column<T>(
+        name: &str,
+        rules: &[Box<dyn NumericRule<T>>],
+        type_check: &TypeCheck,
+        unicity_check: &Option<UnicityCheck>,
+        null_check: &Option<NullCheck>,
+        array: &dyn Array,
+        error_count: &AtomicUsize,
+        report: &ValidationReport,
+        unicity_accumulators: &HashMap<String, Arc<Mutex<HashSet<u64, Xxh3Builder>>>>,
+    ) where
+        T: ArrowNumericType,
+    {
+        // Run null check if present
+        Self::validate_null_check(null_check, array, name, report);
+
+        // We always run type check
+        match type_check.validate(array) {
+            Ok((errors, casted_array)) => {
+                Self::record_validation_result(name, type_check.name(), errors, error_count, report);
+
+                // We downcast once the array
+                if let Some(numeric_array) = casted_array.as_any().downcast_ref::<PrimitiveArray<T>>() {
+                    // We run all domain level rules
+                    for rule in rules {
+                        if let Ok(count) = rule.validate(numeric_array, name.to_string()) {
+                            Self::record_validation_result(name, rule.name(), count, error_count, report);
+                        }
+                    }
+                    // If we have a unicity rule in place, update the global hashset
+                    if let Some(unicity_rule) = unicity_check {
+                        let local_hash = unicity_rule.validate_numeric(numeric_array);
+                        Self::update_unicity_accumulator(local_hash, name, unicity_accumulators);
+                    }
+                }
+            }
+            Err(_) => {
+                Self::record_type_check_error(array.len(), name, type_check.name(), error_count, report);
             }
         }
     }
