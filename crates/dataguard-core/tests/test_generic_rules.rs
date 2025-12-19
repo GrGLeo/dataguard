@@ -22,7 +22,7 @@ fn test_unicity_check_all_unique() {
         Some("cherry"),
         Some("date"),
     ]);
-    let hash_set = rule.validate(&array);
+    let hash_set = rule.validate_str(&array);
     assert_eq!(hash_set.len(), 4); // All unique
 }
 
@@ -36,7 +36,7 @@ fn test_unicity_check_with_duplicates() {
         Some("cherry"),
         Some("banana"),
     ]);
-    let hash_set = rule.validate(&array);
+    let hash_set = rule.validate_str(&array);
     assert_eq!(hash_set.len(), 3); // Only 3 unique values
 }
 
@@ -50,7 +50,7 @@ fn test_unicity_check_with_nulls() {
         None,
         Some("apple"),
     ]);
-    let hash_set = rule.validate(&array);
+    let hash_set = rule.validate_str(&array);
     // Nulls are ignored, only "apple" and "banana" are unique
     assert_eq!(hash_set.len(), 2);
 }
@@ -60,7 +60,7 @@ fn test_unicity_check_all_nulls() {
     let rule = UnicityCheck::new();
     let null_vec: Vec<Option<&str>> = vec![None, None, None];
     let array = StringArray::from(null_vec);
-    let hash_set = rule.validate(&array);
+    let hash_set = rule.validate_str(&array);
     assert_eq!(hash_set.len(), 0); // No non-null values
 }
 
@@ -69,7 +69,7 @@ fn test_unicity_check_empty_array() {
     let rule = UnicityCheck::new();
     let empty_vec: Vec<Option<&str>> = vec![];
     let array = StringArray::from(empty_vec);
-    let hash_set = rule.validate(&array);
+    let hash_set = rule.validate_str(&array);
     assert_eq!(hash_set.len(), 0); // Empty
 }
 
@@ -77,7 +77,7 @@ fn test_unicity_check_empty_array() {
 fn test_unicity_check_single_value() {
     let rule = UnicityCheck::new();
     let array = StringArray::from(vec![Some("only")]);
-    let hash_set = rule.validate(&array);
+    let hash_set = rule.validate_str(&array);
     assert_eq!(hash_set.len(), 1);
 }
 
@@ -85,7 +85,7 @@ fn test_unicity_check_single_value() {
 fn test_unicity_check_case_sensitive() {
     let rule = UnicityCheck::new();
     let array = StringArray::from(vec![Some("Apple"), Some("apple"), Some("APPLE")]);
-    let hash_set = rule.validate(&array);
+    let hash_set = rule.validate_str(&array);
     // Case-sensitive, all different
     assert_eq!(hash_set.len(), 3);
 }
@@ -94,7 +94,7 @@ fn test_unicity_check_case_sensitive() {
 fn test_unicity_check_empty_strings() {
     let rule = UnicityCheck::new();
     let array = StringArray::from(vec![Some(""), Some("a"), Some(""), Some("b")]);
-    let hash_set = rule.validate(&array);
+    let hash_set = rule.validate_str(&array);
     // Empty string is a valid value: "", "a", "b"
     assert_eq!(hash_set.len(), 3);
 }

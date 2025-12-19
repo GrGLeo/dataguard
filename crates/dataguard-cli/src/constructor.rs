@@ -127,6 +127,10 @@ fn apply_integer_rule(
             builder.is_not_null();
             Ok(())
         }
+        Rule::IsUnique => {
+            builder.is_unique();
+            Ok(())
+        }
         Rule::Between { ref min, ref max } => {
             let i_min = extract_integer(min, rule.to_string(), column_name.clone())?;
             let i_max = extract_integer(max, rule.to_string(), column_name.clone())?;
@@ -181,6 +185,10 @@ fn apply_float_rule(
     column_name: String,
 ) -> Result<(), CliError> {
     match rule {
+        Rule::IsUnique => {
+            builder.is_unique();
+            Ok(())
+        }
         Rule::Between { ref min, ref max } => {
             let f_min = extract_float(min, rule.to_string(), column_name.clone())?;
             let f_max = extract_float(max, rule.to_string(), column_name.clone())?;
@@ -523,7 +531,7 @@ mod tests {
     #[test]
     fn test_apply_integer_rule_unknown_rule() {
         let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
-        let rule = Rule::IsUnique;
+        let rule = Rule::IsAlphaNumeric;
         let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -532,7 +540,7 @@ mod tests {
                 column_type,
                 column_name,
             } => {
-                assert_eq!(rule_name, "is_unique");
+                assert_eq!(rule_name, "is_alphanumeric");
                 assert_eq!(column_type, "integer");
                 assert_eq!(column_name, "test_col");
             }
@@ -680,7 +688,7 @@ mod tests {
     #[test]
     fn test_apply_float_rule_unknown_rule() {
         let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
-        let rule = Rule::IsUnique;
+        let rule = Rule::IsAlphaNumeric;
         let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -689,7 +697,7 @@ mod tests {
                 column_type,
                 column_name,
             } => {
-                assert_eq!(rule_name, "is_unique");
+                assert_eq!(rule_name, "is_alphanumeric");
                 assert_eq!(column_type, "float");
                 assert_eq!(column_name, "test_col");
             }

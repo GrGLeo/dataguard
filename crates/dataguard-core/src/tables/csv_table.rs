@@ -12,14 +12,13 @@ use crate::validator::ExecutableColumn;
 use crate::ValidationResult;
 use arrow::array::{Array, PrimitiveArray, StringArray};
 use arrow::datatypes::{DataType, Float64Type, Int64Type};
-use arrow::record_batch::RecordBatch;
-use arrow_array::{ArrowNumericType, ArrowPrimitiveType};
+use arrow_array::ArrowNumericType;
 use num_traits::{Num, NumCast};
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 pub struct CsvTable {
     path: String,
@@ -63,56 +62,101 @@ impl Table for CsvTable {
         let total_rows: usize = batches.iter().map(|batch| batch.num_rows()).sum();
         report.set_total_rows(total_rows);
 
-        for executable_col in &self.executable_columns {
-            match executable_col {
-                ExecutableColumn::String {
-                    name,
-                    rules,
-                    type_check,
-                    unicity,
-                    null_check,
-                } => self.validate_string_column(
-                    &batches,
-                    name,
-                    rules,
-                    type_check,
-                    unicity,
-                    null_check,
-                    &report,
-                    &error_count,
-                    total_rows,
-                ),
-                ExecutableColumn::Integer {
-                    name,
-                    rules,
-                    type_check,
-                    null_check,
-                } => self.validate_numeric_column::<Int64Type>(
-                    &batches,
-                    name,
-                    rules,
-                    type_check,
-                    null_check,
-                    &report,
-                    &error_count,
-                ),
-                ExecutableColumn::Float {
-                    name,
-                    rules,
-                    type_check,
-                    null_check,
-                } => self.validate_numeric_column::<Float64Type>(
-                    &batches,
-                    name,
-                    rules,
-                    type_check,
-                    null_check,
-                    &report,
-                    &error_count,
-                ),
+        let mut unicity_accumulators: HashMap<String, Arc<Mutex<HashSet<u64, Xxh3Builder>>>> =
+            HashMap::new();
+
+        for column in &self.executable_columns {
+            if column.has_unicity() {
+                unicity_accumulators.insert(
+                    column.get_name(),
+                    Arc::new(Mutex::new(HashSet::with_hasher(Xxh3Builder))),
+                );
             }
         }
 
+        batches.par_iter().for_each(|batch| {
+            for executable_col in &self.executable_columns {
+                match executable_col {
+                    ExecutableColumn::String {
+                        name,
+                        rules,
+                        type_check,
+                        unicity_check,
+                        null_check,
+                    } => {
+                        if let Ok(col_index) = batch.schema().index_of(name) {
+                            let array = batch.column(col_index);
+                            Self::validate_string_column(
+                                name,
+                                rules,
+                                type_check,
+                                unicity_check,
+                                null_check,
+                                array,
+                                &error_count,
+                                &report,
+                                &unicity_accumulators,
+                            );
+                        }
+                    }
+                    ExecutableColumn::Integer {
+                        name,
+                        rules,
+                        type_check,
+                        unicity_check,
+                        null_check,
+                    } => {
+                        if let Ok(col_index) = batch.schema().index_of(name) {
+                            let array = batch.column(col_index);
+                            Self::validate_numeric_column::<Int64Type>(
+                                name,
+                                rules,
+                                type_check,
+                                unicity_check,
+                                null_check,
+                                array,
+                                &error_count,
+                                &report,
+                                &unicity_accumulators,
+                            );
+                        }
+                    }
+                    ExecutableColumn::Float {
+                        name,
+                        rules,
+                        type_check,
+                        unicity_check,
+                        null_check,
+                    } => {
+                        if let Ok(col_index) = batch.schema().index_of(name) {
+                            let array = batch.column(col_index);
+                            Self::validate_numeric_column::<Float64Type>(
+                                name,
+                                rules,
+                                type_check,
+                                unicity_check,
+                                null_check,
+                                array,
+                                &error_count,
+                                &report,
+                                &unicity_accumulators,
+                            );
+                        }
+                    }
+                }
+            }
+        });
+
+        // We need to calculate the unicity errors now
+        // We unwrap all lock should have been clearer from the earlier loop
+        for (c, h) in unicity_accumulators {
+            let i = h.as_ref().lock().unwrap().len();
+            let errors = total_rows - i;
+            error_count.fetch_add(errors, Ordering::Relaxed);
+            report.record_result(c.as_str(), "Unicity", errors);
+        }
+
+        // We create the validation result for report formatting
         let column_results = report.to_results();
         let total_errors = error_count.load(Ordering::Relaxed);
         let mut results = ValidationResult::new(self.table_name.clone(), total_rows);
@@ -158,7 +202,7 @@ impl Table for CsvTable {
         match builder.column_type() {
             ColumnType::String => {
                 let mut executable_rules: Vec<Box<dyn StringRule>> = Vec::new();
-                let mut unicity = None;
+                let mut unicity_check = None;
                 let mut null_check = None;
 
                 for rule in builder.rules() {
@@ -174,7 +218,7 @@ impl Table for CsvTable {
                             executable_rules.push(Box::new(IsInCheck::new(members.to_vec())));
                         }
                         ColumnRule::Unicity => {
-                            unicity = Some(UnicityCheck::new());
+                            unicity_check = Some(UnicityCheck::new());
                         }
                         ColumnRule::NullCheck => {
                             null_check = Some(NullCheck::new());
@@ -193,180 +237,219 @@ impl Table for CsvTable {
                     name: builder.name().to_string(),
                     rules: executable_rules,
                     type_check: TypeCheck::new(builder.name().to_string(), DataType::Utf8),
-                    unicity,
+                    unicity_check,
                     null_check,
                 })
             }
             ColumnType::Integer => {
                 let res = compile_numeric_rules(builder.rules(), builder.name());
                 match res {
-                    Ok((executable_rules, null_check)) => Ok(ExecutableColumn::Integer {
-                        name: builder.name().to_string(),
-                        rules: executable_rules,
-                        type_check: TypeCheck::new(builder.name().to_string(), DataType::Int64),
-                        null_check,
-                    }),
+                    Ok((executable_rules, unicity_check, null_check)) => {
+                        Ok(ExecutableColumn::Integer {
+                            name: builder.name().to_string(),
+                            rules: executable_rules,
+                            type_check: TypeCheck::new(builder.name().to_string(), DataType::Int64),
+                            unicity_check,
+                            null_check,
+                        })
+                    }
                     Err(e) => Err(e),
                 }
             }
             ColumnType::Float => {
                 let res = compile_numeric_rules(builder.rules(), builder.name());
                 match res {
-                    Ok((executable_rules, null_check)) => Ok(ExecutableColumn::Float {
-                        name: builder.name().to_string(),
-                        rules: executable_rules,
-                        type_check: TypeCheck::new(builder.name().to_string(), DataType::Float64),
-                        null_check,
-                    }),
+                    Ok((executable_rules, unicity_check, null_check)) => {
+                        Ok(ExecutableColumn::Float {
+                            name: builder.name().to_string(),
+                            rules: executable_rules,
+                            type_check: TypeCheck::new(
+                                builder.name().to_string(),
+                                DataType::Float64,
+                            ),
+                            unicity_check,
+                            null_check,
+                        })
+                    }
                     Err(e) => Err(e),
                 }
             }
         }
     }
+}
 
-    fn validate_string_column(
-        &self,
-        batches: &[Arc<RecordBatch>],
-        name: &str,
-        rules: &[Box<dyn StringRule>],
-        type_check: &TypeCheck,
-        unicity: &Option<UnicityCheck>,
+impl CsvTable {
+    /// Validate null check and record results
+    fn validate_null_check(
         null_check: &Option<NullCheck>,
+        array: &dyn Array,
+        column_name: &str,
         report: &ValidationReport,
-        error_count: &AtomicUsize,
-        total_rows: usize,
     ) {
-        if let Some(uni_rule) = unicity {
-            let global_hash = batches
-                .par_iter()
-                .map(|batch| {
-                    let mut local_hash = HashSet::with_hasher(Xxh3Builder);
-                    if let Ok(col_index) = batch.schema().index_of(name) {
-                        let array = batch.column(col_index);
-                        if let Some(null_rule) = null_check {
-                            let null_count = null_rule.validate(array);
-                            report.record_result(name, null_rule.name(), null_count);
-                        }
-                        match type_check.validate(array.as_ref()) {
-                            Ok((errors, casted_array)) => {
-                                error_count.fetch_add(errors, Ordering::Relaxed);
-                                report.record_result(name, type_check.name(), errors);
-
-                                if let Some(string_array) =
-                                    casted_array.as_any().downcast_ref::<StringArray>()
-                                {
-                                    local_hash = uni_rule.validate(string_array);
-                                    for rule in rules {
-                                        if let Ok(count) =
-                                            rule.validate(string_array, name.to_string())
-                                        {
-                                            error_count.fetch_add(count, Ordering::Relaxed);
-                                            report.record_result(name, rule.name(), count);
-                                        }
-                                    }
-                                    local_hash
-                                } else {
-                                    local_hash
-                                }
-                            }
-                            Err(_) => {
-                                let count = array.len();
-                                error_count.fetch_add(count, Ordering::Relaxed);
-                                report.record_result(name, type_check.name(), count);
-                                local_hash
-                            }
-                        }
-                    } else {
-                        local_hash
-                    }
-                })
-                .reduce(
-                    || HashSet::with_hasher(Xxh3Builder),
-                    |mut set_a, set_b| {
-                        set_a.extend(set_b.iter());
-                        set_a
-                    },
-                );
-            let duplicates = total_rows.saturating_sub(global_hash.len());
-            error_count.fetch_add(duplicates, Ordering::Relaxed);
-            report.record_result(name, uni_rule.name(), duplicates);
-        } else {
-            batches.par_iter().for_each(|batch| {
-                if let Ok(col_index) = batch.schema().index_of(name) {
-                    let array = batch.column(col_index);
-                    if let Some(null_rule) = null_check {
-                        let null_count = null_rule.validate(array);
-                        report.record_result(name, null_rule.name(), null_count);
-                    }
-                    match type_check.validate(array.as_ref()) {
-                        Ok((errors, casted_array)) => {
-                            error_count.fetch_add(errors, Ordering::Relaxed);
-                            report.record_result(name, type_check.name(), errors);
-
-                            if let Some(string_array) =
-                                casted_array.as_any().downcast_ref::<StringArray>()
-                            {
-                                for rule in rules {
-                                    if let Ok(count) = rule.validate(string_array, name.to_string())
-                                    {
-                                        error_count.fetch_add(count, Ordering::Relaxed);
-                                        report.record_result(name, rule.name(), count);
-                                    }
-                                }
-                            }
-                        }
-                        Err(_) => {
-                            let count = array.len();
-                            error_count.fetch_add(count, Ordering::Relaxed);
-                            report.record_result(name, type_check.name(), count);
-                        }
-                    }
-                }
-            });
+        if let Some(null_rule) = null_check {
+            let null_count = null_rule.validate(array);
+            report.record_result(column_name, null_rule.name(), null_count);
         }
     }
 
-    fn validate_numeric_column<T: ArrowPrimitiveType>(
-        &self,
-        batches: &[Arc<RecordBatch>],
-        name: &str,
-        rules: &[Box<dyn NumericRule<T>>],
-        type_check: &TypeCheck,
-        null_check: &Option<NullCheck>,
-        report: &ValidationReport,
+    /// Record validation result and update error count
+    fn record_validation_result(
+        column_name: &str,
+        rule_name: &'static str,
+        error_count_value: usize,
         error_count: &AtomicUsize,
+        report: &ValidationReport,
     ) {
-        batches.par_iter().for_each(|batch| {
-            if let Ok(col_index) = batch.schema().index_of(name) {
-                let array = batch.column(col_index);
-                if let Some(null_rule) = null_check {
-                    let null_count = null_rule.validate(array);
-                    report.record_result(name, null_rule.name(), null_count);
-                }
-                match type_check.validate(array.as_ref()) {
-                    Ok((errors, casted_array)) => {
-                        error_count.fetch_add(errors, Ordering::Relaxed);
-                        report.record_result(name, type_check.name(), errors);
+        error_count.fetch_add(error_count_value, Ordering::Relaxed);
+        report.record_result(column_name, rule_name, error_count_value);
+    }
 
-                        if let Some(concrete_array) =
-                            casted_array.as_any().downcast_ref::<PrimitiveArray<T>>()
-                        {
-                            for rule in rules {
-                                if let Ok(count) = rule.validate(concrete_array, name.to_string()) {
-                                    error_count.fetch_add(count, Ordering::Relaxed);
-                                    report.record_result(name, rule.name(), count);
-                                }
-                            }
+    /// Record type check error when casting fails completely
+    fn record_type_check_error(
+        array_len: usize,
+        column_name: &str,
+        type_check_name: &'static str,
+        error_count: &AtomicUsize,
+        report: &ValidationReport,
+    ) {
+        error_count.fetch_add(array_len, Ordering::Relaxed);
+        report.record_result(column_name, type_check_name, array_len);
+    }
+
+    /// Update the global unicity accumulator with local hashes
+    fn update_unicity_accumulator(
+        local_hash: HashSet<u64, Xxh3Builder>,
+        column_name: &str,
+        unicity_accumulators: &HashMap<String, Arc<Mutex<HashSet<u64, Xxh3Builder>>>>,
+    ) {
+        unicity_accumulators
+            .get(column_name)
+            .unwrap()
+            .lock()
+            .unwrap()
+            .extend(local_hash);
+    }
+
+    /// Validate a string column
+    fn validate_string_column(
+        name: &str,
+        rules: &[Box<dyn StringRule>],
+        type_check: &TypeCheck,
+        unicity_check: &Option<UnicityCheck>,
+        null_check: &Option<NullCheck>,
+        array: &dyn Array,
+        error_count: &AtomicUsize,
+        report: &ValidationReport,
+        unicity_accumulators: &HashMap<String, Arc<Mutex<HashSet<u64, Xxh3Builder>>>>,
+    ) {
+        // Run null check if present
+        Self::validate_null_check(null_check, array, name, report);
+
+        // We always run type check
+        match type_check.validate(array) {
+            Ok((errors, casted_array)) => {
+                Self::record_validation_result(
+                    name,
+                    type_check.name(),
+                    errors,
+                    error_count,
+                    report,
+                );
+
+                // We downcast once the array
+                if let Some(string_array) = casted_array.as_any().downcast_ref::<StringArray>() {
+                    // We run all domain level rules
+                    for rule in rules {
+                        if let Ok(count) = rule.validate(string_array, name.to_string()) {
+                            Self::record_validation_result(
+                                name,
+                                rule.name(),
+                                count,
+                                error_count,
+                                report,
+                            );
                         }
                     }
-                    Err(_) => {
-                        let count = array.len();
-                        error_count.fetch_add(count, Ordering::Relaxed);
-                        report.record_result(name, type_check.name(), count);
+                    // If we have a unicity rule in place, update the global hashset
+                    if let Some(unicity_rule) = unicity_check {
+                        let local_hash = unicity_rule.validate_str(string_array);
+                        Self::update_unicity_accumulator(local_hash, name, unicity_accumulators);
                     }
                 }
             }
-        });
+            Err(_) => {
+                Self::record_type_check_error(
+                    array.len(),
+                    name,
+                    type_check.name(),
+                    error_count,
+                    report,
+                );
+            }
+        }
+    }
+
+    /// Validate a numeric column (generic over Int64Type and Float64Type)
+    fn validate_numeric_column<T>(
+        name: &str,
+        rules: &[Box<dyn NumericRule<T>>],
+        type_check: &TypeCheck,
+        unicity_check: &Option<UnicityCheck>,
+        null_check: &Option<NullCheck>,
+        array: &dyn Array,
+        error_count: &AtomicUsize,
+        report: &ValidationReport,
+        unicity_accumulators: &HashMap<String, Arc<Mutex<HashSet<u64, Xxh3Builder>>>>,
+    ) where
+        T: ArrowNumericType,
+    {
+        // Run null check if present
+        Self::validate_null_check(null_check, array, name, report);
+
+        // We always run type check
+        match type_check.validate(array) {
+            Ok((errors, casted_array)) => {
+                Self::record_validation_result(
+                    name,
+                    type_check.name(),
+                    errors,
+                    error_count,
+                    report,
+                );
+
+                // We downcast once the array
+                if let Some(numeric_array) =
+                    casted_array.as_any().downcast_ref::<PrimitiveArray<T>>()
+                {
+                    // We run all domain level rules
+                    for rule in rules {
+                        if let Ok(count) = rule.validate(numeric_array, name.to_string()) {
+                            Self::record_validation_result(
+                                name,
+                                rule.name(),
+                                count,
+                                error_count,
+                                report,
+                            );
+                        }
+                    }
+                    // If we have a unicity rule in place, update the global hashset
+                    if let Some(unicity_rule) = unicity_check {
+                        let local_hash = unicity_rule.validate_numeric(numeric_array);
+                        Self::update_unicity_accumulator(local_hash, name, unicity_accumulators);
+                    }
+                }
+            }
+            Err(_) => {
+                Self::record_type_check_error(
+                    array.len(),
+                    name,
+                    type_check.name(),
+                    error_count,
+                    report,
+                );
+            }
+        }
     }
 }
 
@@ -374,11 +457,19 @@ impl Table for CsvTable {
 fn compile_numeric_rules<N, A>(
     rules: &[ColumnRule],
     column_name: &str,
-) -> Result<(Vec<Box<dyn NumericRule<A>>>, Option<NullCheck>), RuleError>
+) -> Result<
+    (
+        Vec<Box<dyn NumericRule<A>>>,
+        Option<UnicityCheck>,
+        Option<NullCheck>,
+    ),
+    RuleError,
+>
 where
     N: Num + PartialOrd + Copy + Debug + Send + Sync + NumCast + 'static,
     A: ArrowNumericType<Native = N>,
 {
+    let mut unicity = None;
     let mut null_rule = None;
     let mut executable_rules: Vec<Box<dyn NumericRule<A>>> = Vec::new();
     for rule in rules {
@@ -392,6 +483,9 @@ where
                 executable_rules.push(Box::new(Monotonicity::<N>::new(*ascending)));
             }
             ColumnRule::NullCheck => null_rule = Some(NullCheck::new()),
+            ColumnRule::Unicity => {
+                unicity = Some(UnicityCheck::new());
+            }
             _ => {
                 return Err(RuleError::ValidationError(format!(
                     "Invalid rule {:?} for numeric column '{}'",
@@ -400,5 +494,5 @@ where
             }
         }
     }
-    Ok((executable_rules, null_rule))
+    Ok((executable_rules, unicity, null_rule))
 }

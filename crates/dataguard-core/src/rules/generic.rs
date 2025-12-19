@@ -1,9 +1,9 @@
 use arrow::{
     array::Array,
     compute::{self},
-    datatypes::DataType,
+    datatypes::{DataType, ToByteSlice},
 };
-use arrow_array::StringArray;
+use arrow_array::{ArrowPrimitiveType, PrimitiveArray, StringArray};
 use std::{collections::HashSet, sync::Arc};
 use xxhash_rust::xxh3::xxh3_64;
 
@@ -27,7 +27,7 @@ impl NullCheck {
 
 impl Default for NullCheck {
     fn default() -> Self {
-       Self::new() 
+        Self::new()
     }
 }
 
@@ -74,11 +74,25 @@ impl UnicityCheck {
         "UnicityCheck"
     }
 
-    pub fn validate(&self, array: &StringArray) -> HashSet<u64, Xxh3Builder> {
+    pub fn validate_str(&self, array: &StringArray) -> HashSet<u64, Xxh3Builder> {
         let mut local_hash = HashSet::with_hasher(Xxh3Builder);
         array.iter().for_each(|v_option| {
             if let Some(v) = v_option {
                 let hash = xxh3_64(v.as_bytes());
+                let _ = local_hash.insert(hash);
+            }
+        });
+        local_hash
+    }
+
+    pub fn validate_numeric<T: ArrowPrimitiveType>(
+        &self,
+        array: &PrimitiveArray<T>,
+    ) -> HashSet<u64, Xxh3Builder> {
+        let mut local_hash = HashSet::with_hasher(Xxh3Builder);
+        array.iter().for_each(|v_option| {
+            if let Some(v) = v_option {
+                let hash = xxh3_64(v.to_byte_slice());
                 let _ = local_hash.insert(hash);
             }
         });
@@ -99,7 +113,7 @@ mod tests {
         let rule = UnicityCheck::new();
         let array = StringArray::from(vec![Some("a"), Some("b"), Some("c")]);
 
-        let local_set = rule.validate(&array);
+        let local_set = rule.validate_str(&array);
         assert_eq!(local_set.len(), 3);
         assert!(local_set.contains(&xxh3_64("a".as_bytes())));
         assert!(local_set.contains(&xxh3_64("b".as_bytes())));
@@ -116,7 +130,7 @@ mod tests {
 
         let final_set = arrays
             .par_iter()
-            .map(|array| rule.validate(array)) // Each map call returns a HashSet for its array
+            .map(|array| rule.validate_str(array)) // Each map call returns a HashSet for its array
             .reduce(
                 || HashSet::with_hasher(Xxh3Builder), // Identity for reduce
                 |mut acc_set, batch_set| {
@@ -140,7 +154,7 @@ mod tests {
         let rule = UnicityCheck::new();
         let array = StringArray::from(vec![Some("a"), Some("b"), Some("a"), Some("c")]);
 
-        let local_set = rule.validate(&array);
+        let local_set = rule.validate_str(&array);
         assert_eq!(local_set.len(), 3); // "a", "b", "c" are unique
         assert!(local_set.contains(&xxh3_64("a".as_bytes())));
         assert!(local_set.contains(&xxh3_64("b".as_bytes())));
@@ -155,13 +169,16 @@ mod tests {
             StringArray::from(vec![Some("c"), Some("b"), Some("d"), Some("c")]),
         ];
 
-        let final_set = arrays.par_iter().map(|array| rule.validate(array)).reduce(
-            || HashSet::with_hasher(Xxh3Builder),
-            |mut acc_set, batch_set| {
-                acc_set.extend(batch_set);
-                acc_set
-            },
-        );
+        let final_set = arrays
+            .par_iter()
+            .map(|array| rule.validate_str(array))
+            .reduce(
+                || HashSet::with_hasher(Xxh3Builder),
+                |mut acc_set, batch_set| {
+                    acc_set.extend(batch_set);
+                    acc_set
+                },
+            );
 
         assert_eq!(final_set.len(), 4); // "a", "b", "c", "d" are unique
         assert!(final_set.contains(&xxh3_64("a".as_bytes())));
@@ -175,7 +192,7 @@ mod tests {
         let rule = UnicityCheck::new();
         let array = StringArray::from(vec![Some("a"), None, Some("b"), None, Some("a")]);
 
-        let local_set = rule.validate(&array);
+        let local_set = rule.validate_str(&array);
         assert_eq!(local_set.len(), 2); // Nulls are ignored, "a", "b" are unique
         assert!(local_set.contains(&xxh3_64("a".as_bytes())));
         assert!(local_set.contains(&xxh3_64("b".as_bytes())));
