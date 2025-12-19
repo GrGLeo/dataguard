@@ -6,18 +6,18 @@ use std::{
 
 use crate::RuleResult;
 
-pub struct ValidationReport {
+pub struct ResultAccumulator {
     results: DashMap<(String, String), AtomicUsize>, // (column_name, rule_name) -> error_count
     total_rows: AtomicUsize,
 }
 
-impl Default for ValidationReport {
+impl Default for ResultAccumulator {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl ValidationReport {
+impl ResultAccumulator {
     pub fn new() -> Self {
         Self {
             results: DashMap::new(),
