@@ -29,4 +29,8 @@ pub enum RuleError {
     /// Unknown report format
     #[error("Unknown report format: '{0}'")]
     UnknownReportMode(String),
+
+    /// Incorrect date for DateRules
+    #[error("Unknown date format: year: {0} month: {1} day: {2}")]
+    IncorrectDate(usize, u32, u32),
 }

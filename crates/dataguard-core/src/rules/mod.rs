@@ -1,3 +1,4 @@
+pub mod date;
 pub mod generic;
 pub mod numeric;
 pub mod string;

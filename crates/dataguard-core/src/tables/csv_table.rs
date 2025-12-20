@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::column::ColumnBuilder;
+use crate::columns::ColumnBuilder;
 use crate::errors::RuleError;
 use crate::reader::read_csv_parallel;
 use crate::tables::Table;
@@ -62,6 +62,11 @@ impl Table for CsvTable {
                     result.insert(name.clone(), rule_names);
                 }
                 ExecutableColumn::Float { name, rules, .. } => {
+                    let mut rule_names = vec!["TypeCheck".to_string()];
+                    rule_names.extend(rules.iter().map(|r| r.name().to_string()));
+                    result.insert(name.clone(), rule_names);
+                }
+                ExecutableColumn::Date { name, rules, .. } => {
                     let mut rule_names = vec!["TypeCheck".to_string()];
                     rule_names.extend(rules.iter().map(|r| r.name().to_string()));
                     result.insert(name.clone(), rule_names);

@@ -199,11 +199,11 @@ datatype = "string"
 # Subscription Date validation (ISO format: YYYY-MM-DD)
 [[table.column]]
 name = "Subscription Date"
-datatype = "string"
+datatype = "date"
 
     [[table.column.rule]]
-    name = "with_regex"
-    pattern = "^\\d{4}-\\d{2}-\\d{2}$"
+    name = "is_after"
+    year = 2010
 
 # Website URL validation
 [[table.column]]

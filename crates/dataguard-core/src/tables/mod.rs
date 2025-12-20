@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{column::ColumnBuilder, RuleError, ValidationResult};
+use crate::{columns::ColumnBuilder, RuleError, ValidationResult};
 
 pub mod csv_table;
 

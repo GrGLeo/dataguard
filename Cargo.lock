@@ -612,6 +612,7 @@ dependencies = [
  "arrow-array",
  "arrow-ord",
  "arrow-string",
+ "chrono",
  "criterion",
  "dashmap",
  "num-traits",
