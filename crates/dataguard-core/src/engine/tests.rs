@@ -46,28 +46,28 @@ fn create_float_batch(column_name: &str, values: Vec<Option<f64>>) -> Arc<Record
 fn create_string_column_with_unicity(name: &str) -> ExecutableColumn {
     let mut builder = StringColumnBuilder::new(name.to_string());
     builder.is_unique();
-    compiler::compile_column(Box::new(builder)).unwrap()
+    compiler::compile_column(Box::new(builder), true).unwrap()
 }
 
 /// Create an ExecutableColumn for a string column with length constraints.
 fn create_string_column_with_length(name: &str, min: usize, max: usize) -> ExecutableColumn {
     let mut builder = StringColumnBuilder::new(name.to_string());
     builder.with_min_length(min).with_max_length(max);
-    compiler::compile_column(Box::new(builder)).unwrap()
+    compiler::compile_column(Box::new(builder), true).unwrap()
 }
 
 /// Create an ExecutableColumn for an integer column with range constraints.
 fn create_int_column_with_range(name: &str, min: i64, max: i64) -> ExecutableColumn {
     let mut builder = NumericColumnBuilder::<i64>::new(name.to_string());
     builder.between(min, max);
-    compiler::compile_column(Box::new(builder)).unwrap()
+    compiler::compile_column(Box::new(builder), true).unwrap()
 }
 
 /// Create an ExecutableColumn for a string column with null check.
 fn create_string_column_with_null_check(name: &str) -> ExecutableColumn {
     let mut builder = StringColumnBuilder::new(name.to_string());
     builder.is_not_null();
-    compiler::compile_column(Box::new(builder)).unwrap()
+    compiler::compile_column(Box::new(builder), true).unwrap()
 }
 
 // ============================================================================
@@ -512,7 +512,7 @@ mod validation_engine_tests {
     fn test_validate_single_batch_float_column() {
         let mut builder = NumericColumnBuilder::<f64>::new("price".to_string());
         builder.between(0.0, 1000.0);
-        let col = compiler::compile_column(Box::new(builder)).unwrap();
+        let col = compiler::compile_column(Box::new(builder), true).unwrap();
         let columns = vec![col];
         let engine = ValidationEngine::new(&columns);
 
