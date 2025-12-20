@@ -30,7 +30,7 @@ fn test_table_string_column_validation() {
     csv_table.commit(vec![Box::new(desc_col)]).unwrap();
 
     // Run validation
-    let res = csv_table.validate();
+    let _res = csv_table.validate();
 
     // Expected errors:
     // - "short": fail (length < 6) + pass (regex) = 1 error
@@ -69,7 +69,7 @@ fn test_table_integer_column_validation() {
         .commit(vec![Box::new(age_col), Box::new(score_col)])
         .unwrap();
 
-    let res = csv_table.validate();
+    let _res = csv_table.validate();
 
     // Expected: 3 errors (150 > 120, -5 < 0, 105 > 100)
     if let Ok(res) = csv_table.validate() {

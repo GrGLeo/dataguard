@@ -268,7 +268,7 @@ mod unicity_accumulator_tests {
         hashes.insert(xxh3_64(b"test1"));
         hashes.insert(xxh3_64(b"test2"));
 
-        accumulator.record_hashes("email", hashes);
+        accumulator.record_hashes("email", 0, hashes);
 
         let results = accumulator.finalize(2);
         assert_eq!(results["email"], 0); // No duplicates
@@ -286,8 +286,8 @@ mod unicity_accumulator_tests {
         let mut hashes2 = HashSet::with_hasher(Xxh3Builder);
         hashes2.insert(xxh3_64(b"test2"));
 
-        accumulator.record_hashes("email", hashes1);
-        accumulator.record_hashes("email", hashes2);
+        accumulator.record_hashes("email", 0, hashes1);
+        accumulator.record_hashes("email", 0, hashes2);
 
         let results = accumulator.finalize(2);
         assert_eq!(results["email"], 0); // 2 unique values, 2 total rows
@@ -307,8 +307,8 @@ mod unicity_accumulator_tests {
         let mut hashes2 = HashSet::with_hasher(Xxh3Builder);
         hashes2.insert(hash);
 
-        accumulator.record_hashes("email", hashes1);
-        accumulator.record_hashes("email", hashes2);
+        accumulator.record_hashes("email", 0, hashes1);
+        accumulator.record_hashes("email", 0, hashes2);
 
         let results = accumulator.finalize(2);
         assert_eq!(results["email"], 1); // 1 unique value, 2 total rows = 1 duplicate
@@ -325,7 +325,7 @@ mod unicity_accumulator_tests {
         hashes.insert(xxh3_64(b"test2"));
         hashes.insert(xxh3_64(b"test3"));
 
-        accumulator.record_hashes("email", hashes);
+        accumulator.record_hashes("email", 0, hashes);
 
         let results = accumulator.finalize(3);
         assert_eq!(results["email"], 0);
@@ -341,7 +341,7 @@ mod unicity_accumulator_tests {
         hashes.insert(xxh3_64(b"test1"));
         hashes.insert(xxh3_64(b"test2"));
 
-        accumulator.record_hashes("email", hashes);
+        accumulator.record_hashes("email", 0, hashes);
 
         let results = accumulator.finalize(5);
         assert_eq!(results["email"], 3); // 5 total - 2 unique = 3 duplicates
@@ -356,7 +356,7 @@ mod unicity_accumulator_tests {
         let mut hashes = HashSet::with_hasher(Xxh3Builder);
         hashes.insert(xxh3_64(b"same"));
 
-        accumulator.record_hashes("email", hashes);
+        accumulator.record_hashes("email", 0, hashes);
 
         let results = accumulator.finalize(10);
         assert_eq!(results["email"], 9); // 10 total - 1 unique = 9 duplicates
@@ -375,9 +375,9 @@ mod unicity_accumulator_tests {
             hashes.insert(xxh3_64(format!("value{}", i).as_bytes()));
 
             if i % 2 == 0 {
-                accumulator.record_hashes("col1", hashes);
+                accumulator.record_hashes("col1", 0, hashes);
             } else {
-                accumulator.record_hashes("col2", hashes);
+                accumulator.record_hashes("col2", 0, hashes);
             }
         });
 
@@ -397,7 +397,7 @@ mod unicity_accumulator_tests {
         (0..10).into_par_iter().for_each(|i| {
             let mut hashes = HashSet::with_hasher(Xxh3Builder);
             hashes.insert(xxh3_64(format!("value{}", i).as_bytes()));
-            accumulator.record_hashes("email", hashes);
+            accumulator.record_hashes("email", 0, hashes);
         });
 
         let results = accumulator.finalize(10);

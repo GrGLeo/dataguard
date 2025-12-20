@@ -206,8 +206,8 @@ fn validate_string_column(
                     }
                     // If we have a unicity rule in place, update the global hashset
                     if let Some(unicity_rule) = unicity_check {
-                        let local_hash = unicity_rule.validate_str(string_array);
-                        unicity_accumulators.record_hashes(name, local_hash);
+                        let (null_count, local_hash) = unicity_rule.validate_str(string_array);
+                        unicity_accumulators.record_hashes(name, null_count, local_hash);
                     }
                 }
             }
@@ -253,8 +253,8 @@ fn validate_numeric_column<T>(
                     }
                     // If we have a unicity rule in place, update the global hashset
                     if let Some(unicity_rule) = unicity_check {
-                        let local_hash = unicity_rule.validate_numeric(numeric_array);
-                        unicity_accumulators.record_hashes(name, local_hash);
+                        let (null_count, local_hash) = unicity_rule.validate_numeric(numeric_array);
+                        unicity_accumulators.record_hashes(name, null_count, local_hash);
                     }
                 }
             }
