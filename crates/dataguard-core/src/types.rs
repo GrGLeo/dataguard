@@ -1,4 +1,7 @@
-use std::{collections::HashSet, sync::{atomic::AtomicUsize, Arc, Mutex}};
+use std::{
+    collections::HashSet,
+    sync::{atomic::AtomicUsize, Arc, Mutex},
+};
 
 use crate::utils::hasher::Xxh3Builder;
 

@@ -62,7 +62,7 @@ fn test_validator_validate_existing_table() {
     let file_path_str = file_path.into_os_string().into_string().unwrap();
     let mut table = CsvTable::new(file_path_str, "stdout".to_string()).unwrap();
     table
-        .commit(vec![Box::new(name_col), Box::new(age_col)])
+        .prepare(vec![Box::new(name_col), Box::new(age_col)])
         .unwrap();
 
     let mut validator = Validator::new();

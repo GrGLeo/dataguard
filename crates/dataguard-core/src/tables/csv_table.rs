@@ -26,7 +26,7 @@ impl CsvTable {
 
 impl Table for CsvTable {
     /// Commit column configurations and compile them into executable rules
-    fn commit(&mut self, columns: Vec<Box<dyn ColumnBuilder>>) -> Result<(), RuleError> {
+    fn prepare(&mut self, columns: Vec<Box<dyn ColumnBuilder>>) -> Result<(), RuleError> {
         self.executable_columns = columns
             .into_iter()
             .map(|col| compiler::compile_column(col, true))

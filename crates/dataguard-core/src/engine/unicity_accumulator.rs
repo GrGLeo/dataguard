@@ -20,10 +20,7 @@ pub(crate) struct UnicityAccumulator {
 impl UnicityAccumulator {
     /// Create accumulator for columns that have unicity checks.
     pub fn new(columns: &[ExecutableColumn]) -> Self {
-        let mut accumulators: HashMap<
-            String,
-            UnicityRecord,
-        > = HashMap::new();
+        let mut accumulators: HashMap<String, UnicityRecord> = HashMap::new();
 
         for column in columns {
             if column.has_unicity() {
