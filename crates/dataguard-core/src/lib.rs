@@ -1,4 +1,5 @@
 pub mod column;
+pub mod columns;
 mod compiler;
 mod engine;
 pub mod errors;

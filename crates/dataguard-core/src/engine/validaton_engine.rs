@@ -5,12 +5,12 @@ use std::sync::{
     Arc,
 };
 
-use arrow_array::{Array, ArrowNumericType, PrimitiveArray, RecordBatch, StringArray};
+use arrow_array::{Array, ArrowNumericType, Date32Array, PrimitiveArray, RecordBatch, StringArray};
 use rayon::prelude::*;
 
 use crate::{
     engine::unicity_accumulator::UnicityAccumulator,
-    rules::{NullCheck, NumericRule, StringRule, TypeCheck, UnicityCheck},
+    rules::{date::DateRule, NullCheck, NumericRule, StringRule, TypeCheck, UnicityCheck},
     validator::ExecutableColumn,
     RuleError, ValidationResult,
 };
@@ -101,6 +101,28 @@ impl<'a> ValidationEngine<'a> {
                         if let Ok(col_index) = batch.schema().index_of(name) {
                             let array = batch.column(col_index);
                             validate_numeric_column::<Float64Type>(
+                                name,
+                                rules,
+                                type_check,
+                                unicity_check,
+                                null_check,
+                                array,
+                                &error_count,
+                                &report,
+                                &unicity_accumulators,
+                            );
+                        }
+                    }
+                    ExecutableColumn::Date {
+                        name,
+                        rules,
+                        type_check,
+                        unicity_check,
+                        null_check,
+                    } => {
+                        if let Ok(col_index) = batch.schema().index_of(name) {
+                            let array = batch.column(col_index);
+                            validate_date_column(
                                 name,
                                 rules,
                                 type_check,
@@ -254,6 +276,48 @@ fn validate_numeric_column<T>(
                     // If we have a unicity rule in place, update the global hashset
                     if let Some(unicity_rule) = unicity_check {
                         let (null_count, local_hash) = unicity_rule.validate_numeric(numeric_array);
+                        unicity_accumulators.record_hashes(name, null_count, local_hash);
+                    }
+                }
+            }
+            Err(_) => {
+                record_type_check_error(array.len(), name, type_rule.name(), error_count, report);
+            }
+        }
+    }
+}
+
+pub fn validate_date_column(
+    name: &str,
+    rules: &[Box<dyn DateRule>],
+    type_check: &Option<TypeCheck>,
+    unicity_check: &Option<UnicityCheck>,
+    null_check: &Option<NullCheck>,
+    array: &dyn Array,
+    error_count: &AtomicUsize,
+    report: &ResultAccumulator,
+    unicity_accumulators: &UnicityAccumulator,
+) {
+    // Run null check if present
+    validate_null_check(null_check, array, name, report);
+
+    // we only run a type check if the table is a CsvTable
+    if let Some(type_rule) = type_check {
+        match type_rule.validate(array) {
+            Ok((errors, casted_array)) => {
+                record_validation_result(name, type_rule.name(), errors, error_count, report);
+
+                // We downcast once the array
+                if let Some(date_array) = casted_array.as_any().downcast_ref::<Date32Array>() {
+                    // We run all domain level rules
+                    for rule in rules {
+                        if let Ok(count) = rule.validate(date_array, name.to_string()) {
+                            record_validation_result(name, rule.name(), count, error_count, report);
+                        }
+                    }
+                    // If we have a unicity rule in place, update the global hashset
+                    if let Some(unicity_rule) = unicity_check {
+                        let (null_count, local_hash) = unicity_rule.validate_date(date_array);
                         unicity_accumulators.record_hashes(name, null_count, local_hash);
                     }
                 }

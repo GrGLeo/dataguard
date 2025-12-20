@@ -5,6 +5,7 @@
 //! validation execution.
 
 use crate::errors::RuleError;
+use crate::rules::date::DateRule;
 use crate::rules::generic::{TypeCheck, UnicityCheck};
 use crate::rules::numeric::NumericRule;
 use crate::rules::string::StringRule;
@@ -68,6 +69,19 @@ pub enum ExecutableColumn {
         /// Optional null constraint
         null_check: Option<NullCheck>,
     },
+    /// Date column with DateType32 validation rules.
+    Date {
+        /// Column name (must match schema)
+        name: String,
+        /// Domain-level numeric rules ()
+        rules: Vec<Box<dyn DateRule>>,
+        /// Type checking (CSV: string → f64)
+        type_check: Option<TypeCheck>,
+        /// Optional uniqueness constraint
+        unicity_check: Option<UnicityCheck>,
+        /// Optional null constraint
+        null_check: Option<NullCheck>,
+    },
 }
 
 impl ExecutableColumn {
@@ -80,6 +94,7 @@ impl ExecutableColumn {
             ExecutableColumn::String { name, .. } => name.clone(),
             ExecutableColumn::Integer { name, .. } => name.clone(),
             ExecutableColumn::Float { name, .. } => name.clone(),
+            ExecutableColumn::Date { name, .. } => name.clone(),
         }
     }
 
@@ -92,6 +107,7 @@ impl ExecutableColumn {
             ExecutableColumn::String { unicity_check, .. } => unicity_check.is_some(),
             ExecutableColumn::Integer { unicity_check, .. } => unicity_check.is_some(),
             ExecutableColumn::Float { unicity_check, .. } => unicity_check.is_some(),
+            ExecutableColumn::Date { unicity_check, .. } => unicity_check.is_some(),
         }
     }
 }

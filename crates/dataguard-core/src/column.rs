@@ -9,12 +9,12 @@ pub trait ColumnBuilder {
     fn rules(&self) -> &[ColumnRule];
 }
 
-/// Column type enum (no PyO3 pollution)
 #[derive(Debug, Clone, PartialEq)]
 pub enum ColumnType {
     String,
     Integer,
     Float,
+    DateType,
 }
 
 pub trait NumericType: Copy {
@@ -77,6 +77,14 @@ pub enum ColumnRule {
     },
     Monotonicity {
         ascending: bool,
+    },
+
+    // Date rules (works only for Date32 for now)
+    DateBoundary {
+        after: bool,
+        year: usize,
+        month: Option<usize>,
+        day: Option<usize>,
     },
 
     // Generic rules

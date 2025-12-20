@@ -3,11 +3,14 @@ use arrow::{
     compute::{self},
     datatypes::{DataType, ToByteSlice},
 };
-use arrow_array::{ArrowPrimitiveType, PrimitiveArray, StringArray};
+use arrow_array::{ArrowPrimitiveType, Date32Array, PrimitiveArray, StringArray};
 use std::{collections::HashSet, sync::Arc};
 use xxhash_rust::xxh3::xxh3_64;
 
-use crate::{errors::RuleError, utils::hasher::Xxh3Builder};
+use crate::{
+    errors::RuleError,
+    utils::{date_parser::parse_date_column, hasher::Xxh3Builder},
+};
 
 pub struct NullCheck {}
 
@@ -46,6 +49,20 @@ impl TypeCheck {
     }
 
     pub fn validate(&self, array: &dyn Array) -> Result<(usize, Arc<dyn Array>), RuleError> {
+        // We need to branch here for DateType we need to cast manually
+        // We could infer the date format or it could be pass as an argument
+        // for now we will simply assume "%Y-%m-%d"
+        if self.expected == DataType::Date32 {
+            let base_nulls = array.null_count();
+            // We know that we pass in a string array given that we parse all incoming columns as
+            // StringArray so we can unwrap safely
+            let array = array.as_any().downcast_ref::<StringArray>().unwrap();
+            let casted_array = parse_date_column(array);
+            let errors = casted_array.null_count() - base_nulls;
+            // We return a Arc<dyn Array> yet we have the correct type, to downcast it right after
+            // this feel not correct but for now we do this
+            return Ok((errors, Arc::new(casted_array)));
+        }
         match compute::cast(array, &self.expected) {
             Ok(casted_array) => {
                 let errors = casted_array.null_count() - array.null_count();
@@ -89,6 +106,17 @@ impl UnicityCheck {
         &self,
         array: &PrimitiveArray<T>,
     ) -> (usize, HashSet<u64, Xxh3Builder>) {
+        let mut local_hash = HashSet::with_hasher(Xxh3Builder);
+        array.iter().for_each(|v_option| {
+            if let Some(v) = v_option {
+                let hash = xxh3_64(v.to_byte_slice());
+                let _ = local_hash.insert(hash);
+            }
+        });
+        (array.null_count(), local_hash)
+    }
+
+    pub fn validate_date(&self, array: &Date32Array) -> (usize, HashSet<u64, Xxh3Builder>) {
         let mut local_hash = HashSet::with_hasher(Xxh3Builder);
         array.iter().for_each(|v_option| {
             if let Some(v) = v_option {

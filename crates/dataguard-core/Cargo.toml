@@ -11,6 +11,7 @@ arrow = { workspace = true }
 arrow-string = { workspace = true }
 arrow-ord = { workspace = true }
 arrow-array = { workspace = true }
+chrono = { workspace = true }
 thiserror = { workspace = true }
 rayon = { workspace = true }
 regex = { workspace = true }

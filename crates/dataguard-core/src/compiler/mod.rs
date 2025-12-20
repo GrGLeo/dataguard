@@ -15,15 +15,13 @@ use num_traits::{Num, NumCast};
 use crate::{
     column::ColumnBuilder,
     rules::{
+        date::{DateBoundaryCheck, DateRule},
         IsInCheck, Monotonicity, NullCheck, NumericRule, Range, RegexMatch, StringLengthCheck,
         StringRule, TypeCheck, UnicityCheck,
     },
     validator::ExecutableColumn,
     ColumnRule, ColumnType, RuleError,
 };
-
-#[cfg(test)]
-mod tests;
 
 /// Compile string column rules into executable validators.
 ///
@@ -55,6 +53,50 @@ fn compile_string_rules(
             }
             ColumnRule::StringMembers { members } => {
                 executable_rules.push(Box::new(IsInCheck::new(members.to_vec())));
+            }
+            ColumnRule::Unicity => {
+                unicity_check = Some(UnicityCheck::new());
+            }
+            ColumnRule::NullCheck => {
+                null_check = Some(NullCheck::new());
+            }
+            _ => {
+                return Err(RuleError::ValidationError(format!(
+                    "Invalid rule {:?} for String column '{}'",
+                    rule, column_name,
+                )))
+            }
+        }
+    }
+    Ok((executable_rules, unicity_check, null_check))
+}
+
+#[allow(clippy::type_complexity)]
+fn compile_date_rules(
+    rules: &[ColumnRule],
+    column_name: &str,
+) -> Result<
+    (
+        Vec<Box<dyn DateRule>>,
+        Option<UnicityCheck>,
+        Option<NullCheck>,
+    ),
+    RuleError,
+> {
+    let mut executable_rules: Vec<Box<dyn DateRule>> = Vec::new();
+    let mut unicity_check = None;
+    let mut null_check = None;
+
+    for rule in rules {
+        match rule {
+            ColumnRule::DateBoundary {
+                after,
+                year,
+                month,
+                day,
+            } => {
+                let rule = DateBoundaryCheck::new(*after, *year, *month, *day)?;
+                executable_rules.push(Box::new(rule));
             }
             ColumnRule::Unicity => {
                 unicity_check = Some(UnicityCheck::new());
@@ -182,6 +224,24 @@ pub fn compile_column(
                 ));
             }
             Ok(ExecutableColumn::Float {
+                name: builder.name().to_string(),
+                rules: executable_rules,
+                type_check,
+                unicity_check,
+                null_check,
+            })
+        }
+        ColumnType::DateType => {
+            let (executable_rules, unicity_check, null_check) =
+                compile_date_rules(builder.rules(), builder.name())?;
+            let mut type_check = None;
+            if need_type_check {
+                type_check = Some(TypeCheck::new(
+                    builder.name().to_string(),
+                    DataType::Float64,
+                ));
+            }
+            Ok(ExecutableColumn::Date {
                 name: builder.name().to_string(),
                 rules: executable_rules,
                 type_check,

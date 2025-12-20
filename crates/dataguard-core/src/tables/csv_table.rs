@@ -66,6 +66,13 @@ impl Table for CsvTable {
                     rule_names.extend(rules.iter().map(|r| r.name().to_string()));
                     result.insert(name.clone(), rule_names);
                 }
+                ExecutableColumn::Date {
+                    name,
+                    rules,
+                    type_check,
+                    unicity_check,
+                    null_check,
+                } => {}
             }
         }
         result
