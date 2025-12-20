@@ -1,8 +1,6 @@
-extern crate dataguard;
-
 use arrow::array::StringArray;
 use criterion::{criterion_group, criterion_main, Criterion};
-use dataguard::rules::logic::{StringLengthCheck, StringRule};
+use dataguard_core::rules::string::{StringLengthCheck, StringRule};
 use once_cell::sync::Lazy;
 use std::hint::black_box;
 use std::sync::Arc;
