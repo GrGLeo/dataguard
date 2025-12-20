@@ -6,7 +6,7 @@ use arrow::array::{Float64Array, Int64Array, StringArray};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
 
-use crate::column::{NumericColumnBuilder, StringColumnBuilder};
+use crate::columns::{numeric_builder::NumericColumnBuilder, string_builder::StringColumnBuilder};
 use crate::compiler;
 use crate::validator::ExecutableColumn;
 
