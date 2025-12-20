@@ -74,7 +74,7 @@ impl UnicityCheck {
         "UnicityCheck"
     }
 
-    pub fn validate_str(&self, array: &StringArray) -> HashSet<u64, Xxh3Builder> {
+    pub fn validate_str(&self, array: &StringArray) -> (usize, HashSet<u64, Xxh3Builder>) {
         let mut local_hash = HashSet::with_hasher(Xxh3Builder);
         array.iter().for_each(|v_option| {
             if let Some(v) = v_option {
@@ -82,13 +82,13 @@ impl UnicityCheck {
                 let _ = local_hash.insert(hash);
             }
         });
-        local_hash
+        (array.null_count(), local_hash)
     }
 
     pub fn validate_numeric<T: ArrowPrimitiveType>(
         &self,
         array: &PrimitiveArray<T>,
-    ) -> HashSet<u64, Xxh3Builder> {
+    ) -> (usize, HashSet<u64, Xxh3Builder>) {
         let mut local_hash = HashSet::with_hasher(Xxh3Builder);
         array.iter().for_each(|v_option| {
             if let Some(v) = v_option {
@@ -96,7 +96,7 @@ impl UnicityCheck {
                 let _ = local_hash.insert(hash);
             }
         });
-        local_hash
+        (array.null_count(), local_hash)
     }
 }
 
@@ -113,8 +113,9 @@ mod tests {
         let rule = UnicityCheck::new();
         let array = StringArray::from(vec![Some("a"), Some("b"), Some("c")]);
 
-        let local_set = rule.validate_str(&array);
+        let (null_count, local_set) = rule.validate_str(&array);
         assert_eq!(local_set.len(), 3);
+        assert_eq!(null_count, 0);
         assert!(local_set.contains(&xxh3_64("a".as_bytes())));
         assert!(local_set.contains(&xxh3_64("b".as_bytes())));
         assert!(local_set.contains(&xxh3_64("c".as_bytes())));
@@ -128,19 +129,21 @@ mod tests {
             StringArray::from(vec![Some("d"), Some("e"), Some("f")]),
         ];
 
-        let final_set = arrays
+        let (null_count, final_set) = arrays
             .par_iter()
             .map(|array| rule.validate_str(array)) // Each map call returns a HashSet for its array
             .reduce(
-                || HashSet::with_hasher(Xxh3Builder), // Identity for reduce
-                |mut acc_set, batch_set| {
+                || (0, HashSet::with_hasher(Xxh3Builder)), // Identity for reduce
+                |(mut null_count, mut acc_set), (batch_count, batch_set)| {
                     // Accumulator for reduce
                     acc_set.extend(batch_set);
-                    acc_set
+                    null_count += batch_count;
+                    (null_count, acc_set)
                 },
             );
 
         assert_eq!(final_set.len(), 6);
+        assert_eq!(null_count, 0);
         assert!(final_set.contains(&xxh3_64("a".as_bytes())));
         assert!(final_set.contains(&xxh3_64("b".as_bytes())));
         assert!(final_set.contains(&xxh3_64("c".as_bytes())));
@@ -154,8 +157,9 @@ mod tests {
         let rule = UnicityCheck::new();
         let array = StringArray::from(vec![Some("a"), Some("b"), Some("a"), Some("c")]);
 
-        let local_set = rule.validate_str(&array);
+        let (null_count, local_set) = rule.validate_str(&array);
         assert_eq!(local_set.len(), 3); // "a", "b", "c" are unique
+        assert_eq!(null_count, 0);
         assert!(local_set.contains(&xxh3_64("a".as_bytes())));
         assert!(local_set.contains(&xxh3_64("b".as_bytes())));
         assert!(local_set.contains(&xxh3_64("c".as_bytes())));
@@ -169,18 +173,21 @@ mod tests {
             StringArray::from(vec![Some("c"), Some("b"), Some("d"), Some("c")]),
         ];
 
-        let final_set = arrays
+        let (null_count, final_set) = arrays
             .par_iter()
             .map(|array| rule.validate_str(array))
             .reduce(
-                || HashSet::with_hasher(Xxh3Builder),
-                |mut acc_set, batch_set| {
+                || (0, HashSet::with_hasher(Xxh3Builder)), // Identity for reduce
+                |(mut null_count, mut acc_set), (batch_count, batch_set)| {
+                    // Accumulator for reduce
                     acc_set.extend(batch_set);
-                    acc_set
+                    null_count += batch_count;
+                    (null_count, acc_set)
                 },
             );
 
         assert_eq!(final_set.len(), 4); // "a", "b", "c", "d" are unique
+        assert_eq!(null_count, 0);
         assert!(final_set.contains(&xxh3_64("a".as_bytes())));
         assert!(final_set.contains(&xxh3_64("b".as_bytes())));
         assert!(final_set.contains(&xxh3_64("c".as_bytes())));
@@ -192,8 +199,9 @@ mod tests {
         let rule = UnicityCheck::new();
         let array = StringArray::from(vec![Some("a"), None, Some("b"), None, Some("a")]);
 
-        let local_set = rule.validate_str(&array);
+        let (null_count, local_set) = rule.validate_str(&array);
         assert_eq!(local_set.len(), 2); // Nulls are ignored, "a", "b" are unique
+        assert_eq!(null_count, 2);
         assert!(local_set.contains(&xxh3_64("a".as_bytes())));
         assert!(local_set.contains(&xxh3_64("b".as_bytes())));
     }

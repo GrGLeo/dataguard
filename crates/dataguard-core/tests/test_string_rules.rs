@@ -11,8 +11,8 @@ fn test_string_length_check_with_nulls() {
         Some("ab"),
         Some("abcdefghijk"),
     ]);
-    // Errors: None, "ab" (too short), "abcdefghijk" (too long) = 3
-    assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 3);
+    // Errors: "ab" (too short), "abcdefghijk" (too long) = 2
+    assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 2);
 }
 
 #[test]
@@ -41,8 +41,8 @@ fn test_regex_match_email() {
         Some("@invalid.com"),
         None,
     ]);
-    // Errors: "invalid-email", "@invalid.com", None = 3
-    assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 3);
+    // Errors: "invalid-email", "@invalid.com" = 2
+    assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 2);
 }
 
 #[test]
@@ -91,8 +91,8 @@ fn test_is_in_check_all_invalid() {
     let members = vec!["apple".to_string()];
     let rule = IsInCheck::new(members);
     let array = StringArray::from(vec![Some("banana"), Some("cherry"), Some("orange"), None]);
-    // All values are invalid (including None)
-    assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 4);
+    // All values are invalid (excluding None)
+    assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 3);
 }
 
 #[test]

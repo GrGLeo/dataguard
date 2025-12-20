@@ -4,6 +4,7 @@ use arrow::{
     array::{Int32Array, StringArray},
     compute::{self},
 };
+use arrow_array::Array;
 use arrow_string::length::length;
 use xxhash_rust::xxh3::xxh3_64;
 
@@ -49,21 +50,16 @@ impl StringRule for StringLengthCheck {
                             ))
                         })?;
                 let mut counter: u32 = 0;
-                for value in len_array.iter() {
-                    match value {
-                        Some(i) => {
-                            if let Some(min) = self.min {
-                                if i < min as i32 {
-                                    counter += 1
-                                }
-                            }
-                            if let Some(max) = self.max {
-                                if i > max as i32 {
-                                    counter += 1
-                                }
-                            }
+                for i in len_array.iter().flatten() {
+                    if let Some(min) = self.min {
+                        if i < min as i32 {
+                            counter += 1
                         }
-                        None => counter += 1,
+                    }
+                    if let Some(max) = self.max {
+                        if i > max as i32 {
+                            counter += 1
+                        }
                     }
                 }
                 Ok(counter as usize)
@@ -95,8 +91,9 @@ impl StringRule for RegexMatch {
         if let Ok(match_array) = compute::regexp_is_match_scalar(array, self.pattern.as_str(), flag)
         {
             let n = match_array.len();
+            let null_value = match_array.null_count();
             let true_count = match_array.true_count();
-            let violations = n - true_count;
+            let violations = n - true_count - null_value;
             Ok(violations)
         } else {
             Err(RuleError::ValidationError(column))
@@ -136,7 +133,7 @@ impl StringRule for IsInCheck {
                         0
                     }
                 } else {
-                    1
+                    0
                 }
             })
             .sum();
@@ -192,12 +189,12 @@ mod tests {
             Some("abc"),  // error
             Some("12"),   // error
             Some("1234"), // error
-            None,         // error (non-match for null, as per n - true_count logic)
+            None,         // ok
             Some("456"),  // ok
         ]);
         // "abc", "12", "1234" are errors (3)
-        // None is also counted as an error (1)
-        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 4);
+        // None is not counted as an error
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 3);
     }
 
     #[test]
@@ -223,8 +220,8 @@ mod tests {
             None,           // Null value
             Some(""),       // Empty string
         ]);
-        // Expected errors: "orange", None, "" (3 errors)
-        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 3);
+        // Expected errors: "orange", "" (2 errors)
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
     }
 
     #[test]
@@ -248,7 +245,7 @@ mod tests {
             Some("banana"), // Not in empty members
             None,           // Null value
         ]);
-        // Expected errors: "apple", "banana", None (3 errors)
-        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 3);
+        // Expected errors: "apple", "banana" (2 errors)
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
     }
 }

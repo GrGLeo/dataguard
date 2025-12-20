@@ -282,7 +282,7 @@ pub fn construct_csv_table(table: &ConfigTable) -> Result<CsvTable> {
     }
     let mut t = CsvTable::new(path.clone(), table.name.clone())
         .with_context(|| format!("Failed to create validation table: {}", table.name))?;
-    t.commit(all_builder).unwrap();
+    t.prepare(all_builder).unwrap();
     Ok(t)
 }
 

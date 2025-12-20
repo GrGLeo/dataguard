@@ -33,6 +33,11 @@ name = "string_length_check_bench"
 harness = false
 path = "benches/string_length_check_bench.rs"
 
+[[bench]]
+name = "unicity_bench"
+harness = false
+path = "benches/unicity_bench.rs"
+
 [lints]
 workspace = true
 

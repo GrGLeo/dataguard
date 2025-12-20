@@ -52,7 +52,7 @@ where
                         }
                     }
                 }
-                None => counter += 1,
+                None => counter += 0, // Null doesnt count as error
             }
         }
         Ok(counter)
@@ -125,8 +125,8 @@ mod tests {
     fn test_min_range_integer_with_null() {
         let rule = Range::new(Some(5i64), None);
         let array = Int64Array::from(vec![Some(1), Some(6), Some(3), Some(2), None]);
-        // We expect 4 errors here index 0, 2, 3, 4
-        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 4);
+        // We expect 4 errors here index 0, 2, 3
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 3);
     }
 
     #[test]
@@ -141,8 +141,8 @@ mod tests {
     fn test_max_range_integer_with_null() {
         let rule = Range::new(None, Some(5i64));
         let array = Int64Array::from(vec![Some(1), Some(6), Some(3), Some(2), None]);
-        // We expect 2 errors here index 1, 4
-        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
+        // We expect 1 errors here index 1
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 1);
     }
 
     #[test]
@@ -157,8 +157,8 @@ mod tests {
     fn test_range_between_integer_with_null() {
         let rule = Range::new(Some(2i64), Some(4i64));
         let array = Int64Array::from(vec![Some(1), Some(4), Some(6), Some(3), Some(2), None]);
-        // We expect 3 errors here: 0, 2, 5
-        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 3);
+        // We expect 2 errors here: 0, 2
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
     }
 
     #[test]
@@ -203,31 +203,31 @@ mod tests {
     fn test_is_positive() {
         let rule = Range::new(Some(1i64), None);
         let array = Int64Array::from(vec![Some(1), Some(0), Some(5), Some(-2), None]);
-        // 0, -2, None should be violations
-        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 3);
+        // 0, -2 should be violations
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
     }
 
     #[test]
     fn test_is_negative() {
         let rule = Range::new(None, Some(-1i64));
         let array = Int64Array::from(vec![Some(-1), Some(0), Some(-5), Some(2), None]);
-        // 0, 2, None should be violations
-        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 3);
+        // 0, 2 should be violations
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
     }
 
     #[test]
     fn test_is_non_positive() {
         let rule = Range::new(None, Some(0i64));
         let array = Int64Array::from(vec![Some(-1), Some(0), Some(5), Some(-2), None]);
-        // 5, None should be violations
-        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
+        // 5 should be violations
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 1);
     }
 
     #[test]
     fn test_is_non_negative() {
         let rule = Range::new(Some(0i64), None);
         let array = Int64Array::from(vec![Some(1), Some(0), Some(5), Some(-2), None]);
-        // -2, None should be violations
-        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
+        // -2 should be violations
+        assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 1);
     }
 }
