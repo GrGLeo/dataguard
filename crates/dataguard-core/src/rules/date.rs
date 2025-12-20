@@ -23,19 +23,17 @@ impl DateBoundaryCheck {
         month: Option<usize>,
         day: Option<usize>,
     ) -> Result<Self, RuleError> {
-        let m = month.unwrap_or_else(|| 1) as u32;
-        let d = day.unwrap_or_else(|| 1) as u32;
+        let m = month.unwrap_or(1) as u32;
+        let d = day.unwrap_or(1) as u32;
         let res = NaiveDate::from_ymd_opt(year as i32, m, d);
         match res {
             Some(date) => {
                 // Here we can unwrap date is correct
                 let unix = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
                 let days = date.signed_duration_since(unix).num_days() as i32;
-                return Ok(Self { after, days });
+                Ok(Self { after, days })
             }
-            None => {
-                return Err(RuleError::IncorrectDate(year, m, d));
-            }
+            None => Err(RuleError::IncorrectDate(year, m, d)),
         }
     }
 }
@@ -47,17 +45,13 @@ impl DateRule for DateBoundaryCheck {
 
     fn validate(&self, array: &Date32Array, _column: String) -> Result<usize, RuleError> {
         let mut counter = 0;
-        for value in array.iter() {
-            if let Some(day) = value {
-                if self.after {
-                    if day <= self.days {
-                        counter += 1;
-                    }
-                } else {
-                    if day >= self.days {
-                        counter += 1;
-                    }
+        for day in array.iter().flatten() {
+            if self.after {
+                if day <= self.days {
+                    counter += 1;
                 }
+            } else if day >= self.days {
+                counter += 1;
             }
         }
         Ok(counter)

@@ -4,7 +4,7 @@ use chrono::NaiveDate;
 pub fn parse_date_column(array: &StringArray) -> Date32Array {
     array
         .iter()
-        .map(|opt_str| opt_str.and_then(|date| parse_date(date)))
+        .map(|opt_str| opt_str.and_then(parse_date))
         .collect()
 }
 

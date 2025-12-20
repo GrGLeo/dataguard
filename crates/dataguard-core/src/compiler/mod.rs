@@ -89,6 +89,12 @@ fn compile_date_rules(
 
     for rule in rules {
         match rule {
+            ColumnRule::Unicity => {
+                unicity_check = Some(UnicityCheck::new());
+            }
+            ColumnRule::NullCheck => {
+                null_check = Some(NullCheck::new());
+            }
             ColumnRule::DateBoundary {
                 after,
                 year,
@@ -97,12 +103,6 @@ fn compile_date_rules(
             } => {
                 let rule = DateBoundaryCheck::new(*after, *year, *month, *day)?;
                 executable_rules.push(Box::new(rule));
-            }
-            ColumnRule::Unicity => {
-                unicity_check = Some(UnicityCheck::new());
-            }
-            ColumnRule::NullCheck => {
-                null_check = Some(NullCheck::new());
             }
             _ => {
                 return Err(RuleError::ValidationError(format!(
@@ -236,10 +236,7 @@ pub fn compile_column(
                 compile_date_rules(builder.rules(), builder.name())?;
             let mut type_check = None;
             if need_type_check {
-                type_check = Some(TypeCheck::new(
-                    builder.name().to_string(),
-                    DataType::Float64,
-                ));
+                type_check = Some(TypeCheck::new(builder.name().to_string(), DataType::Date32));
             }
             Ok(ExecutableColumn::Date {
                 name: builder.name().to_string(),
