@@ -103,3 +103,58 @@ fn test_range_zero_boundary() {
     // Errors: -1 (< 0) = 1
     assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 1);
 }
+
+// ============================================================================
+// Monotonicity with Nulls Tests - Current Behavior
+// ============================================================================
+// NOTE: See MONOTONICITY_NULL_HANDLING.md for discussion on whether this
+// behavior is correct. Currently, nulls are IGNORED in monotonicity checks.
+
+#[test]
+fn test_monotonicity_with_null_in_middle_ascending() {
+    let rule = Monotonicity::<i64>::new(true);
+    let array = Int64Array::from(vec![Some(1), None, Some(3)]);
+    // Current behavior: nulls are ignored, non-null sequence is monotonic
+    assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 0);
+}
+
+#[test]
+fn test_monotonicity_with_null_at_start_ascending() {
+    let rule = Monotonicity::<i64>::new(true);
+    let array = Int64Array::from(vec![None, Some(1), Some(2), Some(3)]);
+    // Current behavior: null at start is ignored
+    assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 0);
+}
+
+#[test]
+fn test_monotonicity_with_null_at_end_ascending() {
+    let rule = Monotonicity::<i64>::new(true);
+    let array = Int64Array::from(vec![Some(1), Some(2), Some(3), None]);
+    // Current behavior: null at end is ignored
+    assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 0);
+}
+
+#[test]
+fn test_monotonicity_with_multiple_nulls_ascending() {
+    let rule = Monotonicity::<i64>::new(true);
+    let array = Int64Array::from(vec![Some(1), None, Some(2), None, Some(3)]);
+    // Current behavior: all nulls ignored, non-null values (1,2,3) are monotonic
+    assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 0);
+}
+
+#[test]
+fn test_monotonicity_all_nulls() {
+    let rule = Monotonicity::<i64>::new(true);
+    let null_vec: Vec<Option<i64>> = vec![None, None, None];
+    let array = Int64Array::from(null_vec);
+    // Current behavior: all nulls ignored, no comparisons fail
+    assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 0);
+}
+
+#[test]
+fn test_monotonicity_with_null_descending() {
+    let rule = Monotonicity::<i64>::new(false);
+    let array = Int64Array::from(vec![Some(5), None, Some(3), None, Some(1)]);
+    // Current behavior: nulls ignored, non-null values (5,3,1) are monotonically descending
+    assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 0);
+}
