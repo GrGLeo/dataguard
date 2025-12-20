@@ -1,10 +1,9 @@
 use std::{
     collections::{HashMap, HashSet},
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc, Mutex,
-    },
+    sync::atomic::{AtomicUsize, Ordering},
 };
+
+use dashmap::{DashMap, DashSet};
 
 use crate::{types::UnicityRecord, utils::hasher::Xxh3Builder, validator::ExecutableColumn};
 
@@ -14,22 +13,21 @@ use crate::{types::UnicityRecord, utils::hasher::Xxh3Builder, validator::Executa
 /// duplicate counts after all batches are processed.
 pub(crate) struct UnicityAccumulator {
     // Column name → global hash set (thread-safe)
-    accumulators: HashMap<String, UnicityRecord>,
+    accumulators: DashMap<String, UnicityRecord>,
 }
 
 impl UnicityAccumulator {
     /// Create accumulator for columns that have unicity checks.
     pub fn new(columns: &[ExecutableColumn]) -> Self {
-        let mut accumulators: HashMap<String, UnicityRecord> = HashMap::new();
+        let accumulators: DashMap<String, UnicityRecord> = DashMap::new();
 
         for column in columns {
             if column.has_unicity() {
-                let map = Arc::new(Mutex::new(HashSet::with_hasher(Xxh3Builder)));
+                let map = DashSet::with_hasher(Xxh3Builder);
                 let null_counter = AtomicUsize::new(0);
                 accumulators.insert(column.get_name(), (null_counter, map));
             }
         }
-
         Self { accumulators }
     }
 
@@ -46,9 +44,10 @@ impl UnicityAccumulator {
         hashes: HashSet<u64, Xxh3Builder>,
     ) {
         // TODO: for now we unwrap column_name should always be set
-        let (counter, map) = self.accumulators.get(column_name).unwrap();
+        let mut global = self.accumulators.get_mut(column_name).unwrap();
+        let (counter, map) = global.value_mut();
         counter.fetch_add(null_count, Ordering::Relaxed);
-        map.lock().unwrap().extend(hashes)
+        map.extend(hashes)
     }
 
     /// Calculate error counts for all columns.
@@ -56,8 +55,10 @@ impl UnicityAccumulator {
     pub fn finalize(&self, total_rows: usize) -> HashMap<String, usize> {
         self.accumulators
             .iter()
-            .map(|(name, (c, h))| {
-                let u = h.lock().unwrap().len();
+            .map(|col_record| {
+                let (c, h) = col_record.value();
+                let name = col_record.key();
+                let u = h.len();
                 let n = c.load(Ordering::Relaxed);
                 // We get the total number of rows
                 // We substract the null count, to get the total valid row
