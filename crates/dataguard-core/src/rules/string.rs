@@ -50,21 +50,16 @@ impl StringRule for StringLengthCheck {
                             ))
                         })?;
                 let mut counter: u32 = 0;
-                for value in len_array.iter() {
-                    match value {
-                        Some(i) => {
-                            if let Some(min) = self.min {
-                                if i < min as i32 {
-                                    counter += 1
-                                }
-                            }
-                            if let Some(max) = self.max {
-                                if i > max as i32 {
-                                    counter += 1
-                                }
-                            }
+                for i in len_array.iter().flatten() {
+                    if let Some(min) = self.min {
+                        if i < min as i32 {
+                            counter += 1
                         }
-                        None => {},
+                    }
+                    if let Some(max) = self.max {
+                        if i > max as i32 {
+                            counter += 1
+                        }
                     }
                 }
                 Ok(counter as usize)
