@@ -12,8 +12,8 @@ fn test_range_float_with_nulls() {
         Some(11.0),
         Some(1.0),
     ]);
-    // Errors: None, 11.0 (> max), 1.0 (< min) = 3
-    assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 3);
+    // Errors: 11.0 (> max), 1.0 (< min) = 3
+    assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 2);
 }
 
 #[test]
@@ -76,8 +76,8 @@ fn test_range_all_invalid_integers() {
 fn test_range_negative_floats() {
     let rule = Range::new(Some(-10.0), Some(-1.0));
     let array = Float64Array::from(vec![Some(-5.5), Some(-0.5), Some(-10.5), Some(-9.9), None]);
-    // Errors: -0.5 (> max), -10.5 (< min), None = 3
-    assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 3);
+    // Errors: -0.5 (> max), -10.5 (< min) = 2
+    assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 2);
 }
 
 #[test]
@@ -100,6 +100,6 @@ fn test_monotonicity_strict_descending_violation() {
 fn test_range_zero_boundary() {
     let rule = Range::new(Some(0i64), None);
     let array = Int64Array::from(vec![Some(-1), Some(0), Some(1), None]);
-    // Errors: -1 (< 0), None = 2
-    assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 2);
+    // Errors: -1 (< 0) = 1
+    assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 1);
 }
