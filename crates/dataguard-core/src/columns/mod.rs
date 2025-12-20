@@ -1,9 +1,9 @@
 pub mod numeric_builder;
 pub mod string_builder;
-use crate::errors::RuleError;
+fn name() {
+    todo!();
+}
 use core::f64;
-use regex::Regex;
-use std::marker::PhantomData;
 
 pub trait ColumnBuilder {
     fn name(&self) -> &str;

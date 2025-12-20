@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::column::ColumnBuilder;
+use crate::columns::ColumnBuilder;
 use crate::errors::RuleError;
 use crate::reader::read_csv_parallel;
 use crate::tables::Table;

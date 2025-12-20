@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::{
-    columns::{ColumnType, NumericType},
+    columns::{ColumnBuilder, ColumnType, NumericType},
     ColumnRule,
 };
 

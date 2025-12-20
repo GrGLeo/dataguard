@@ -4,7 +4,7 @@ use crate::{
 };
 use anyhow::{Context, Result};
 use dataguard_core::{
-    column::ColumnBuilder, CsvTable, NumericColumnBuilder, StringColumnBuilder, Table,
+    columns::ColumnBuilder, CsvTable, NumericColumnBuilder, StringColumnBuilder, Table,
 };
 use toml::Value;
 

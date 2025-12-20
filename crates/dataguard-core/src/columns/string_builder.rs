@@ -1,5 +1,5 @@
 use crate::{
-    columns::{ColumnRule, ColumnType},
+    columns::{ColumnBuilder, ColumnRule, ColumnType},
     errors::RuleError,
 };
 use regex::Regex;

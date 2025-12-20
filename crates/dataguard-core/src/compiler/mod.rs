@@ -13,7 +13,7 @@ use arrow_array::ArrowNumericType;
 use num_traits::{Num, NumCast};
 
 use crate::{
-    column::ColumnBuilder,
+    columns::ColumnBuilder,
     rules::{
         date::{DateBoundaryCheck, DateRule},
         IsInCheck, Monotonicity, NullCheck, NumericRule, Range, RegexMatch, StringLengthCheck,
