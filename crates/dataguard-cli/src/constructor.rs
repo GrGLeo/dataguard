@@ -4,7 +4,8 @@ use crate::{
 };
 use anyhow::{Context, Result};
 use dataguard_core::{
-    columns::ColumnBuilder, CsvTable, NumericColumnBuilder, StringColumnBuilder, Table,
+    columns::{date_builder::DateColumnBuilder, ColumnBuilder},
+    CsvTable, NumericColumnBuilder, StringColumnBuilder, Table,
 };
 use toml::Value;
 
@@ -237,6 +238,36 @@ fn apply_float_rule(
     }
 }
 
+fn apply_date_rule(
+    builder: &mut DateColumnBuilder,
+    rule: Rule,
+    column_name: String,
+) -> Result<(), CliError> {
+    match rule {
+        Rule::IsNotNull => {
+            builder.is_not_null();
+            Ok(())
+        }
+        Rule::IsUnique => {
+            builder.is_unique();
+            Ok(())
+        }
+        Rule::IsAfter { year, month, day } => {
+            builder.is_after(year, month, day);
+            Ok(())
+        }
+        Rule::IsBefore { year, month, day } => {
+            builder.is_before(year, month, day);
+            Ok(())
+        }
+        _ => Err(CliError::UnknownRule {
+            rule_name: rule.to_string(),
+            column_type: "string".to_string(),
+            column_name: column_name.to_string(),
+        }),
+    }
+}
+
 pub fn construct_csv_table(table: &ConfigTable) -> Result<CsvTable> {
     let path = &table.path;
     let mut all_builder: Vec<Box<dyn ColumnBuilder>> = Vec::new();
@@ -268,6 +299,15 @@ pub fn construct_csv_table(table: &ConfigTable) -> Result<CsvTable> {
                         .with_context(|| {
                             format!("Failed to apply rule to column '{}'", column.name)
                         })?
+                }
+                all_builder.push(Box::new(builder));
+            }
+            "date" => {
+                let mut builder = DateColumnBuilder::new(column.name.clone());
+                for rule in &column.rule {
+                    apply_date_rule(&mut builder, rule.clone(), column.name.clone()).with_context(
+                        || format!("Failed to apply rule to column '{}'", column.name),
+                    )?
                 }
                 all_builder.push(Box::new(builder));
             }

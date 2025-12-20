@@ -82,6 +82,18 @@ pub enum Rule {
     IsNonNegative,
     IsIncreasing,
     IsDecreasing,
+
+    // Date Rule
+    IsAfter {
+        year: usize,
+        month: Option<usize>,
+        day: Option<usize>,
+    },
+    IsBefore {
+        year: usize,
+        month: Option<usize>,
+        day: Option<usize>,
+    },
 }
 
 impl std::fmt::Display for Rule {
@@ -112,6 +124,8 @@ impl std::fmt::Display for Rule {
             Rule::IsNonNegative => write!(f, "is_non_negative"),
             Rule::IsIncreasing => write!(f, "is_increasing"),
             Rule::IsDecreasing => write!(f, "is_decreasing"),
+            Rule::IsAfter { .. } => write!(f, "is_after"),
+            Rule::IsBefore { .. } => write!(f, "is_before"),
         }
     }
 }

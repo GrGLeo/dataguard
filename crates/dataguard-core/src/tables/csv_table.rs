@@ -66,13 +66,11 @@ impl Table for CsvTable {
                     rule_names.extend(rules.iter().map(|r| r.name().to_string()));
                     result.insert(name.clone(), rule_names);
                 }
-                ExecutableColumn::Date {
-                    name,
-                    rules,
-                    type_check,
-                    unicity_check,
-                    null_check,
-                } => {}
+                ExecutableColumn::Date { name, rules, .. } => {
+                    let mut rule_names = vec!["TypeCheck".to_string()];
+                    rule_names.extend(rules.iter().map(|r| r.name().to_string()));
+                    result.insert(name.clone(), rule_names);
+                }
             }
         }
         result
