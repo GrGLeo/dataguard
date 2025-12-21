@@ -260,6 +260,14 @@ fn apply_date_rule(
             builder.is_before(year, month, day);
             Ok(())
         }
+        Rule::IsNotFutur => {
+            builder.is_not_futur();
+            Ok(())
+        }
+        Rule::IsNotPast => {
+            builder.is_not_past();
+            Ok(())
+        }
         _ => Err(CliError::UnknownRule {
             rule_name: rule.to_string(),
             column_type: "string".to_string(),

@@ -94,6 +94,8 @@ pub enum Rule {
         month: Option<usize>,
         day: Option<usize>,
     },
+    IsNotFutur,
+    IsNotPast,
 }
 
 impl std::fmt::Display for Rule {
@@ -126,6 +128,8 @@ impl std::fmt::Display for Rule {
             Rule::IsDecreasing => write!(f, "is_decreasing"),
             Rule::IsAfter { .. } => write!(f, "is_after"),
             Rule::IsBefore { .. } => write!(f, "is_before"),
+            Rule::IsNotFutur => write!(f, "is_not_futur"),
+            Rule::IsNotPast => write!(f, "is_not_past"),
         }
     }
 }
