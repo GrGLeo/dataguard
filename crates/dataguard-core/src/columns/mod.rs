@@ -1,6 +1,6 @@
 pub mod date_builder;
-pub mod relation_builder;
 pub mod numeric_builder;
+pub mod relation_builder;
 pub mod string_builder;
 
 #[cfg(test)]
@@ -109,7 +109,5 @@ pub enum ColumnRule {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TableConstraint {
-    DateComparaison {
-        op: CompOperator,
-    }
+    DateComparaison { op: CompOperator },
 }

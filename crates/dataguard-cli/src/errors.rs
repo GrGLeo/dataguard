@@ -22,7 +22,7 @@ pub enum CliError {
         column_name: String,
     },
     // Validation errors from core
-    #[error("Validation error: {0}")]
+    #[error("Validation error")]
     ValidationError(#[from] RuleError),
 }
 
@@ -36,6 +36,10 @@ pub enum ConfigError {
         type_name: String,
         message: String,
     },
+    #[error(
+        "Table relation error: column '{missing_column}' need to be provided in 'table.column'"
+    )]
+    RelationError { missing_column: String },
     #[error("Rule logic error: rule '{rule_name}' for '{column_name}' - {message}")]
     RuleError {
         rule_name: String,

@@ -8,8 +8,8 @@ use crate::errors::RuleError;
 use crate::rules::date::{DateRule, DateTypeCheck};
 use crate::rules::generic::{TypeCheck, UnicityCheck};
 use crate::rules::numeric::NumericRule;
-use crate::rules::string::StringRule;
 use crate::rules::relations::RelationRule;
+use crate::rules::string::StringRule;
 use crate::rules::NullCheck;
 use crate::{CsvTable, Table, ValidationResult};
 use arrow::datatypes::{Float64Type, Int64Type};
@@ -114,10 +114,7 @@ pub struct ExecutableRelation {
 
 impl ExecutableRelation {
     pub fn new(names: [String; 2], rules: Vec<Box<dyn RelationRule>>) -> Self {
-        Self {
-            names,
-            rules,
-        }
+        Self { names, rules }
     }
 }
 

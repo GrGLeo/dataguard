@@ -263,10 +263,8 @@ pub fn compile_column(
     }
 }
 
-pub fn compile_relations(
-    builder: RelationBuilder,
-) -> Result<ExecutableRelation, RuleError> {
-    let RelationBuilder {names, rules } = builder;
+pub fn compile_relations(builder: RelationBuilder) -> Result<ExecutableRelation, RuleError> {
+    let RelationBuilder { names, rules } = builder;
     let mut executable_relations: Vec<Box<dyn RelationRule>> = Vec::new();
     for rule in rules {
         match rule {
