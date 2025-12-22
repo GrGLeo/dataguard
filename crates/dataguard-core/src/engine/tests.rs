@@ -231,7 +231,7 @@ mod unicity_accumulator_tests {
         let col = create_string_column_with_length("name", 3, 50);
         let columns = vec![col];
 
-        let accumulator = UnicityAccumulator::new(&columns);
+        let accumulator = UnicityAccumulator::new(&columns, 1);
         let results = accumulator.finalize(100);
         assert_eq!(results.len(), 0);
     }
@@ -241,7 +241,7 @@ mod unicity_accumulator_tests {
         let col = create_string_column_with_unicity("email");
         let columns = vec![col];
 
-        let accumulator = UnicityAccumulator::new(&columns);
+        let accumulator = UnicityAccumulator::new(&columns, 1);
         let results = accumulator.finalize(100);
         assert_eq!(results.len(), 1);
         assert!(results.contains_key("email"));
@@ -253,7 +253,7 @@ mod unicity_accumulator_tests {
         let col2 = create_string_column_with_unicity("username");
         let columns = vec![col1, col2];
 
-        let accumulator = UnicityAccumulator::new(&columns);
+        let accumulator = UnicityAccumulator::new(&columns, 1);
         let results = accumulator.finalize(100);
         assert_eq!(results.len(), 2);
     }
@@ -262,7 +262,7 @@ mod unicity_accumulator_tests {
     fn test_record_hashes_single_column() {
         let col = create_string_column_with_unicity("email");
         let columns = vec![col];
-        let accumulator = UnicityAccumulator::new(&columns);
+        let accumulator = UnicityAccumulator::new(&columns, 1);
 
         let mut hashes = HashSet::with_hasher(Xxh3Builder);
         hashes.insert(xxh3_64(b"test1"));
@@ -278,7 +278,7 @@ mod unicity_accumulator_tests {
     fn test_record_hashes_extends_existing() {
         let col = create_string_column_with_unicity("email");
         let columns = vec![col];
-        let accumulator = UnicityAccumulator::new(&columns);
+        let accumulator = UnicityAccumulator::new(&columns, 2);
 
         let mut hashes1 = HashSet::with_hasher(Xxh3Builder);
         hashes1.insert(xxh3_64(b"test1"));
@@ -297,7 +297,7 @@ mod unicity_accumulator_tests {
     fn test_record_hashes_deduplicates() {
         let col = create_string_column_with_unicity("email");
         let columns = vec![col];
-        let accumulator = UnicityAccumulator::new(&columns);
+        let accumulator = UnicityAccumulator::new(&columns, 2);
 
         let hash = xxh3_64(b"duplicate");
 
@@ -318,7 +318,7 @@ mod unicity_accumulator_tests {
     fn test_finalize_no_duplicates() {
         let col = create_string_column_with_unicity("email");
         let columns = vec![col];
-        let accumulator = UnicityAccumulator::new(&columns);
+        let accumulator = UnicityAccumulator::new(&columns, 3);
 
         let mut hashes = HashSet::with_hasher(Xxh3Builder);
         hashes.insert(xxh3_64(b"test1"));
@@ -335,7 +335,7 @@ mod unicity_accumulator_tests {
     fn test_finalize_with_duplicates() {
         let col = create_string_column_with_unicity("email");
         let columns = vec![col];
-        let accumulator = UnicityAccumulator::new(&columns);
+        let accumulator = UnicityAccumulator::new(&columns, 5);
 
         let mut hashes = HashSet::with_hasher(Xxh3Builder);
         hashes.insert(xxh3_64(b"test1"));
@@ -351,7 +351,7 @@ mod unicity_accumulator_tests {
     fn test_finalize_all_duplicates() {
         let col = create_string_column_with_unicity("email");
         let columns = vec![col];
-        let accumulator = UnicityAccumulator::new(&columns);
+        let accumulator = UnicityAccumulator::new(&columns, 10);
 
         let mut hashes = HashSet::with_hasher(Xxh3Builder);
         hashes.insert(xxh3_64(b"same"));
@@ -367,7 +367,7 @@ mod unicity_accumulator_tests {
         let col1 = create_string_column_with_unicity("col1");
         let col2 = create_string_column_with_unicity("col2");
         let columns = vec![col1, col2];
-        let accumulator = UnicityAccumulator::new(&columns);
+        let accumulator = UnicityAccumulator::new(&columns, 10);
 
         // Different threads recording to different columns
         (0..10).into_par_iter().for_each(|i| {
@@ -391,7 +391,7 @@ mod unicity_accumulator_tests {
     fn test_concurrent_same_column() {
         let col = create_string_column_with_unicity("email");
         let columns = vec![col];
-        let accumulator = UnicityAccumulator::new(&columns);
+        let accumulator = UnicityAccumulator::new(&columns, 10);
 
         // Multiple threads recording to same column
         (0..10).into_par_iter().for_each(|i| {
@@ -407,7 +407,7 @@ mod unicity_accumulator_tests {
     #[test]
     fn test_finalize_empty_accumulator() {
         let columns = vec![];
-        let accumulator = UnicityAccumulator::new(&columns);
+        let accumulator = UnicityAccumulator::new(&columns, 100);
         let results = accumulator.finalize(100);
         assert_eq!(results.len(), 0);
     }

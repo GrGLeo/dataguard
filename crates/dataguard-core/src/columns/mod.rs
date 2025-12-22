@@ -11,6 +11,10 @@ pub trait ColumnBuilder {
     fn name(&self) -> &str;
     fn column_type(&self) -> ColumnType;
     fn rules(&self) -> &[ColumnRule];
+
+    // For now only used for date, could be usefull for thousand separator in numeric or decimal
+    // precision etc..
+    fn format(&self) -> Option<&str>;
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -89,6 +93,10 @@ pub enum ColumnRule {
         year: usize,
         month: Option<usize>,
         day: Option<usize>,
+    },
+
+    WeekDay {
+        is_week: bool,
     },
 
     // Generic rules

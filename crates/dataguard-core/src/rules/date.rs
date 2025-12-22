@@ -1,7 +1,40 @@
-use arrow_array::Date32Array;
-use chrono::NaiveDate;
+use arrow::datatypes::DataType;
+use arrow_array::{Array, Date32Array, StringArray};
+use chrono::{Datelike, Duration, NaiveDate, Weekday};
 
-use crate::RuleError;
+use crate::{utils::date_parser::parse_date_column, RuleError};
+
+pub struct DateTypeCheck {
+    // Those two field are not needed now as we dont need the expected
+    // datatype this will be used later on when we also handle Date64Type
+    _column: String,
+    _expected: DataType,
+    format: String,
+}
+
+impl DateTypeCheck {
+    pub fn new(column: String, expected: DataType, format: String) -> Self {
+        Self {
+            _column: column,
+            _expected: expected,
+            format,
+        }
+    }
+
+    pub fn name(&self) -> &'static str {
+        "TypeCheck"
+    }
+
+    pub fn validate(&self, array: &dyn Array) -> Result<(usize, Date32Array), RuleError> {
+        let base_nulls = array.null_count();
+        // We know that we pass in a string array given that we parse all incoming columns as
+        // StringArray so we can unwrap safely
+        let array = array.as_any().downcast_ref::<StringArray>().unwrap();
+        let casted_array = parse_date_column(array, &self.format);
+        let errors = casted_array.null_count() - base_nulls;
+        Ok((errors, casted_array))
+    }
+}
 
 /// A trait for defining validation rules on Arrow arrays.
 pub trait DateRule: Send + Sync {
@@ -55,6 +88,50 @@ impl DateRule for DateBoundaryCheck {
             }
         }
         Ok(counter)
+    }
+}
+
+pub struct WeekDayCheck {
+    is_week: bool,
+}
+
+impl WeekDayCheck {
+    pub fn new(is_week: bool) -> Self {
+        Self { is_week }
+    }
+}
+
+impl Default for WeekDayCheck {
+    fn default() -> Self {
+        Self::new(true)
+    }
+}
+
+impl DateRule for WeekDayCheck {
+    fn name(&self) -> &'static str {
+        "WeekDayCheck"
+    }
+
+    fn validate(&self, array: &Date32Array, _column: String) -> Result<usize, RuleError> {
+        let epoch = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
+        let mut violations = 0;
+
+        for day in array.iter().flatten() {
+            let date = epoch + Duration::days(day as i64);
+            match date.weekday() {
+                Weekday::Sun | Weekday::Sat => {
+                    if self.is_week {
+                        violations += 1
+                    }
+                }
+                _ => {
+                    if !self.is_week {
+                        violations += 1
+                    }
+                }
+            }
+        }
+        Ok(violations)
     }
 }
 
@@ -441,6 +518,198 @@ mod tests {
             Some(date_to_days(2020, 1, 2)),   // Second day of 2020 (valid)
         ]);
 
+        assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 2);
+    }
+
+    // ============================================================================
+    // WeekDayCheck Tests - is_week = true (weekends are violations)
+    // ============================================================================
+
+    #[test]
+    fn test_weekday_check_all_weekdays_iso_format() {
+        // Happy path: All dates are weekdays (Monday-Friday)
+        // Using ISO format: %Y-%m-%d
+        let rule = WeekDayCheck::default(); // is_week = true
+
+        // 2025-01-06 = Monday
+        // 2025-01-07 = Tuesday
+        // 2025-01-08 = Wednesday
+        // 2025-01-09 = Thursday
+        // 2025-01-10 = Friday
+        let array = Date32Array::from(vec![
+            Some(date_to_days(2025, 1, 6)),  // Monday
+            Some(date_to_days(2025, 1, 7)),  // Tuesday
+            Some(date_to_days(2025, 1, 8)),  // Wednesday
+            Some(date_to_days(2025, 1, 9)),  // Thursday
+            Some(date_to_days(2025, 1, 10)), // Friday
+        ]);
+
+        // No violations - all dates are weekdays
+        assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_weekday_check_all_weekdays_us_format() {
+        // Happy path: All dates are weekdays (Monday-Friday)
+        // Using US format: %m/%d/%Y (conceptually - we're testing with Date32Array)
+        let rule = WeekDayCheck::new(true); // is_week = true
+
+        // Different week to show format independence
+        // 2025-01-13 = Monday
+        // 2025-01-14 = Tuesday
+        // 2025-01-15 = Wednesday
+        // 2025-01-16 = Thursday
+        // 2025-01-17 = Friday
+        let array = Date32Array::from(vec![
+            Some(date_to_days(2025, 1, 13)), // Monday
+            Some(date_to_days(2025, 1, 14)), // Tuesday
+            Some(date_to_days(2025, 1, 15)), // Wednesday
+            Some(date_to_days(2025, 1, 16)), // Thursday
+            Some(date_to_days(2025, 1, 17)), // Friday
+        ]);
+
+        // No violations - all dates are weekdays
+        assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_weekday_check_with_weekend_iso_format() {
+        // Failing path: Contains weekend dates
+        // Using ISO format: %Y-%m-%d
+        let rule = WeekDayCheck::new(true); // is_week = true
+
+        // 2025-01-06 = Monday
+        // 2025-01-11 = Saturday (violation)
+        // 2025-01-08 = Wednesday
+        // 2025-01-12 = Sunday (violation)
+        // 2025-01-10 = Friday
+        let array = Date32Array::from(vec![
+            Some(date_to_days(2025, 1, 6)),  // Monday (ok)
+            Some(date_to_days(2025, 1, 11)), // Saturday (violation)
+            Some(date_to_days(2025, 1, 8)),  // Wednesday (ok)
+            Some(date_to_days(2025, 1, 12)), // Sunday (violation)
+            Some(date_to_days(2025, 1, 10)), // Friday (ok)
+        ]);
+
+        // 2 violations: Saturday and Sunday
+        assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 2);
+    }
+
+    #[test]
+    fn test_weekday_check_with_weekend_us_format() {
+        // Failing path: Contains weekend dates
+        // Using US format: %m/%d/%Y (conceptually)
+        let rule = WeekDayCheck::new(true); // is_week = true
+
+        // Different dates
+        // 2025-01-13 = Monday
+        // 2025-01-18 = Saturday (violation)
+        // 2025-01-15 = Wednesday
+        // 2025-01-19 = Sunday (violation)
+        // 2025-01-17 = Friday
+        let array = Date32Array::from(vec![
+            Some(date_to_days(2025, 1, 13)), // Monday (ok)
+            Some(date_to_days(2025, 1, 18)), // Saturday (violation)
+            Some(date_to_days(2025, 1, 15)), // Wednesday (ok)
+            Some(date_to_days(2025, 1, 19)), // Sunday (violation)
+            Some(date_to_days(2025, 1, 17)), // Friday (ok)
+        ]);
+
+        // 2 violations: Saturday and Sunday
+        assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 2);
+    }
+
+    // ============================================================================
+    // WeekDayCheck Tests - is_week = false (weekdays are violations)
+    // ============================================================================
+
+    #[test]
+    fn test_weekend_check_all_weekends_iso_format() {
+        // Happy path: All dates are weekends (Saturday-Sunday)
+        // Using ISO format: %Y-%m-%d
+        let rule = WeekDayCheck::new(false); // is_week = false
+
+        // 2025-01-04 = Saturday
+        // 2025-01-05 = Sunday
+        // 2025-01-11 = Saturday
+        // 2025-01-12 = Sunday
+        let array = Date32Array::from(vec![
+            Some(date_to_days(2025, 1, 4)),  // Saturday
+            Some(date_to_days(2025, 1, 5)),  // Sunday
+            Some(date_to_days(2025, 1, 11)), // Saturday
+            Some(date_to_days(2025, 1, 12)), // Sunday
+        ]);
+
+        // No violations - all dates are weekends
+        assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_weekend_check_all_weekends_us_format() {
+        // Happy path: All dates are weekends (Saturday-Sunday)
+        // Using US format: %m/%d/%Y (conceptually)
+        let rule = WeekDayCheck::new(false); // is_week = false
+
+        // Different dates
+        // 2025-01-18 = Saturday
+        // 2025-01-19 = Sunday
+        // 2025-01-25 = Saturday
+        // 2025-01-26 = Sunday
+        let array = Date32Array::from(vec![
+            Some(date_to_days(2025, 1, 18)), // Saturday
+            Some(date_to_days(2025, 1, 19)), // Sunday
+            Some(date_to_days(2025, 1, 25)), // Saturday
+            Some(date_to_days(2025, 1, 26)), // Sunday
+        ]);
+
+        // No violations - all dates are weekends
+        assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_weekend_check_with_weekdays_iso_format() {
+        // Failing path: Contains weekday dates
+        // Using ISO format: %Y-%m-%d
+        let rule = WeekDayCheck::new(false); // is_week = false
+
+        // 2025-01-04 = Saturday
+        // 2025-01-06 = Monday (violation)
+        // 2025-01-05 = Sunday
+        // 2025-01-08 = Wednesday (violation)
+        // 2025-01-11 = Saturday
+        let array = Date32Array::from(vec![
+            Some(date_to_days(2025, 1, 4)),  // Saturday (ok)
+            Some(date_to_days(2025, 1, 6)),  // Monday (violation)
+            Some(date_to_days(2025, 1, 5)),  // Sunday (ok)
+            Some(date_to_days(2025, 1, 8)),  // Wednesday (violation)
+            Some(date_to_days(2025, 1, 11)), // Saturday (ok)
+        ]);
+
+        // 2 violations: Monday and Wednesday
+        assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 2);
+    }
+
+    #[test]
+    fn test_weekend_check_with_weekdays_us_format() {
+        // Failing path: Contains weekday dates
+        // Using US format: %m/%d/%Y (conceptually)
+        let rule = WeekDayCheck::new(false); // is_week = false
+
+        // Different dates
+        // 2025-01-18 = Saturday
+        // 2025-01-20 = Monday (violation)
+        // 2025-01-19 = Sunday
+        // 2025-01-22 = Wednesday (violation)
+        // 2025-01-25 = Saturday
+        let array = Date32Array::from(vec![
+            Some(date_to_days(2025, 1, 18)), // Saturday (ok)
+            Some(date_to_days(2025, 1, 20)), // Monday (violation)
+            Some(date_to_days(2025, 1, 19)), // Sunday (ok)
+            Some(date_to_days(2025, 1, 22)), // Wednesday (violation)
+            Some(date_to_days(2025, 1, 25)), // Saturday (ok)
+        ]);
+
+        // 2 violations: Monday and Wednesday
         assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 2);
     }
 }

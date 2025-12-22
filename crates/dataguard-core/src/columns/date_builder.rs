@@ -1,8 +1,11 @@
+use chrono::Datelike;
+
 use crate::{columns::ColumnBuilder, ColumnRule, ColumnType};
 
 #[derive(Debug, Clone)]
 pub struct DateColumnBuilder {
     name: String,
+    format: String,
     rules: Vec<ColumnRule>,
 }
 
@@ -18,14 +21,23 @@ impl ColumnBuilder for DateColumnBuilder {
     fn rules(&self) -> &[ColumnRule] {
         self.rules.as_slice()
     }
+
+    fn format(&self) -> Option<&str> {
+        Some(&self.format)
+    }
 }
 
 impl DateColumnBuilder {
-    pub fn new(name: String) -> Self {
+    pub fn new(name: String, format: String) -> Self {
         Self {
             name,
+            format,
             rules: Vec::new(),
         }
+    }
+
+    pub fn get_format(&self) -> String {
+        self.format.clone()
     }
 
     /// Add not null constraint
@@ -64,6 +76,46 @@ impl DateColumnBuilder {
             month,
             day,
         });
+        self
+    }
+
+    /// Infer the date from today, and check that all dates are before today
+    pub fn is_not_futur(&mut self) -> &mut Self {
+        let now = chrono::offset::Local::now();
+        let year = now.year() as usize;
+        let month = Some(now.month() as usize);
+        let day = Some(now.day() as usize);
+        self.rules.push(ColumnRule::DateBoundary {
+            after: false,
+            year,
+            month,
+            day,
+        });
+        self
+    }
+
+    /// Infer the date from today, and check that all dates are after today
+    pub fn is_not_past(&mut self) -> &mut Self {
+        let now = chrono::offset::Local::now();
+        let year = now.year() as usize;
+        let month = Some(now.month() as usize);
+        let day = Some(now.day() as usize);
+        self.rules.push(ColumnRule::DateBoundary {
+            after: true,
+            year,
+            month,
+            day,
+        });
+        self
+    }
+
+    pub fn is_weekday(&mut self) -> &mut Self {
+        self.rules.push(ColumnRule::WeekDay { is_week: true });
+        self
+    }
+
+    pub fn is_weekend(&mut self) -> &mut Self {
+        self.rules.push(ColumnRule::WeekDay { is_week: false });
         self
     }
 }

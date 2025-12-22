@@ -199,11 +199,14 @@ datatype = "string"
 # Subscription Date validation (ISO format: YYYY-MM-DD)
 [[table.column]]
 name = "Subscription Date"
+format = "%Y-%m-%d"
 datatype = "date"
 
     [[table.column.rule]]
-    name = "is_after"
-    year = 2010
+    name = "is_not_futur"
+
+    [[table.column.rule]]
+    name = "is_weekday"
 
 # Website URL validation
 [[table.column]]

@@ -1,5 +1,8 @@
 use crate::{
-    column::{NumericColumnBuilder, StringColumnBuilder},
+    columns::{
+        date_builder::DateColumnBuilder, numeric_builder::NumericColumnBuilder,
+        string_builder::StringColumnBuilder,
+    },
     compiler::compile_column,
     validator::ExecutableColumn,
 };
@@ -241,6 +244,24 @@ fn test_compile_numeric_column_multiple_ranges() {
 }
 
 #[test]
+fn test_compile_date_column_with_multiple_rules() {
+    let mut builder = DateColumnBuilder::new("value".to_string(), "%Y-%m-%d".to_string());
+    builder.is_not_futur().is_weekday();
+
+    let result = compile_column(Box::new(builder), true);
+    assert!(result.is_ok());
+
+    let executable = result.unwrap();
+    match executable {
+        ExecutableColumn::Date { rules, .. } => {
+            // Two separate Range rules (one for weekday, one for not_futur)
+            assert_eq!(rules.len(), 2);
+        }
+        _ => panic!("Expected Date column"),
+    }
+}
+
+#[test]
 fn test_compile_string_column_type_check_always_present() {
     let builder = StringColumnBuilder::new("test".to_string());
 
@@ -284,6 +305,23 @@ fn test_compile_float_column_type_check_always_present() {
     let executable = result.unwrap();
     match executable {
         ExecutableColumn::Float { type_check, .. } => {
+            // TypeCheck is always present for CSV compatibility
+            assert!(type_check.is_some());
+        }
+        _ => panic!("Expected Float column"),
+    }
+}
+
+#[test]
+fn test_compile_date_column_type_type_check_always_present() {
+    let builder = DateColumnBuilder::new("test".to_string(), "%Y-%m-%d".to_string());
+
+    let result = compile_column(Box::new(builder), true);
+    assert!(result.is_ok());
+
+    let executable = result.unwrap();
+    match executable {
+        ExecutableColumn::Date { type_check, .. } => {
             // TypeCheck is always present for CSV compatibility
             assert!(type_check.is_some());
         }

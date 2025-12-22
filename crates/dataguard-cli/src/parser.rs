@@ -22,6 +22,7 @@ pub struct ConfigTable {
 pub struct Column {
     pub name: String,
     pub datatype: String,
+    pub format: Option<String>,
     pub rule: Vec<Rule>,
 }
 
@@ -94,6 +95,10 @@ pub enum Rule {
         month: Option<usize>,
         day: Option<usize>,
     },
+    IsNotFutur,
+    IsNotPast,
+    IsWeekday,
+    IsWeekend,
 }
 
 impl std::fmt::Display for Rule {
@@ -126,6 +131,10 @@ impl std::fmt::Display for Rule {
             Rule::IsDecreasing => write!(f, "is_decreasing"),
             Rule::IsAfter { .. } => write!(f, "is_after"),
             Rule::IsBefore { .. } => write!(f, "is_before"),
+            Rule::IsNotFutur => write!(f, "is_not_futur"),
+            Rule::IsNotPast => write!(f, "is_not_past"),
+            Rule::IsWeekday => write!(f, "is_weekday"),
+            Rule::IsWeekend => write!(f, "is_weekend"),
         }
     }
 }
@@ -158,6 +167,14 @@ pub fn parse_config(path: String) -> Result<Config> {
 }
 
 fn validate_column(col: &Column) -> Result<(), ConfigError> {
+    // We validate that the format is added for date column.
+    if col.datatype == "date" && col.format.is_none() {
+        return Err(ConfigError::ColumnError {
+            column_name: col.name.clone(),
+            type_name: col.datatype.clone(),
+            message: "Date format is required but none was provided".to_string(),
+        });
+    }
     for rule in &col.rule {
         match rule {
             Rule::WithLengthBetween {
@@ -254,6 +271,7 @@ mod test {
         Column {
             name: name.to_string(),
             datatype: "string".to_string(),
+            format: None,
             rule: rules,
         }
     }
