@@ -1,4 +1,5 @@
 pub mod date_builder;
+pub mod relation_builder;
 pub mod numeric_builder;
 pub mod string_builder;
 
@@ -6,6 +7,8 @@ pub mod string_builder;
 mod columns_test;
 
 use core::f64;
+
+use crate::utils::operator::CompOperator;
 
 pub trait ColumnBuilder {
     fn name(&self) -> &str;
@@ -102,4 +105,11 @@ pub enum ColumnRule {
     // Generic rules
     Unicity,
     NullCheck,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TableConstraint {
+    DateComparaison {
+        op: CompOperator,
+    }
 }

@@ -1,16 +1,18 @@
 use std::collections::HashMap;
 
-use crate::columns::ColumnBuilder;
+use crate::columns::{relation_builder::RelationBuilder, ColumnBuilder};
 use crate::errors::RuleError;
 use crate::reader::read_csv_parallel;
+use crate::rules::relations::RelationRule;
 use crate::tables::Table;
-use crate::validator::ExecutableColumn;
+use crate::validator::{ExecutableColumn, ExecutableRelation};
 use crate::{compiler, engine, ValidationResult};
 
 pub struct CsvTable {
     path: String,
     table_name: String,
     executable_columns: Vec<ExecutableColumn>,
+    executable_relations: Vec<ExecutableRelation>,
 }
 
 impl CsvTable {
@@ -20,16 +22,26 @@ impl CsvTable {
             path,
             table_name,
             executable_columns: Vec::new(),
+            executable_relations: Vec::new(),
         })
     }
 }
 
 impl Table for CsvTable {
     /// Commit column configurations and compile them into executable rules
-    fn prepare(&mut self, columns: Vec<Box<dyn ColumnBuilder>>) -> Result<(), RuleError> {
+    fn prepare(
+        &mut self,
+        columns: Vec<Box<dyn ColumnBuilder>>,
+        relations: Vec<RelationBuilder>,
+    ) -> Result<(), RuleError> {
         self.executable_columns = columns
             .into_iter()
             .map(|col| compiler::compile_column(col, true))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        self.executable_relations = relations
+            .into_iter()
+            .map(|builder| compiler::compile_relations(builder))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(())
     }
@@ -42,7 +54,8 @@ impl Table for CsvTable {
             .map(|v| v.get_name())
             .collect();
         let batches = read_csv_parallel(self.path.as_str(), needed_cols)?;
-        let engine = engine::ValidationEngine::new(&self.executable_columns);
+        let engine =
+            engine::ValidationEngine::new(&self.executable_columns, &self.executable_relations);
         engine.validate_batches(self.table_name.clone(), &batches)
     }
 

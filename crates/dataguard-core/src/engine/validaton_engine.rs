@@ -14,7 +14,7 @@ use crate::{
         date::{DateRule, DateTypeCheck},
         NullCheck, NumericRule, StringRule, TypeCheck, UnicityCheck,
     },
-    validator::ExecutableColumn,
+    validator::{ExecutableColumn, ExecutableRelation},
     RuleError, ValidationResult,
 };
 
@@ -28,7 +28,7 @@ pub struct ValidationEngine<'a> {
 }
 
 impl<'a> ValidationEngine<'a> {
-    pub fn new(columns: &'a Vec<ExecutableColumn>) -> Self {
+    pub fn new(columns: &'a Vec<ExecutableColumn>, relations: &'a Vec<ExecutableRelation>) -> Self {
         Self { columns }
     }
 
