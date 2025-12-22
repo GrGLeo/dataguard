@@ -19,13 +19,13 @@ pub(crate) struct UnicityAccumulator {
 
 impl UnicityAccumulator {
     /// Create accumulator for columns that have unicity checks.
-    pub fn new(columns: &[ExecutableColumn]) -> Self {
+    pub fn new(columns: &[ExecutableColumn], capacity: usize) -> Self {
         let mut accumulators: HashMap<String, UnicityRecord> = HashMap::new();
 
         for column in columns {
             if column.has_unicity() {
                 let map = Arc::new(Mutex::new(HashSet::with_capacity_and_hasher(
-                    2_000_000,
+                    capacity,
                     Xxh3Builder,
                 )));
                 let null_counter = AtomicUsize::new(0);
