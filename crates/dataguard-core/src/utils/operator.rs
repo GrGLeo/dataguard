@@ -23,3 +23,15 @@ impl TryFrom<&str> for CompOperator {
         }
     }
 }
+
+impl CompOperator {
+    pub fn get_comparator<T: PartialOrd>(&self) -> impl Fn(T, T) -> bool {
+        match self {
+            CompOperator::Gt => |a, b| a > b,
+            CompOperator::Gte => |a, b| a >= b,
+            CompOperator::Eq => |a, b| a == b,
+            CompOperator::Lte => |a, b| a <= b,
+            CompOperator::Lt => |a, b| a < b,
+        }
+    }
+}

@@ -108,8 +108,8 @@ impl ExecutableColumn {
 }
 
 pub struct ExecutableRelation {
-    names: [String; 2],
-    rules: Vec<Box<dyn RelationRule>>,
+    pub names: [String; 2],
+    pub rules: Vec<Box<dyn RelationRule>>,
 }
 
 impl ExecutableRelation {

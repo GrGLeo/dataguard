@@ -1,8 +1,11 @@
 use super::accumulator::ResultAccumulator;
 use arrow::datatypes::{Float64Type, Int64Type};
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    Arc,
+use std::{
+    collections::HashMap,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
 };
 
 use arrow_array::{Array, ArrowNumericType, PrimitiveArray, RecordBatch, StringArray};
@@ -25,11 +28,12 @@ use crate::{
 /// both use the same engine for validation.
 pub struct ValidationEngine<'a> {
     columns: &'a Vec<ExecutableColumn>,
+    relations: &'a Vec<ExecutableRelation>,
 }
 
 impl<'a> ValidationEngine<'a> {
     pub fn new(columns: &'a Vec<ExecutableColumn>, relations: &'a Vec<ExecutableRelation>) -> Self {
-        Self { columns }
+        Self { columns, relations }
     }
 
     /// Validate batches and produce a validation result.
@@ -48,6 +52,8 @@ impl<'a> ValidationEngine<'a> {
         let unicity_accumulators = UnicityAccumulator::new(self.columns, total_rows);
 
         batches.par_iter().for_each(|batch| {
+            // We keep in memory a reference to the casted array
+            let mut array_ref: HashMap<String, Arc<dyn Array>> = HashMap::new();
             for executable_col in self.columns {
                 match executable_col {
                     ExecutableColumn::String {
@@ -123,9 +129,10 @@ impl<'a> ValidationEngine<'a> {
                         unicity_check,
                         null_check,
                     } => {
+                        //TODO: new polishing and remove that unwrap
                         if let Ok(col_index) = batch.schema().index_of(name) {
                             let array = batch.column(col_index);
-                            validate_date_column(
+                            let casted_array = validate_date_column(
                                 name,
                                 rules,
                                 type_check,
@@ -135,9 +142,31 @@ impl<'a> ValidationEngine<'a> {
                                 &error_count,
                                 &report,
                                 &unicity_accumulators,
-                            );
+                            )
+                            .unwrap();
+                            array_ref.insert(name.clone(), casted_array);
                         }
                     }
+                }
+            }
+            for executable_relation in self.relations {
+                let lhs_name = executable_relation.names[0].as_str();
+                let rhs_name = executable_relation.names[1].as_str();
+                let lsh = array_ref.get(lhs_name).unwrap();
+                let rhs = array_ref.get(rhs_name).unwrap();
+                let mut lhs_id: usize = 0;
+                let mut rhs_id: usize = 0;
+                match batch.schema().index_of(lhs_name) {
+                    Ok(id) => lhs_id = id,
+                    Err(_) => {}
+                }
+                match batch.schema().index_of(rhs_name) {
+                    Ok(id) => rhs_id = id,
+                    Err(_) => {}
+                }
+                println!("col a {}, col b {}", lhs_id, rhs_id);
+                for rule in &executable_relation.rules {
+                    rule.validate(lsh, rhs, [lhs_name, rhs_name]);
                 }
             }
         });
@@ -300,7 +329,7 @@ pub fn validate_date_column(
     error_count: &AtomicUsize,
     report: &ResultAccumulator,
     unicity_accumulators: &UnicityAccumulator,
-) {
+) -> Result<Arc<dyn Array>, RuleError> {
     // Run null check if present
     validate_null_check(null_check, array, name, report);
 
@@ -321,10 +350,19 @@ pub fn validate_date_column(
                     let (null_count, local_hash) = unicity_rule.validate_date(&date_array);
                     unicity_accumulators.record_hashes(name, null_count, local_hash);
                 }
+                return Ok(Arc::new(date_array));
             }
             Err(_) => {
                 record_type_check_error(array.len(), name, type_rule.name(), error_count, report);
+                return Err(RuleError::TypeCastError(
+                    name.to_string(),
+                    "Date32Array".to_string(),
+                ));
             }
         }
     }
+    Err(RuleError::TypeCastError(
+        name.to_string(),
+        "Date32Array".to_string(),
+    ))
 }
