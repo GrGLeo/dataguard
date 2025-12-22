@@ -72,7 +72,7 @@ impl StdOutFormatter {
         }
 
         let relation_results = result.get_relation_results();
-        if relation_results.is_empty() {
+        if !relation_results.is_empty() {
             let title = String::from("Relation result");
             let n = (table_res.len() - title.len()) / 2;
             println!("\n{}{}", " ".repeat(n), title);
