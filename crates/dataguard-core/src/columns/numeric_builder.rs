@@ -24,6 +24,10 @@ impl<T: NumericType> ColumnBuilder for NumericColumnBuilder<T> {
     fn rules(&self) -> &[ColumnRule] {
         self.rules.as_slice()
     }
+
+    fn format(&self) -> Option<&str> {
+        None
+    }
 }
 
 impl<T: NumericType> NumericColumnBuilder<T> {

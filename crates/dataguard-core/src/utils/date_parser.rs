@@ -1,15 +1,15 @@
 use arrow_array::{Date32Array, StringArray};
 use chrono::NaiveDate;
 
-pub fn parse_date_column(array: &StringArray) -> Date32Array {
+pub fn parse_date_column(array: &StringArray, format: &str) -> Date32Array {
     array
         .iter()
-        .map(|opt_str| opt_str.and_then(parse_date))
+        .map(|opt_str| opt_str.and_then(|str_date| parse_date(str_date, format)))
         .collect()
 }
 
-fn parse_date(str_date: &str) -> Option<i32> {
-    NaiveDate::parse_from_str(str_date, "%Y-%m-%d")
+fn parse_date(str_date: &str, format: &str) -> Option<i32> {
+    NaiveDate::parse_from_str(str_date, format)
         .ok()
         .map(|date| {
             // We can safely unwrap as 1970-01-01 is a valid existing date

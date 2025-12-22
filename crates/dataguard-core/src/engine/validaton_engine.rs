@@ -5,12 +5,15 @@ use std::sync::{
     Arc,
 };
 
-use arrow_array::{Array, ArrowNumericType, Date32Array, PrimitiveArray, RecordBatch, StringArray};
+use arrow_array::{Array, ArrowNumericType, PrimitiveArray, RecordBatch, StringArray};
 use rayon::prelude::*;
 
 use crate::{
     engine::unicity_accumulator::UnicityAccumulator,
-    rules::{date::DateRule, NullCheck, NumericRule, StringRule, TypeCheck, UnicityCheck},
+    rules::{
+        date::{DateRule, DateTypeCheck},
+        NullCheck, NumericRule, StringRule, TypeCheck, UnicityCheck,
+    },
     validator::ExecutableColumn,
     RuleError, ValidationResult,
 };
@@ -290,7 +293,7 @@ fn validate_numeric_column<T>(
 pub fn validate_date_column(
     name: &str,
     rules: &[Box<dyn DateRule>],
-    type_check: &Option<TypeCheck>,
+    type_check: &Option<DateTypeCheck>,
     unicity_check: &Option<UnicityCheck>,
     null_check: &Option<NullCheck>,
     array: &dyn Array,
@@ -304,22 +307,19 @@ pub fn validate_date_column(
     // we only run a type check if the table is a CsvTable
     if let Some(type_rule) = type_check {
         match type_rule.validate(array) {
-            Ok((errors, casted_array)) => {
+            Ok((errors, date_array)) => {
                 record_validation_result(name, type_rule.name(), errors, error_count, report);
 
-                // We downcast once the array
-                if let Some(date_array) = casted_array.as_any().downcast_ref::<Date32Array>() {
-                    // We run all domain level rules
-                    for rule in rules {
-                        if let Ok(count) = rule.validate(date_array, name.to_string()) {
-                            record_validation_result(name, rule.name(), count, error_count, report);
-                        }
+                // We run all domain level rules
+                for rule in rules {
+                    if let Ok(count) = rule.validate(&date_array, name.to_string()) {
+                        record_validation_result(name, rule.name(), count, error_count, report);
                     }
-                    // If we have a unicity rule in place, update the global hashset
-                    if let Some(unicity_rule) = unicity_check {
-                        let (null_count, local_hash) = unicity_rule.validate_date(date_array);
-                        unicity_accumulators.record_hashes(name, null_count, local_hash);
-                    }
+                }
+                // If we have a unicity rule in place, update the global hashset
+                if let Some(unicity_rule) = unicity_check {
+                    let (null_count, local_hash) = unicity_rule.validate_date(&date_array);
+                    unicity_accumulators.record_hashes(name, null_count, local_hash);
                 }
             }
             Err(_) => {

@@ -1,7 +1,40 @@
-use arrow_array::Date32Array;
+use arrow::datatypes::DataType;
+use arrow_array::{Array, Date32Array, StringArray};
 use chrono::NaiveDate;
 
-use crate::RuleError;
+use crate::{utils::date_parser::parse_date_column, RuleError};
+
+pub struct DateTypeCheck {
+    // Those two field are not needed now as we dont need the expected
+    // datatype this will be used later on when we also handle Date64Type
+    _column: String,
+    _expected: DataType,
+    format: String,
+}
+
+impl DateTypeCheck {
+    pub fn new(column: String, expected: DataType, format: String) -> Self {
+        Self {
+            _column: column,
+            _expected: expected,
+            format,
+        }
+    }
+
+    pub fn name(&self) -> &'static str {
+        "TypeCheck"
+    }
+
+    pub fn validate(&self, array: &dyn Array) -> Result<(usize, Date32Array), RuleError> {
+        let base_nulls = array.null_count();
+        // We know that we pass in a string array given that we parse all incoming columns as
+        // StringArray so we can unwrap safely
+        let array = array.as_any().downcast_ref::<StringArray>().unwrap();
+        let casted_array = parse_date_column(array, &self.format);
+        let errors = casted_array.null_count() - base_nulls;
+        Ok((errors, casted_array))
+    }
+}
 
 /// A trait for defining validation rules on Arrow arrays.
 pub trait DateRule: Send + Sync {

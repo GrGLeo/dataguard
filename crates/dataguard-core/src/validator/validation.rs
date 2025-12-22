@@ -5,7 +5,7 @@
 //! validation execution.
 
 use crate::errors::RuleError;
-use crate::rules::date::DateRule;
+use crate::rules::date::{DateRule, DateTypeCheck};
 use crate::rules::generic::{TypeCheck, UnicityCheck};
 use crate::rules::numeric::NumericRule;
 use crate::rules::string::StringRule;
@@ -23,12 +23,6 @@ use std::collections::HashMap;
 /// - Type checking logic (for CSV where all data starts as strings)
 /// - Optional unicity checking
 /// - Optional null checking
-///
-/// # Lifecycle
-///
-/// 1. User creates `StringColumnBuilder` or `NumericColumnBuilder`
-/// 2. Compiler converts to `ExecutableColumn` with trait objects
-/// 3. ValidationEngine uses this to validate Arrow batches
 pub enum ExecutableColumn {
     /// String column with UTF-8 validation rules.
     String {
@@ -76,7 +70,7 @@ pub enum ExecutableColumn {
         /// Domain-level numeric rules ()
         rules: Vec<Box<dyn DateRule>>,
         /// Type checking (CSV: string → f64)
-        type_check: Option<TypeCheck>,
+        type_check: Option<DateTypeCheck>,
         /// Optional uniqueness constraint
         unicity_check: Option<UnicityCheck>,
         /// Optional null constraint

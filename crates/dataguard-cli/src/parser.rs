@@ -22,6 +22,7 @@ pub struct ConfigTable {
 pub struct Column {
     pub name: String,
     pub datatype: String,
+    pub format: Option<String>,
     pub rule: Vec<Rule>,
 }
 
@@ -162,6 +163,14 @@ pub fn parse_config(path: String) -> Result<Config> {
 }
 
 fn validate_column(col: &Column) -> Result<(), ConfigError> {
+    // We validate that the format is added for date column.
+    if col.datatype == "date" && col.format.is_none() {
+        return Err(ConfigError::ColumnError {
+            column_name: col.name.clone(),
+            type_name: col.datatype.clone(),
+            message: "Date format is required but none was provided".to_string(),
+        });
+    }
     for rule in &col.rule {
         match rule {
             Rule::WithLengthBetween {
@@ -258,6 +267,7 @@ mod test {
         Column {
             name: name.to_string(),
             datatype: "string".to_string(),
+            format: None,
             rule: rules,
         }
     }

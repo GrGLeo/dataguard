@@ -22,6 +22,10 @@ impl ColumnBuilder for StringColumnBuilder {
     fn rules(&self) -> &[ColumnRule] {
         self.rules.as_slice()
     }
+
+    fn format(&self) -> Option<&str> {
+        None
+    }
 }
 
 impl StringColumnBuilder {

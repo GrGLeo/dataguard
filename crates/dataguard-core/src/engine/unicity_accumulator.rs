@@ -24,7 +24,10 @@ impl UnicityAccumulator {
 
         for column in columns {
             if column.has_unicity() {
-                let map = Arc::new(Mutex::new(HashSet::with_hasher(Xxh3Builder)));
+                let map = Arc::new(Mutex::new(HashSet::with_capacity_and_hasher(
+                    2_000_000,
+                    Xxh3Builder,
+                )));
                 let null_counter = AtomicUsize::new(0);
                 accumulators.insert(column.get_name(), (null_counter, map));
             }

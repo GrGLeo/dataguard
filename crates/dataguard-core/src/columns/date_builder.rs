@@ -5,6 +5,7 @@ use crate::{columns::ColumnBuilder, ColumnRule, ColumnType};
 #[derive(Debug, Clone)]
 pub struct DateColumnBuilder {
     name: String,
+    format: String,
     rules: Vec<ColumnRule>,
 }
 
@@ -20,14 +21,23 @@ impl ColumnBuilder for DateColumnBuilder {
     fn rules(&self) -> &[ColumnRule] {
         self.rules.as_slice()
     }
+
+    fn format(&self) -> Option<&str> {
+        Some(&self.format)
+    }
 }
 
 impl DateColumnBuilder {
-    pub fn new(name: String) -> Self {
+    pub fn new(name: String, format: String) -> Self {
         Self {
             name,
+            format,
             rules: Vec::new(),
         }
+    }
+
+    pub fn get_format(&self) -> String {
+        self.format.clone()
     }
 
     /// Add not null constraint

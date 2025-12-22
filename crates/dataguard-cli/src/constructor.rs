@@ -311,7 +311,8 @@ pub fn construct_csv_table(table: &ConfigTable) -> Result<CsvTable> {
                 all_builder.push(Box::new(builder));
             }
             "date" => {
-                let mut builder = DateColumnBuilder::new(column.name.clone());
+                let mut builder =
+                    DateColumnBuilder::new(column.name.clone(), column.format.clone().unwrap());
                 for rule in &column.rule {
                     apply_date_rule(&mut builder, rule.clone(), column.name.clone()).with_context(
                         || format!("Failed to apply rule to column '{}'", column.name),

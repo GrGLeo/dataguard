@@ -15,7 +15,7 @@ use num_traits::{Num, NumCast};
 use crate::{
     columns::ColumnBuilder,
     rules::{
-        date::{DateBoundaryCheck, DateRule},
+        date::{DateBoundaryCheck, DateRule, DateTypeCheck},
         IsInCheck, Monotonicity, NullCheck, NumericRule, Range, RegexMatch, StringLengthCheck,
         StringRule, TypeCheck, UnicityCheck,
     },
@@ -236,7 +236,13 @@ pub fn compile_column(
                 compile_date_rules(builder.rules(), builder.name())?;
             let mut type_check = None;
             if need_type_check {
-                type_check = Some(TypeCheck::new(builder.name().to_string(), DataType::Date32));
+                // Safety: DateColumnBuilder can only return Some()
+                let format = builder.format().unwrap();
+                type_check = Some(DateTypeCheck::new(
+                    builder.name().to_string(),
+                    DataType::Date32,
+                    format.to_string(),
+                ));
             }
             Ok(ExecutableColumn::Date {
                 name: builder.name().to_string(),

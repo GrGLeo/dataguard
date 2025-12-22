@@ -30,6 +30,12 @@ pub enum CliError {
 pub enum ConfigError {
     #[error("Error: csv file not found: '{table_path}'")]
     FileNotFound { table_path: String },
+    #[error("Column format error: '{column_name}' with type '{type_name}' - {message}")]
+    ColumnError {
+        column_name: String,
+        type_name: String,
+        message: String,
+    },
     #[error("Rule logic error: rule '{rule_name}' for '{column_name}' - {message}")]
     RuleError {
         rule_name: String,
