@@ -103,7 +103,7 @@ fn test_column_chaining() {
 
 #[test]
 fn test_date_column_builder() {
-    let mut builder = DateColumnBuilder::new("created_at".to_string());
+    let mut builder = DateColumnBuilder::new("created_at".to_string(), "%Y-%m-%d".to_string());
     builder.is_after(2020, Some(1), Some(1));
 
     assert_eq!(builder.name(), "created_at");
@@ -113,7 +113,7 @@ fn test_date_column_builder() {
 
 #[test]
 fn test_date_column_is_after_full_date() {
-    let mut builder = DateColumnBuilder::new("event_date".to_string());
+    let mut builder = DateColumnBuilder::new("event_date".to_string(), "%Y-%m-%d".to_string());
     builder.is_after(2020, Some(6), Some(15));
 
     assert_eq!(builder.rules().len(), 1);
@@ -135,7 +135,7 @@ fn test_date_column_is_after_full_date() {
 
 #[test]
 fn test_date_column_is_after_year_and_month() {
-    let mut builder = DateColumnBuilder::new("event_date".to_string());
+    let mut builder = DateColumnBuilder::new("event_date".to_string(), "%Y-%m-%d".to_string());
     builder.is_after(2020, Some(6), None);
 
     match &builder.rules()[0] {
@@ -156,7 +156,7 @@ fn test_date_column_is_after_year_and_month() {
 
 #[test]
 fn test_date_column_is_after_year_only() {
-    let mut builder = DateColumnBuilder::new("event_date".to_string());
+    let mut builder = DateColumnBuilder::new("event_date".to_string(), "%Y-%m-%d".to_string());
     builder.is_after(2020, None, None);
 
     match &builder.rules()[0] {
@@ -177,7 +177,7 @@ fn test_date_column_is_after_year_only() {
 
 #[test]
 fn test_date_column_is_before_full_date() {
-    let mut builder = DateColumnBuilder::new("expiry_date".to_string());
+    let mut builder = DateColumnBuilder::new("expiry_date".to_string(), "%Y-%m-%d".to_string());
     builder.is_before(2025, Some(12), Some(31));
 
     assert_eq!(builder.rules().len(), 1);
@@ -199,7 +199,7 @@ fn test_date_column_is_before_full_date() {
 
 #[test]
 fn test_date_column_is_before_year_and_month() {
-    let mut builder = DateColumnBuilder::new("deadline".to_string());
+    let mut builder = DateColumnBuilder::new("deadline".to_string(), "%Y-%m-%d".to_string());
     builder.is_before(2024, Some(3), None);
 
     match &builder.rules()[0] {
@@ -220,7 +220,7 @@ fn test_date_column_is_before_year_and_month() {
 
 #[test]
 fn test_date_column_is_before_year_only() {
-    let mut builder = DateColumnBuilder::new("deadline".to_string());
+    let mut builder = DateColumnBuilder::new("deadline".to_string(), "%Y-%m-%d".to_string());
     builder.is_before(2030, None, None);
 
     match &builder.rules()[0] {
@@ -241,7 +241,7 @@ fn test_date_column_is_before_year_only() {
 
 #[test]
 fn test_date_column_is_not_null() {
-    let mut builder = DateColumnBuilder::new("birth_date".to_string());
+    let mut builder = DateColumnBuilder::new("birth_date".to_string(), "%Y-%m-%d".to_string());
     builder.is_not_null();
 
     assert_eq!(builder.rules().len(), 1);
@@ -253,7 +253,8 @@ fn test_date_column_is_not_null() {
 
 #[test]
 fn test_date_column_is_unique() {
-    let mut builder = DateColumnBuilder::new("transaction_date".to_string());
+    let mut builder =
+        DateColumnBuilder::new("transaction_date".to_string(), "%Y-%m-%d".to_string());
     builder.is_unique();
 
     assert_eq!(builder.rules().len(), 1);
@@ -265,7 +266,7 @@ fn test_date_column_is_unique() {
 
 #[test]
 fn test_date_column_chaining() {
-    let mut builder = DateColumnBuilder::new("order_date".to_string());
+    let mut builder = DateColumnBuilder::new("order_date".to_string(), "%Y-%m-%d".to_string());
     builder
         .is_not_null()
         .is_after(2020, Some(1), Some(1))
@@ -299,7 +300,7 @@ fn test_date_column_chaining() {
 #[test]
 fn test_date_column_multiple_boundaries() {
     // Test that you can set both before and after boundaries
-    let mut builder = DateColumnBuilder::new("valid_period".to_string());
+    let mut builder = DateColumnBuilder::new("valid_period".to_string(), "%Y-%m-%d".to_string());
     builder
         .is_after(2020, Some(1), Some(1))
         .is_before(2025, Some(12), Some(31))
@@ -310,18 +311,18 @@ fn test_date_column_multiple_boundaries() {
 
 #[test]
 fn test_date_column_builder_name() {
-    let builder = DateColumnBuilder::new("my_date".to_string());
+    let builder = DateColumnBuilder::new("my_date".to_string(), "%Y-%m-%d".to_string());
     assert_eq!(builder.name(), "my_date");
 }
 
 #[test]
 fn test_date_column_builder_type() {
-    let builder = DateColumnBuilder::new("date".to_string());
+    let builder = DateColumnBuilder::new("date".to_string(), "%Y-%m-%d".to_string());
     assert_eq!(builder.column_type(), ColumnType::DateType);
 }
 
 #[test]
 fn test_date_column_empty_rules() {
-    let builder = DateColumnBuilder::new("date".to_string());
+    let builder = DateColumnBuilder::new("date".to_string(), "%Y-%m-%d".to_string());
     assert_eq!(builder.rules().len(), 0);
 }

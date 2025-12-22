@@ -12,12 +12,15 @@ use arrow::datatypes::DataType;
 use arrow_array::ArrowNumericType;
 use num_traits::{Num, NumCast};
 
+#[cfg(test)]
+mod tests;
+
 use crate::{
     columns::ColumnBuilder,
     rules::{
         date::{DateBoundaryCheck, DateRule, DateTypeCheck},
         IsInCheck, Monotonicity, NullCheck, NumericRule, Range, RegexMatch, StringLengthCheck,
-        StringRule, TypeCheck, UnicityCheck,
+        StringRule, TypeCheck, UnicityCheck, WeekDayCheck,
     },
     validator::ExecutableColumn,
     ColumnRule, ColumnType, RuleError,
@@ -104,9 +107,13 @@ fn compile_date_rules(
                 let rule = DateBoundaryCheck::new(*after, *year, *month, *day)?;
                 executable_rules.push(Box::new(rule));
             }
+            ColumnRule::WeekDay { is_week } => {
+                let rule = WeekDayCheck::new(*is_week);
+                executable_rules.push(Box::new(rule));
+            }
             _ => {
                 return Err(RuleError::ValidationError(format!(
-                    "Invalid rule {:?} for String column '{}'",
+                    "Invalid rule {:?} for Date column '{}'",
                     rule, column_name,
                 )))
             }

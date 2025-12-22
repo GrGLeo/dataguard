@@ -95,6 +95,10 @@ pub enum ColumnRule {
         day: Option<usize>,
     },
 
+    WeekDay {
+        is_week: bool,
+    },
+
     // Generic rules
     Unicity,
     NullCheck,

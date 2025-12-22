@@ -97,6 +97,8 @@ pub enum Rule {
     },
     IsNotFutur,
     IsNotPast,
+    IsWeekday,
+    IsWeekend,
 }
 
 impl std::fmt::Display for Rule {
@@ -131,6 +133,8 @@ impl std::fmt::Display for Rule {
             Rule::IsBefore { .. } => write!(f, "is_before"),
             Rule::IsNotFutur => write!(f, "is_not_futur"),
             Rule::IsNotPast => write!(f, "is_not_past"),
+            Rule::IsWeekday => write!(f, "is_weekday"),
+            Rule::IsWeekend => write!(f, "is_weekend"),
         }
     }
 }

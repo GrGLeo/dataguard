@@ -205,6 +205,9 @@ datatype = "date"
     [[table.column.rule]]
     name = "is_not_futur"
 
+    [[table.column.rule]]
+    name = "is_weekday"
+
 # Website URL validation
 [[table.column]]
 name = "Website"

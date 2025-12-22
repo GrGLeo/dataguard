@@ -108,4 +108,14 @@ impl DateColumnBuilder {
         });
         self
     }
+
+    pub fn is_weekday(&mut self) -> &mut Self {
+        self.rules.push(ColumnRule::WeekDay { is_week: true });
+        self
+    }
+
+    pub fn is_weekend(&mut self) -> &mut Self {
+        self.rules.push(ColumnRule::WeekDay { is_week: false });
+        self
+    }
 }

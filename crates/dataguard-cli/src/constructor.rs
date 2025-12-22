@@ -268,6 +268,14 @@ fn apply_date_rule(
             builder.is_not_past();
             Ok(())
         }
+        Rule::IsWeekday => {
+            builder.is_weekday();
+            Ok(())
+        }
+        Rule::IsWeekend => {
+            builder.is_weekend();
+            Ok(())
+        }
         _ => Err(CliError::UnknownRule {
             rule_name: rule.to_string(),
             column_type: "string".to_string(),
