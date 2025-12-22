@@ -38,14 +38,19 @@ impl StdOutFormatter {
         };
         let rows_formatted = format_numbers(result.total_rows);
 
-        println!(
-            "\n{} ({} rows) - {}",
+        let table_res = format!(
+            "{} ({} rows) - {}",
             result.table_name, rows_formatted, status
         );
+        println!("\n{}", table_res);
         // If in brief mode, we simply print the above line and stop early
         if self.brief {
             return;
         }
+
+        let title = String::from("Column result");
+        let n = (table_res.len() - title.len()) / 2;
+        println!("{}{}", " ".repeat(n), title);
 
         for (column_name, rule_results) in result.get_column_results() {
             println!("  {}:", column_name);
@@ -63,6 +68,31 @@ impl StdOutFormatter {
                     "    {} {} {:>6} ({:.2}%)",
                     rule.rule_name, dots, count_str, rule.error_percentage
                 );
+            }
+        }
+
+        let relation_results = result.get_relation_results();
+        if relation_results.is_empty() {
+            let title = String::from("Relation result");
+            let n = (table_res.len() - title.len()) / 2;
+            println!("\n{}{}", " ".repeat(n), title);
+            for (column_name, relation_results) in relation_results {
+                println!("  {}:", column_name);
+
+                let max_len = relation_results
+                    .iter()
+                    .map(|r| r.rule_name.len())
+                    .max()
+                    .unwrap_or(0);
+
+                for rule in relation_results {
+                    let dots = ".".repeat(max_len - rule.rule_name.len() + 10);
+                    let count_str = format_numbers(rule.error_count);
+                    println!(
+                        "    {} {} {:>6} ({:.2}%)",
+                        rule.rule_name, dots, count_str, rule.error_percentage
+                    );
+                }
             }
         }
 

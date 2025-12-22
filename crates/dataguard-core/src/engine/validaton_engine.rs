@@ -160,14 +160,15 @@ impl<'a> ValidationEngine<'a> {
         let unicity_errors = unicity_accumulators.finalize(total_rows);
         for (column_name, unicity_error) in unicity_errors {
             error_counter.fetch_add(unicity_error, Ordering::Relaxed);
-            report.record_result(&column_name, "Unicity", unicity_error);
+            report.record_column_result(&column_name, "Unicity", unicity_error);
         }
 
         // We create the validation result for report formatting
-        let column_results = report.to_results();
+        let (column_results, relation_result) = report.to_results();
         let total_errors = error_counter.load(Ordering::Relaxed);
         let mut results = ValidationResult::new(table_name.clone(), total_rows);
         results.add_column_results(column_results);
+        results.add_relation_results(relation_result);
 
         // TODO: not sure about that
         if total_errors > 0 {
@@ -186,7 +187,7 @@ fn validate_null_check(
 ) {
     if let Some(null_rule) = null_check {
         let null_count = null_rule.validate(array);
-        report.record_result(column_name, null_rule.name(), null_count);
+        report.record_column_result(column_name, null_rule.name(), null_count);
     }
 }
 
@@ -197,9 +198,14 @@ fn record_validation_result(
     error_count_value: usize,
     error_counter: &AtomicUsize,
     report: &ResultAccumulator,
+    is_col: bool,
 ) {
     error_counter.fetch_add(error_count_value, Ordering::Relaxed);
-    report.record_result(column_name, rule_name, error_count_value);
+    if is_col {
+        report.record_column_result(column_name, rule_name, error_count_value);
+    } else {
+        report.record_relation_result(column_name, rule_name, error_count_value);
+    }
 }
 
 /// Record type check error when casting fails completely
@@ -211,7 +217,7 @@ fn record_type_check_error(
     report: &ResultAccumulator,
 ) {
     error_count.fetch_add(array_len, Ordering::Relaxed);
-    report.record_result(column_name, type_check_name, array_len);
+    report.record_column_result(column_name, type_check_name, array_len);
 }
 
 fn validate_string_column(
@@ -232,14 +238,28 @@ fn validate_string_column(
     if let Some(type_rule) = type_check {
         match type_rule.validate(array) {
             Ok((errors, casted_array)) => {
-                record_validation_result(name, type_rule.name(), errors, error_counter, report);
+                record_validation_result(
+                    name,
+                    type_rule.name(),
+                    errors,
+                    error_counter,
+                    report,
+                    true,
+                );
 
                 // We downcast once the array
                 if let Some(string_array) = casted_array.as_any().downcast_ref::<StringArray>() {
                     // We run all domain level rules
                     for rule in rules {
                         if let Ok(count) = rule.validate(string_array, name.to_string()) {
-                            record_validation_result(name, rule.name(), count, error_counter, report);
+                            record_validation_result(
+                                name,
+                                rule.name(),
+                                count,
+                                error_counter,
+                                report,
+                                true,
+                            );
                         }
                     }
                     // If we have a unicity rule in place, update the global hashset
@@ -277,7 +297,14 @@ fn validate_numeric_column<T>(
     if let Some(type_rule) = type_check {
         match type_rule.validate(array) {
             Ok((errors, casted_array)) => {
-                record_validation_result(name, type_rule.name(), errors, error_counter, report);
+                record_validation_result(
+                    name,
+                    type_rule.name(),
+                    errors,
+                    error_counter,
+                    report,
+                    true,
+                );
 
                 // We downcast once the array
                 if let Some(numeric_array) =
@@ -286,7 +313,14 @@ fn validate_numeric_column<T>(
                     // We run all domain level rules
                     for rule in rules {
                         if let Ok(count) = rule.validate(numeric_array, name.to_string()) {
-                            record_validation_result(name, rule.name(), count, error_counter, report);
+                            record_validation_result(
+                                name,
+                                rule.name(),
+                                count,
+                                error_counter,
+                                report,
+                                true,
+                            );
                         }
                     }
                     // If we have a unicity rule in place, update the global hashset
@@ -321,12 +355,26 @@ pub fn validate_date_column(
     if let Some(type_rule) = type_check {
         match type_rule.validate(array) {
             Ok((errors, date_array)) => {
-                record_validation_result(name, type_rule.name(), errors, error_counter, report);
+                record_validation_result(
+                    name,
+                    type_rule.name(),
+                    errors,
+                    error_counter,
+                    report,
+                    true,
+                );
 
                 // We run all domain level rules
                 for rule in rules {
                     if let Ok(count) = rule.validate(&date_array, name.to_string()) {
-                        record_validation_result(name, rule.name(), count, error_counter, report);
+                        record_validation_result(
+                            name,
+                            rule.name(),
+                            count,
+                            error_counter,
+                            report,
+                            true,
+                        );
                     }
                 }
                 // If we have a unicity rule in place, update the global hashset
@@ -370,6 +418,7 @@ fn validate_relation(
                 count,
                 error_counter,
                 report,
+                false,
             );
         }
     }

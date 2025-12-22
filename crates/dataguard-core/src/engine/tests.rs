@@ -91,7 +91,7 @@ mod result_accumulator_tests {
     fn test_record_single_result() {
         let accumulator = ResultAccumulator::new();
         accumulator.set_total_rows(100);
-        accumulator.record_result("column1", "rule1", 5);
+        accumulator.record_column_result("column1", "rule1", 5);
 
         let results = accumulator.to_results();
         assert_eq!(results.len(), 1);
@@ -108,8 +108,8 @@ mod result_accumulator_tests {
     fn test_record_multiple_results_same_column() {
         let accumulator = ResultAccumulator::new();
         accumulator.set_total_rows(100);
-        accumulator.record_result("column1", "rule1", 5);
-        accumulator.record_result("column1", "rule2", 10);
+        accumulator.record_column_result("column1", "rule1", 5);
+        accumulator.record_column_result("column1", "rule2", 10);
 
         let results = accumulator.to_results();
         assert_eq!(results.len(), 1);
@@ -122,8 +122,8 @@ mod result_accumulator_tests {
     fn test_record_multiple_columns() {
         let accumulator = ResultAccumulator::new();
         accumulator.set_total_rows(100);
-        accumulator.record_result("column1", "rule1", 5);
-        accumulator.record_result("column2", "rule1", 10);
+        accumulator.record_column_result("column1", "rule1", 5);
+        accumulator.record_column_result("column2", "rule1", 10);
 
         let results = accumulator.to_results();
         assert_eq!(results.len(), 2);
@@ -135,7 +135,7 @@ mod result_accumulator_tests {
     fn test_percentage_calculation() {
         let accumulator = ResultAccumulator::new();
         accumulator.set_total_rows(200);
-        accumulator.record_result("column1", "rule1", 50);
+        accumulator.record_column_result("column1", "rule1", 50);
 
         let results = accumulator.to_results();
         let column_results = &results["column1"];
@@ -146,7 +146,7 @@ mod result_accumulator_tests {
     fn test_percentage_zero_total_rows() {
         let accumulator = ResultAccumulator::new();
         accumulator.set_total_rows(0);
-        accumulator.record_result("column1", "rule1", 5);
+        accumulator.record_column_result("column1", "rule1", 5);
 
         let results = accumulator.to_results();
         let column_results = &results["column1"];
@@ -157,9 +157,9 @@ mod result_accumulator_tests {
     fn test_accumulates_errors() {
         let accumulator = ResultAccumulator::new();
         accumulator.set_total_rows(100);
-        accumulator.record_result("column1", "rule1", 5);
-        accumulator.record_result("column1", "rule1", 3);
-        accumulator.record_result("column1", "rule1", 2);
+        accumulator.record_column_result("column1", "rule1", 5);
+        accumulator.record_column_result("column1", "rule1", 3);
+        accumulator.record_column_result("column1", "rule1", 2);
 
         let results = accumulator.to_results();
         let column_results = &results["column1"];
@@ -170,9 +170,9 @@ mod result_accumulator_tests {
     fn test_results_sorted_by_column() {
         let accumulator = ResultAccumulator::new();
         accumulator.set_total_rows(100);
-        accumulator.record_result("zebra", "rule1", 1);
-        accumulator.record_result("apple", "rule1", 1);
-        accumulator.record_result("banana", "rule1", 1);
+        accumulator.record_column_result("zebra", "rule1", 1);
+        accumulator.record_column_result("apple", "rule1", 1);
+        accumulator.record_column_result("banana", "rule1", 1);
 
         let results = accumulator.to_results();
         let keys: Vec<_> = results.keys().cloned().collect();
@@ -191,7 +191,7 @@ mod result_accumulator_tests {
 
         // Record from multiple threads
         (0..10).into_par_iter().for_each(|i| {
-            accumulator.record_result(&format!("column{}", i), "rule1", 1);
+            accumulator.record_column_result(&format!("column{}", i), "rule1", 1);
         });
 
         let results = accumulator.to_results();
@@ -205,7 +205,7 @@ mod result_accumulator_tests {
 
         // Multiple threads recording to same (column, rule)
         (0..100).into_par_iter().for_each(|_| {
-            accumulator.record_result("column1", "rule1", 1);
+            accumulator.record_column_result("column1", "rule1", 1);
         });
 
         let results = accumulator.to_results();

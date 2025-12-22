@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use crate::columns::{relation_builder::RelationBuilder, ColumnBuilder};
 use crate::errors::RuleError;
 use crate::reader::read_csv_parallel;
-use crate::rules::relations::RelationRule;
 use crate::tables::Table;
 use crate::validator::{ExecutableColumn, ExecutableRelation};
 use crate::{compiler, engine, ValidationResult};
@@ -41,7 +40,7 @@ impl Table for CsvTable {
 
         self.executable_relations = relations
             .into_iter()
-            .map(|builder| compiler::compile_relations(builder))
+            .map(compiler::compile_relations)
             .collect::<Result<Vec<_>, _>>()?;
         Ok(())
     }

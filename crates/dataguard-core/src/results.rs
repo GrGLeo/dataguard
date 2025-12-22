@@ -7,6 +7,7 @@ pub struct ValidationResult {
     passed: bool,
     pub error_message: Option<String>,
     column_results: HashMap<String, Vec<RuleResult>>,
+    relation_results: HashMap<String, Vec<RuleResult>>,
 }
 
 impl ValidationResult {
@@ -17,6 +18,7 @@ impl ValidationResult {
             passed: true,
             error_message: None,
             column_results: HashMap::new(),
+            relation_results: HashMap::new(),
         }
     }
 
@@ -28,8 +30,23 @@ impl ValidationResult {
         self.column_results = column_results
     }
 
+    pub fn add_relation_result(&mut self, relation_name: String, results: Vec<RuleResult>) {
+        self.relation_results.insert(relation_name, results);
+    }
+
+    pub fn add_relation_results(&mut self, relation_results: HashMap<String, Vec<RuleResult>>) {
+        self.relation_results = relation_results
+    }
+
     pub fn get_column_results(&self) -> HashMap<String, Vec<&RuleResult>> {
         self.column_results
+            .iter()
+            .map(|(s, v)| (s.clone(), v.iter().collect()))
+            .collect()
+    }
+
+    pub fn get_relation_results(&self) -> HashMap<String, Vec<&RuleResult>> {
+        self.relation_results
             .iter()
             .map(|(s, v)| (s.clone(), v.iter().collect()))
             .collect()

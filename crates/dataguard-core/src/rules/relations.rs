@@ -35,47 +35,40 @@ impl RelationRule for DateCompareCheck {
         rhs: &Arc<dyn Array>,
         column: [&str; 2],
     ) -> Result<usize, RuleError> {
-        // There might be another way to do this
-        // and not loop on both array
-        let lhs = lhs.as_any().downcast_ref::<Date32Array>().unwrap();
-        let rhs = rhs.as_any().downcast_ref::<Date32Array>().unwrap();
-        let compare = self.op.get_comparator::<i32>();
-        let mut violations: usize = 0;
-        for (i, j) in lhs.iter().zip(rhs) {
-            match (i, j) {
-                (Some(a), Some(b)) => match self.op {
-                    CompOperator::Gt => {
-                        if !compare(a, b) {
-                            violations += 1
+        // There might be a compute kernel but null on either side return a null when we want to
+        // record a violation
+        let opt_lhs = lhs.as_any().downcast_ref::<Date32Array>();
+        let opt_rhs = rhs.as_any().downcast_ref::<Date32Array>();
+        match (opt_lhs, opt_rhs) {
+            (Some(lhs), Some(rhs)) => {
+                let compare = self.op.get_comparator::<i32>();
+                let mut violations: usize = 0;
+                for (i, j) in lhs.iter().zip(rhs) {
+                    match (i, j) {
+                        (Some(a), Some(b)) => {
+                            if !compare(a, b) {
+                                violations += 1
+                            }
                         }
+                        (Some(_), None) => violations += 1,
+                        (None, Some(_)) => violations += 1,
+                        (None, None) => {}
                     }
-                    CompOperator::Gte => {
-                        if !compare(a, b) {
-                            violations += 1
-                        }
-                    }
-                    CompOperator::Eq => {
-                        if !compare(a, b) {
-                            violations += 1
-                        }
-                    }
-                    CompOperator::Lte => {
-                        if !compare(a, b) {
-                            violations += 1
-                        }
-                    }
-                    CompOperator::Lt => {
-                        if !compare(a, b) {
-                            violations += 1
-                        }
-                    }
-                },
-                (Some(_), None) => violations += 1,
-                (None, Some(_)) => violations += 1,
-                (None, None) => {}
+                }
+                Ok(violations)
             }
+            (None, Some(_)) => Err(RuleError::TypeCastError(
+                column[0].to_string(),
+                "Date32Array".to_string(),
+            )),
+            (Some(_), None) => Err(RuleError::TypeCastError(
+                column[0].to_string(),
+                "Date32Array".to_string(),
+            )),
+            (None, None) => Err(RuleError::TypeCastError(
+                format!("{} and {}", column[0], column[1]),
+                "Date32Array".to_string(),
+            )),
         }
-        println!("violations: {}", violations);
-        Ok(violations)
     }
 }
