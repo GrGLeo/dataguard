@@ -43,7 +43,7 @@ impl<'a> ValidationEngine<'a> {
         table_name: String,
         batches: &[Arc<RecordBatch>],
     ) -> Result<ValidationResult, RuleError> {
-        let error_count = AtomicUsize::new(0);
+        let error_counter = AtomicUsize::new(0);
         let report = ResultAccumulator::new();
 
         let total_rows: usize = batches.iter().map(|batch| batch.num_rows()).sum();
@@ -72,7 +72,7 @@ impl<'a> ValidationEngine<'a> {
                                 unicity_check,
                                 null_check,
                                 array,
-                                &error_count,
+                                &error_counter,
                                 &report,
                                 &unicity_accumulators,
                             );
@@ -94,7 +94,7 @@ impl<'a> ValidationEngine<'a> {
                                 unicity_check,
                                 null_check,
                                 array,
-                                &error_count,
+                                &error_counter,
                                 &report,
                                 &unicity_accumulators,
                             );
@@ -116,7 +116,7 @@ impl<'a> ValidationEngine<'a> {
                                 unicity_check,
                                 null_check,
                                 array,
-                                &error_count,
+                                &error_counter,
                                 &report,
                                 &unicity_accumulators,
                             );
@@ -139,7 +139,7 @@ impl<'a> ValidationEngine<'a> {
                                 unicity_check,
                                 null_check,
                                 array,
-                                &error_count,
+                                &error_counter,
                                 &report,
                                 &unicity_accumulators,
                             )
@@ -150,24 +150,8 @@ impl<'a> ValidationEngine<'a> {
                 }
             }
             for executable_relation in self.relations {
-                let lhs_name = executable_relation.names[0].as_str();
-                let rhs_name = executable_relation.names[1].as_str();
-                let lsh = array_ref.get(lhs_name).unwrap();
-                let rhs = array_ref.get(rhs_name).unwrap();
-                let mut lhs_id: usize = 0;
-                let mut rhs_id: usize = 0;
-                match batch.schema().index_of(lhs_name) {
-                    Ok(id) => lhs_id = id,
-                    Err(_) => {}
-                }
-                match batch.schema().index_of(rhs_name) {
-                    Ok(id) => rhs_id = id,
-                    Err(_) => {}
-                }
-                println!("col a {}, col b {}", lhs_id, rhs_id);
-                for rule in &executable_relation.rules {
-                    rule.validate(lsh, rhs, [lhs_name, rhs_name]);
-                }
+                // TODO: need polishing and remove unwrap
+                validate_relation(executable_relation, &array_ref, &error_counter, &report);
             }
         });
 
@@ -175,13 +159,13 @@ impl<'a> ValidationEngine<'a> {
         // We unwrap all lock should have been clearer from the earlier loop
         let unicity_errors = unicity_accumulators.finalize(total_rows);
         for (column_name, unicity_error) in unicity_errors {
-            error_count.fetch_add(unicity_error, Ordering::Relaxed);
+            error_counter.fetch_add(unicity_error, Ordering::Relaxed);
             report.record_result(&column_name, "Unicity", unicity_error);
         }
 
         // We create the validation result for report formatting
         let column_results = report.to_results();
-        let total_errors = error_count.load(Ordering::Relaxed);
+        let total_errors = error_counter.load(Ordering::Relaxed);
         let mut results = ValidationResult::new(table_name.clone(), total_rows);
         results.add_column_results(column_results);
 
@@ -211,10 +195,10 @@ fn record_validation_result(
     column_name: &str,
     rule_name: &'static str,
     error_count_value: usize,
-    error_count: &AtomicUsize,
+    error_counter: &AtomicUsize,
     report: &ResultAccumulator,
 ) {
-    error_count.fetch_add(error_count_value, Ordering::Relaxed);
+    error_counter.fetch_add(error_count_value, Ordering::Relaxed);
     report.record_result(column_name, rule_name, error_count_value);
 }
 
@@ -237,7 +221,7 @@ fn validate_string_column(
     unicity_check: &Option<UnicityCheck>,
     null_check: &Option<NullCheck>,
     array: &dyn Array,
-    error_count: &AtomicUsize,
+    error_counter: &AtomicUsize,
     report: &ResultAccumulator,
     unicity_accumulators: &UnicityAccumulator,
 ) {
@@ -248,14 +232,14 @@ fn validate_string_column(
     if let Some(type_rule) = type_check {
         match type_rule.validate(array) {
             Ok((errors, casted_array)) => {
-                record_validation_result(name, type_rule.name(), errors, error_count, report);
+                record_validation_result(name, type_rule.name(), errors, error_counter, report);
 
                 // We downcast once the array
                 if let Some(string_array) = casted_array.as_any().downcast_ref::<StringArray>() {
                     // We run all domain level rules
                     for rule in rules {
                         if let Ok(count) = rule.validate(string_array, name.to_string()) {
-                            record_validation_result(name, rule.name(), count, error_count, report);
+                            record_validation_result(name, rule.name(), count, error_counter, report);
                         }
                     }
                     // If we have a unicity rule in place, update the global hashset
@@ -266,7 +250,7 @@ fn validate_string_column(
                 }
             }
             Err(_) => {
-                record_type_check_error(array.len(), name, type_rule.name(), error_count, report);
+                record_type_check_error(array.len(), name, type_rule.name(), error_counter, report);
             }
         }
     }
@@ -280,7 +264,7 @@ fn validate_numeric_column<T>(
     unicity_check: &Option<UnicityCheck>,
     null_check: &Option<NullCheck>,
     array: &dyn Array,
-    error_count: &AtomicUsize,
+    error_counter: &AtomicUsize,
     report: &ResultAccumulator,
     unicity_accumulators: &UnicityAccumulator,
 ) where
@@ -293,7 +277,7 @@ fn validate_numeric_column<T>(
     if let Some(type_rule) = type_check {
         match type_rule.validate(array) {
             Ok((errors, casted_array)) => {
-                record_validation_result(name, type_rule.name(), errors, error_count, report);
+                record_validation_result(name, type_rule.name(), errors, error_counter, report);
 
                 // We downcast once the array
                 if let Some(numeric_array) =
@@ -302,7 +286,7 @@ fn validate_numeric_column<T>(
                     // We run all domain level rules
                     for rule in rules {
                         if let Ok(count) = rule.validate(numeric_array, name.to_string()) {
-                            record_validation_result(name, rule.name(), count, error_count, report);
+                            record_validation_result(name, rule.name(), count, error_counter, report);
                         }
                     }
                     // If we have a unicity rule in place, update the global hashset
@@ -313,7 +297,7 @@ fn validate_numeric_column<T>(
                 }
             }
             Err(_) => {
-                record_type_check_error(array.len(), name, type_rule.name(), error_count, report);
+                record_type_check_error(array.len(), name, type_rule.name(), error_counter, report);
             }
         }
     }
@@ -326,7 +310,7 @@ pub fn validate_date_column(
     unicity_check: &Option<UnicityCheck>,
     null_check: &Option<NullCheck>,
     array: &dyn Array,
-    error_count: &AtomicUsize,
+    error_counter: &AtomicUsize,
     report: &ResultAccumulator,
     unicity_accumulators: &UnicityAccumulator,
 ) -> Result<Arc<dyn Array>, RuleError> {
@@ -337,12 +321,12 @@ pub fn validate_date_column(
     if let Some(type_rule) = type_check {
         match type_rule.validate(array) {
             Ok((errors, date_array)) => {
-                record_validation_result(name, type_rule.name(), errors, error_count, report);
+                record_validation_result(name, type_rule.name(), errors, error_counter, report);
 
                 // We run all domain level rules
                 for rule in rules {
                     if let Ok(count) = rule.validate(&date_array, name.to_string()) {
-                        record_validation_result(name, rule.name(), count, error_count, report);
+                        record_validation_result(name, rule.name(), count, error_counter, report);
                     }
                 }
                 // If we have a unicity rule in place, update the global hashset
@@ -353,7 +337,7 @@ pub fn validate_date_column(
                 return Ok(Arc::new(date_array));
             }
             Err(_) => {
-                record_type_check_error(array.len(), name, type_rule.name(), error_count, report);
+                record_type_check_error(array.len(), name, type_rule.name(), error_counter, report);
                 return Err(RuleError::TypeCastError(
                     name.to_string(),
                     "Date32Array".to_string(),
@@ -365,4 +349,28 @@ pub fn validate_date_column(
         name.to_string(),
         "Date32Array".to_string(),
     ))
+}
+
+fn validate_relation(
+    executable_relation: &ExecutableRelation,
+    array_ref: &HashMap<String, Arc<dyn Array>>,
+    error_counter: &AtomicUsize,
+    report: &ResultAccumulator,
+) {
+    // TODO: need polishing and remove unwrap
+    let lhs_name = executable_relation.names[0].as_str();
+    let rhs_name = executable_relation.names[1].as_str();
+    let lsh = array_ref.get(lhs_name).unwrap();
+    let rhs = array_ref.get(rhs_name).unwrap();
+    for rule in &executable_relation.rules {
+        if let Ok(count) = rule.validate(lsh, rhs, [lhs_name, rhs_name]) {
+            record_validation_result(
+                format!("{} | {}", lhs_name, rhs_name).as_str(),
+                rule.name(),
+                count,
+                error_counter,
+                report,
+            );
+        }
+    }
 }
