@@ -10,8 +10,8 @@ use crate::{compiler, engine, ValidationResult};
 pub struct CsvTable {
     path: String,
     table_name: String,
-    executable_columns: Vec<ExecutableColumn>,
-    executable_relations: Vec<ExecutableRelation>,
+    executable_columns: Box<[ExecutableColumn]>,
+    executable_relations: Option<Box<[ExecutableRelation]>>,
 }
 
 impl CsvTable {
@@ -20,8 +20,8 @@ impl CsvTable {
         Ok(Self {
             path,
             table_name,
-            executable_columns: Vec::new(),
-            executable_relations: Vec::new(),
+            executable_columns: Box::new([]),
+            executable_relations: None,
         })
     }
 }
@@ -36,12 +36,16 @@ impl Table for CsvTable {
         self.executable_columns = columns
             .into_iter()
             .map(|col| compiler::compile_column(col, true))
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>, _>>()?
+            .into_boxed_slice();
 
-        self.executable_relations = relations
-            .into_iter()
-            .map(compiler::compile_relations)
-            .collect::<Result<Vec<_>, _>>()?;
+        self.executable_relations = Some(
+            relations
+                .into_iter()
+                .map(compiler::compile_relations)
+                .collect::<Result<Vec<_>, _>>()?
+                .into_boxed_slice(),
+        );
         Ok(())
     }
 

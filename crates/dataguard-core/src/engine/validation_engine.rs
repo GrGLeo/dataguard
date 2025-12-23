@@ -27,12 +27,15 @@ use crate::{
 /// CsvTable reads CSV → batches, ParquetTable reads parquet → batches,
 /// both use the same engine for validation.
 pub struct ValidationEngine<'a> {
-    columns: &'a Vec<ExecutableColumn>,
-    relations: &'a Vec<ExecutableRelation>,
+    columns: &'a [ExecutableColumn],
+    relations: &'a Option<Box<[ExecutableRelation]>>,
 }
 
 impl<'a> ValidationEngine<'a> {
-    pub fn new(columns: &'a Vec<ExecutableColumn>, relations: &'a Vec<ExecutableRelation>) -> Self {
+    pub fn new(
+        columns: &'a [ExecutableColumn],
+        relations: &'a Option<Box<[ExecutableRelation]>>,
+    ) -> Self {
         Self { columns, relations }
     }
 
@@ -149,8 +152,10 @@ impl<'a> ValidationEngine<'a> {
                     }
                 }
             }
-            for executable_relation in self.relations {
-                validate_relation(executable_relation, &array_ref, &error_counter, &report);
+            if let Some(relations) = self.relations {
+                for executable_relation in relations {
+                    validate_relation(executable_relation, &array_ref, &error_counter, &report);
+                }
             }
         });
 
@@ -170,6 +175,8 @@ impl<'a> ValidationEngine<'a> {
         results.add_relation_results(relation_result);
 
         // Not sure about that part, is this really usefull?
+        // This will be modify when we add a rule threshold.
+        // We will instead return number of column(or rules?) pass and failed
         if total_errors > 0 {
             results.set_failed("Too much errors found".to_string());
         }

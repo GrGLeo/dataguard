@@ -465,16 +465,16 @@ mod validation_engine_tests {
     #[test]
     fn test_engine_creation() {
         let col = create_string_column_with_length("name", 3, 50);
-        let columns = vec![col];
-        let relations = vec![];
+        let columns = vec![col].into_boxed_slice();
+        let relations = None;
         let _engine = ValidationEngine::new(&columns, &relations);
         // Just ensure it doesn't panic
     }
 
     #[test]
     fn test_engine_empty_columns() {
-        let columns = vec![];
-        let relations = vec![];
+        let columns = vec![].into_boxed_slice();
+        let relations = None;
         let _engine = ValidationEngine::new(&columns, &relations);
         // Just ensure it doesn't panic
     }
@@ -482,8 +482,8 @@ mod validation_engine_tests {
     #[test]
     fn test_validate_empty_batches() {
         let col = create_string_column_with_length("name", 3, 50);
-        let columns = vec![col];
-        let relations = vec![];
+        let columns = vec![col].into_boxed_slice();
+        let relations = None;
         let engine = ValidationEngine::new(&columns, &relations);
 
         let batches = vec![];
@@ -498,8 +498,8 @@ mod validation_engine_tests {
     #[test]
     fn test_validate_single_batch_string_column() {
         let col = create_string_column_with_length("name", 3, 10);
-        let columns = vec![col];
-        let relations = vec![];
+        let columns = vec![col].into_boxed_slice();
+        let relations = None;
         let engine = ValidationEngine::new(&columns, &relations);
 
         // Create batch with some valid and invalid values
@@ -530,8 +530,8 @@ mod validation_engine_tests {
     #[test]
     fn test_validate_single_batch_integer_column() {
         let col = create_int_column_with_range("age", 0, 120);
-        let columns = vec![col];
-        let relations = vec![];
+        let columns = vec![col].into_boxed_slice();
+        let relations = None;
         let engine = ValidationEngine::new(&columns, &relations);
 
         let batch = create_int_batch(
@@ -559,8 +559,8 @@ mod validation_engine_tests {
         let mut builder = NumericColumnBuilder::<f64>::new("price".to_string());
         builder.between(0.0, 1000.0);
         let col = compiler::compile_column(Box::new(builder), true).unwrap();
-        let columns = vec![col];
-        let relations = vec![];
+        let columns = vec![col].into_boxed_slice();
+        let relations = None;
         let engine = ValidationEngine::new(&columns, &relations);
 
         let batch = create_float_batch(
@@ -583,8 +583,8 @@ mod validation_engine_tests {
     #[test]
     fn test_validate_multiple_batches() {
         let col = create_string_column_with_length("name", 3, 10);
-        let columns = vec![col];
-        let relations = vec![];
+        let columns = vec![col].into_boxed_slice();
+        let relations = None;
         let engine = ValidationEngine::new(&columns, &relations);
 
         let batch1 = create_string_batch("name", vec![Some("ab")]); // 1 error
@@ -613,8 +613,8 @@ mod validation_engine_tests {
     #[test]
     fn test_validate_null_check() {
         let col = create_string_column_with_null_check("email");
-        let columns = vec![col];
-        let relations = vec![];
+        let columns = vec![col].into_boxed_slice();
+        let relations = None;
         let engine = ValidationEngine::new(&columns, &relations);
 
         let batch = create_string_batch(
@@ -649,8 +649,8 @@ mod validation_engine_tests {
     #[test]
     fn test_unicity_single_batch_no_duplicates() {
         let col = create_string_column_with_unicity("email");
-        let columns = vec![col];
-        let relations = vec![];
+        let columns = vec![col].into_boxed_slice();
+        let relations = None;
         let engine = ValidationEngine::new(&columns, &relations);
 
         let batch = create_string_batch(
@@ -681,8 +681,8 @@ mod validation_engine_tests {
     #[test]
     fn test_unicity_single_batch_with_duplicates() {
         let col = create_string_column_with_unicity("email");
-        let columns = vec![col];
-        let relations = vec![];
+        let columns = vec![col].into_boxed_slice();
+        let relations = None;
         let engine = ValidationEngine::new(&columns, &relations);
 
         let batch = create_string_batch(
@@ -713,8 +713,8 @@ mod validation_engine_tests {
     #[test]
     fn test_unicity_across_batches() {
         let col = create_string_column_with_unicity("email");
-        let columns = vec![col];
-        let relations = vec![];
+        let columns = vec![col].into_boxed_slice();
+        let relations = None;
         let engine = ValidationEngine::new(&columns, &relations);
 
         let batch1 = create_string_batch("email", vec![Some("user@example.com")]);
@@ -743,8 +743,8 @@ mod validation_engine_tests {
     fn test_unicity_multiple_columns() {
         let col1 = create_string_column_with_unicity("email");
         let col2 = create_string_column_with_unicity("username");
-        let columns = vec![col1, col2];
-        let relations = vec![];
+        let columns = vec![col1, col2].into_boxed_slice();
+        let relations = None;
         let engine = ValidationEngine::new(&columns, &relations);
 
         // Create batch with both columns
@@ -798,8 +798,8 @@ mod validation_engine_tests {
     #[test]
     fn test_result_has_correct_table_name() {
         let col = create_string_column_with_length("name", 3, 50);
-        let columns = vec![col];
-        let relations = vec![];
+        let columns = vec![col].into_boxed_slice();
+        let relations = None;
         let engine = ValidationEngine::new(&columns, &relations);
 
         let batch = create_string_batch("name", vec![Some("test")]);
@@ -814,8 +814,8 @@ mod validation_engine_tests {
     #[test]
     fn test_result_has_correct_total_rows() {
         let col = create_string_column_with_length("name", 3, 50);
-        let columns = vec![col];
-        let relations = vec![];
+        let columns = vec![col].into_boxed_slice();
+        let relations = None;
         let engine = ValidationEngine::new(&columns, &relations);
 
         let batch1 = create_string_batch("name", vec![Some("abc"), Some("def")]);
@@ -833,13 +833,13 @@ mod validation_engine_tests {
         // Create two date columns
         let start_col = create_date_column("start_date", "%Y-%m-%d");
         let end_col = create_date_column("end_date", "%Y-%m-%d");
-        let columns = vec![start_col, end_col];
+        let columns = vec![start_col, end_col].into_boxed_slice();
 
         // Create relation: start_date <= end_date
         let mut relation = RelationBuilder::new(["start_date".to_string(), "end_date".to_string()]);
         relation.date_comparaison(CompOperator::Lte);
         let executable_relation = compiler::compile_relations(relation).unwrap();
-        let relations = vec![executable_relation];
+        let relations = Some(vec![executable_relation].into_boxed_slice());
 
         let engine = ValidationEngine::new(&columns, &relations);
 
