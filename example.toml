@@ -111,6 +111,14 @@ datatype = "integer"
 name = "Customers Medium Dataset"
 path = "benchmark/customers_medium.csv"
 
+[[table.relations]]
+column_one = "Subscription Date"
+column_two = "Subscription Date"
+
+  [[table.relations.rule]]
+  name = "date_comparaison"
+  operator = ">="
+
 # Integer index with uniqueness
 [[table.column]]
 name = "Index"

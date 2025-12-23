@@ -22,10 +22,18 @@ struct TableFormatter {
     pass: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     columns: Option<Vec<ColumnFomatter>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    relations: Option<Vec<RelationFormatter>>,
 }
 
 #[derive(Serialize, Deserialize)]
 struct ColumnFomatter {
+    name: String,
+    rules: Vec<RuleFormatter>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct RelationFormatter {
     name: String,
     rules: Vec<RuleFormatter>,
 }
@@ -96,10 +104,37 @@ impl Reporter for JsonFormatter {
             )
         };
 
+        let relations = if self.brief {
+            None
+        } else {
+            let relation_results = result.get_relation_results();
+            if relation_results.is_empty() {
+                None
+            } else {
+                Some(
+                    relation_results
+                        .into_iter()
+                        .map(|(n, c)| {
+                            let rules: Vec<RuleFormatter> = c
+                                .into_iter()
+                                .map(|r| RuleFormatter {
+                                    name: r.rule_name.clone(),
+                                    errors: r.error_count,
+                                    error_percent: r.error_percentage,
+                                })
+                                .collect();
+                            RelationFormatter { name: n, rules }
+                        })
+                        .collect(),
+                )
+            }
+        };
+
         let table = TableFormatter {
             name,
             n_rows,
             columns,
+            relations,
             pass: result.is_passed(),
         };
         self.tables.push(table);

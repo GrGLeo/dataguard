@@ -16,13 +16,14 @@ use num_traits::{Num, NumCast};
 mod tests;
 
 use crate::{
-    columns::ColumnBuilder,
+    columns::{relation_builder::RelationBuilder, ColumnBuilder, TableConstraint},
     rules::{
         date::{DateBoundaryCheck, DateRule, DateTypeCheck},
+        relations::{DateCompareCheck, RelationRule},
         IsInCheck, Monotonicity, NullCheck, NumericRule, Range, RegexMatch, StringLengthCheck,
         StringRule, TypeCheck, UnicityCheck, WeekDayCheck,
     },
-    validator::ExecutableColumn,
+    validator::{ExecutableColumn, ExecutableRelation},
     ColumnRule, ColumnType, RuleError,
 };
 
@@ -260,4 +261,17 @@ pub fn compile_column(
             })
         }
     }
+}
+
+pub fn compile_relations(builder: RelationBuilder) -> Result<ExecutableRelation, RuleError> {
+    let RelationBuilder { names, rules } = builder;
+    let mut executable_relations: Vec<Box<dyn RelationRule>> = Vec::new();
+    for rule in rules {
+        match rule {
+            TableConstraint::DateComparaison { op } => {
+                executable_relations.push(Box::new(DateCompareCheck::new(op)));
+            }
+        }
+    }
+    Ok(ExecutableRelation::new(names, executable_relations))
 }

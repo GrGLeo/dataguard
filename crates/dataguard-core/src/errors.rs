@@ -32,5 +32,9 @@ pub enum RuleError {
 
     /// Incorrect date for DateRules
     #[error("Unknown date format: year: {0} month: {1} day: {2}")]
-    IncorrectDate(usize, u32, u32),
+    IncorrectDateError(usize, u32, u32),
+
+    /// Incorrect operator for comparaison
+    #[error("Unknown operator: '{0}'")]
+    IncorrentOperatorError(String),
 }

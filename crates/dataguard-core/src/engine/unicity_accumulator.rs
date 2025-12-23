@@ -48,7 +48,7 @@ impl UnicityAccumulator {
         null_count: usize,
         hashes: HashSet<u64, Xxh3Builder>,
     ) {
-        // TODO: for now we unwrap column_name should always be set
+        // SAFETY: since we instanciate the hashmap with all projected columns we can unwrap
         let (counter, map) = self.accumulators.get(column_name).unwrap();
         counter.fetch_add(null_count, Ordering::Relaxed);
         map.lock().unwrap().extend(hashes)

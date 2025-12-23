@@ -66,7 +66,7 @@ impl DateBoundaryCheck {
                 let days = date.signed_duration_since(unix).num_days() as i32;
                 Ok(Self { after, days })
             }
-            None => Err(RuleError::IncorrectDate(year, m, d)),
+            None => Err(RuleError::IncorrectDateError(year, m, d)),
         }
     }
 }
@@ -185,7 +185,7 @@ mod tests {
         let result = DateBoundaryCheck::new(true, 2020, Some(13), Some(1));
         assert!(result.is_err());
         match result {
-            Err(RuleError::IncorrectDate(year, month, day)) => {
+            Err(RuleError::IncorrectDateError(year, month, day)) => {
                 assert_eq!(year, 2020);
                 assert_eq!(month, 13);
                 assert_eq!(day, 1);
@@ -199,7 +199,7 @@ mod tests {
         let result = DateBoundaryCheck::new(true, 2020, Some(2), Some(30));
         assert!(result.is_err());
         match result {
-            Err(RuleError::IncorrectDate(year, month, day)) => {
+            Err(RuleError::IncorrectDateError(year, month, day)) => {
                 assert_eq!(year, 2020);
                 assert_eq!(month, 2);
                 assert_eq!(day, 30);

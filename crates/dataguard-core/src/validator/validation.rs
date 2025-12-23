@@ -8,6 +8,7 @@ use crate::errors::RuleError;
 use crate::rules::date::{DateRule, DateTypeCheck};
 use crate::rules::generic::{TypeCheck, UnicityCheck};
 use crate::rules::numeric::NumericRule;
+use crate::rules::relations::RelationRule;
 use crate::rules::string::StringRule;
 use crate::rules::NullCheck;
 use crate::{CsvTable, Table, ValidationResult};
@@ -103,6 +104,17 @@ impl ExecutableColumn {
             ExecutableColumn::Float { unicity_check, .. } => unicity_check.is_some(),
             ExecutableColumn::Date { unicity_check, .. } => unicity_check.is_some(),
         }
+    }
+}
+
+pub struct ExecutableRelation {
+    pub names: [String; 2],
+    pub rules: Vec<Box<dyn RelationRule>>,
+}
+
+impl ExecutableRelation {
+    pub fn new(names: [String; 2], rules: Vec<Box<dyn RelationRule>>) -> Self {
+        Self { names, rules }
     }
 }
 

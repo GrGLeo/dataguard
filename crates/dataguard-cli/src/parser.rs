@@ -15,6 +15,7 @@ pub struct Config {
 pub struct ConfigTable {
     pub name: String,
     pub path: String,
+    pub relations: Option<Vec<TableRelation>>,
     pub column: Vec<Column>,
 }
 
@@ -24,6 +25,19 @@ pub struct Column {
     pub datatype: String,
     pub format: Option<String>,
     pub rule: Vec<Rule>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TableRelation {
+    pub column_one: String,
+    pub column_two: String,
+    pub rule: Vec<Relation>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(tag = "name", rename_all = "snake_case")]
+pub enum Relation {
+    DateComparaison { operator: String },
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -101,6 +115,14 @@ pub enum Rule {
     IsWeekend,
 }
 
+impl std::fmt::Display for Relation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Relation::DateComparaison { .. } => write!(f, "date_comparaison"),
+        }
+    }
+}
+
 impl std::fmt::Display for Rule {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -146,8 +168,24 @@ pub fn validate_config(config: &Config) -> Result<(), ConfigError> {
                 table_path: table.path.clone(),
             });
         }
+        let mut columns: Vec<&str> = Vec::new();
         for column in &table.column {
+            columns.push(column.name.as_str());
             validate_column(column)?
+        }
+        if let Some(relations) = &table.relations {
+            for r in relations {
+                if !columns.contains(&r.column_one.as_str()) {
+                    return Err(ConfigError::RelationError {
+                        missing_column: r.column_one.clone(),
+                    });
+                }
+                if !columns.contains(&r.column_two.as_str()) {
+                    return Err(ConfigError::RelationError {
+                        missing_column: r.column_two.clone(),
+                    });
+                }
+            }
         }
     }
     Ok(())

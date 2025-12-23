@@ -1,10 +1,11 @@
 use crate::{
     errors::CliError,
-    parser::{ConfigTable, Rule},
+    parser::{ConfigTable, Relation, Rule},
 };
 use anyhow::{Context, Result};
 use dataguard_core::{
-    columns::{date_builder::DateColumnBuilder, ColumnBuilder},
+    columns::{date_builder::DateColumnBuilder, relation_builder::RelationBuilder, ColumnBuilder},
+    utils::operator::CompOperator,
     CsvTable, NumericColumnBuilder, StringColumnBuilder, Table,
 };
 use toml::Value;
@@ -284,9 +285,20 @@ fn apply_date_rule(
     }
 }
 
+fn apply_relation_rule(builder: &mut RelationBuilder, rule: Relation) -> Result<(), CliError> {
+    match rule {
+        Relation::DateComparaison { operator } => {
+            let op = CompOperator::try_from(operator.as_str())?;
+            builder.date_comparaison(op);
+            Ok(())
+        }
+    }
+}
+
 pub fn construct_csv_table(table: &ConfigTable) -> Result<CsvTable> {
     let path = &table.path;
-    let mut all_builder: Vec<Box<dyn ColumnBuilder>> = Vec::new();
+    let mut all_column_builder: Vec<Box<dyn ColumnBuilder>> = Vec::new();
+    let mut all_relation_builder: Vec<RelationBuilder> = Vec::new();
     for column in &table.column {
         match column.datatype.as_str() {
             "float" => {
@@ -296,7 +308,7 @@ pub fn construct_csv_table(table: &ConfigTable) -> Result<CsvTable> {
                         || format!("Failed to apply rule to column '{}'", column.name.clone()),
                     )?
                 }
-                all_builder.push(Box::new(builder));
+                all_column_builder.push(Box::new(builder));
             }
             "integer" => {
                 let mut builder = NumericColumnBuilder::<i64>::new(column.name.clone());
@@ -306,7 +318,7 @@ pub fn construct_csv_table(table: &ConfigTable) -> Result<CsvTable> {
                             format!("Failed to apply rule to column '{}'", column.name.clone())
                         })?
                 }
-                all_builder.push(Box::new(builder));
+                all_column_builder.push(Box::new(builder));
             }
             "string" => {
                 let mut builder = StringColumnBuilder::new(column.name.clone());
@@ -316,7 +328,7 @@ pub fn construct_csv_table(table: &ConfigTable) -> Result<CsvTable> {
                             format!("Failed to apply rule to column '{}'", column.name)
                         })?
                 }
-                all_builder.push(Box::new(builder));
+                all_column_builder.push(Box::new(builder));
             }
             "date" => {
                 let mut builder =
@@ -326,7 +338,7 @@ pub fn construct_csv_table(table: &ConfigTable) -> Result<CsvTable> {
                         || format!("Failed to apply rule to column '{}'", column.name),
                     )?
                 }
-                all_builder.push(Box::new(builder));
+                all_column_builder.push(Box::new(builder));
             }
             _ => {
                 return Err(CliError::UnknownDatatype {
@@ -337,9 +349,26 @@ pub fn construct_csv_table(table: &ConfigTable) -> Result<CsvTable> {
             }
         }
     }
+
+    if let Some(relations) = &table.relations {
+        for relation in relations {
+            let mut builder =
+                RelationBuilder::new([relation.column_one.clone(), relation.column_two.clone()]);
+            for rule in &relation.rule {
+                apply_relation_rule(&mut builder, rule.clone()).with_context(|| {
+                    format!(
+                        "Failed to apply rule to relation '{}' '{}'",
+                        relation.column_one.clone(),
+                        relation.column_two.clone()
+                    )
+                })?
+            }
+            all_relation_builder.push(builder);
+        }
+    }
     let mut t = CsvTable::new(path.clone(), table.name.clone())
         .with_context(|| format!("Failed to create validation table: {}", table.name))?;
-    t.prepare(all_builder).unwrap();
+    t.prepare(all_column_builder, all_relation_builder).unwrap();
     Ok(t)
 }
 
