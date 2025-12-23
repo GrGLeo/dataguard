@@ -70,28 +70,34 @@ impl NumericType for f64 {
 pub enum ColumnRule {
     // String rules
     StringLength {
+        name: String,
         min: Option<usize>,
         max: Option<usize>,
     },
     StringRegex {
+        name: String,
         pattern: String,
         flags: Option<String>,
     },
     StringMembers {
+        name: String,
         members: Vec<String>,
     },
 
     // Numeric rules (works for both Integer and Float)
     NumericRange {
+        name: String,
         min: Option<f64>,
         max: Option<f64>,
     },
     Monotonicity {
+        name: String,
         ascending: bool,
     },
 
     // Date rules (works only for Date32 for now)
     DateBoundary {
+        name: String,
         after: bool,
         year: usize,
         month: Option<usize>,
@@ -99,6 +105,7 @@ pub enum ColumnRule {
     },
 
     WeekDay {
+        name: String,
         is_week: bool,
     },
 

@@ -13,26 +13,27 @@ use crate::{errors::RuleError, utils::hasher::Xxh3Builder};
 /// A trait for defining validation rules on Arrow arrays.
 pub trait StringRule: Send + Sync {
     /// Returns the name of the rule.
-    fn name(&self) -> &'static str;
+    fn name(&self) -> String;
     /// Validates an Arrow `Array`.
     fn validate(&self, array: &StringArray, column: String) -> Result<usize, RuleError>;
 }
 
 /// A rule to check the length of strings in a `StringArray`.
 pub struct StringLengthCheck {
+    name: String,
     min: Option<usize>,
     max: Option<usize>,
 }
 
 impl StringLengthCheck {
-    pub fn new(min: Option<usize>, max: Option<usize>) -> Self {
-        Self { min, max }
+    pub fn new(name: String, min: Option<usize>, max: Option<usize>) -> Self {
+        Self { name, min, max }
     }
 }
 
 impl StringRule for StringLengthCheck {
-    fn name(&self) -> &'static str {
-        "StringLengthCheck"
+    fn name(&self) -> String {
+        self.name.clone()
     }
 
     fn validate(&self, array: &StringArray, column: String) -> Result<usize, RuleError> {
@@ -71,19 +72,24 @@ impl StringRule for StringLengthCheck {
 
 /// A rule to check if strings in a `StringArray` match a regex pattern.
 pub struct RegexMatch {
+    name: String,
     pattern: String,
     flag: Option<String>,
 }
 
 impl RegexMatch {
-    pub fn new(pattern: String, flag: Option<String>) -> Self {
-        Self { pattern, flag }
+    pub fn new(name: String, pattern: String, flag: Option<String>) -> Self {
+        Self {
+            name,
+            pattern,
+            flag,
+        }
     }
 }
 
 impl StringRule for RegexMatch {
-    fn name(&self) -> &'static str {
-        "RegexMatch"
+    fn name(&self) -> String {
+        self.name.clone()
     }
 
     fn validate(&self, array: &StringArray, column: String) -> Result<usize, RuleError> {
@@ -102,23 +108,27 @@ impl StringRule for RegexMatch {
 }
 
 pub struct IsInCheck {
+    name: String,
     members: HashSet<u64, Xxh3Builder>,
 }
 
 impl IsInCheck {
-    pub fn new(members: Vec<String>) -> Self {
+    pub fn new(name: String, members: Vec<String>) -> Self {
         let mut hashset = HashSet::with_hasher(Xxh3Builder);
         members.into_iter().for_each(|m| {
             let hash = xxh3_64(m.as_bytes());
             let _ = hashset.insert(hash);
         });
-        Self { members: hashset }
+        Self {
+            name,
+            members: hashset,
+        }
     }
 }
 
 impl StringRule for IsInCheck {
-    fn name(&self) -> &'static str {
-        "IsIn"
+    fn name(&self) -> String {
+        self.name.clone()
     }
 
     fn validate(&self, array: &StringArray, _column: String) -> Result<usize, RuleError> {

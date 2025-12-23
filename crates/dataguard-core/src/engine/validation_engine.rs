@@ -159,7 +159,7 @@ impl<'a> ValidationEngine<'a> {
         let unicity_errors = unicity_accumulators.finalize(total_rows);
         for (column_name, unicity_error) in unicity_errors {
             error_counter.fetch_add(unicity_error, Ordering::Relaxed);
-            report.record_column_result(&column_name, "Unicity", unicity_error);
+            report.record_column_result(&column_name, "Unicity".to_string(), unicity_error);
         }
 
         // We create the validation result for report formatting
@@ -193,7 +193,7 @@ fn validate_null_check(
 /// Record validation result and update error count
 fn record_validation_result(
     column_name: &str,
-    rule_name: &'static str,
+    rule_name: String,
     error_count_value: usize,
     error_counter: &AtomicUsize,
     report: &ResultAccumulator,
@@ -211,7 +211,7 @@ fn record_validation_result(
 fn record_type_check_error(
     array_len: usize,
     column_name: &str,
-    type_check_name: &'static str,
+    type_check_name: String,
     error_count: &AtomicUsize,
     report: &ResultAccumulator,
 ) {

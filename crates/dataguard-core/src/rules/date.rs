@@ -21,8 +21,8 @@ impl DateTypeCheck {
         }
     }
 
-    pub fn name(&self) -> &'static str {
-        "TypeCheck"
+    pub fn name(&self) -> String {
+        "TypeCheck".to_string()
     }
 
     pub fn validate(&self, array: &dyn Array) -> Result<(usize, Date32Array), RuleError> {
@@ -39,18 +39,20 @@ impl DateTypeCheck {
 /// A trait for defining validation rules on Arrow arrays.
 pub trait DateRule: Send + Sync {
     /// Returns the name of the rule.
-    fn name(&self) -> &'static str;
+    fn name(&self) -> String;
     /// Validates an Arrow `Array`.
     fn validate(&self, array: &Date32Array, column: String) -> Result<usize, RuleError>;
 }
 
 pub struct DateBoundaryCheck {
+    name: String,
     days: i32,
     after: bool,
 }
 
 impl DateBoundaryCheck {
     pub fn new(
+        name: String,
         after: bool,
         year: usize,
         month: Option<usize>,
@@ -64,7 +66,7 @@ impl DateBoundaryCheck {
                 // Here we can unwrap date is correct
                 let unix = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
                 let days = date.signed_duration_since(unix).num_days() as i32;
-                Ok(Self { after, days })
+                Ok(Self { name, after, days })
             }
             None => Err(RuleError::IncorrectDateError(year, m, d)),
         }
@@ -72,8 +74,8 @@ impl DateBoundaryCheck {
 }
 
 impl DateRule for DateBoundaryCheck {
-    fn name(&self) -> &'static str {
-        "DateBoundaryCheck"
+    fn name(&self) -> String {
+        self.name.clone()
     }
 
     fn validate(&self, array: &Date32Array, _column: String) -> Result<usize, RuleError> {
@@ -92,24 +94,25 @@ impl DateRule for DateBoundaryCheck {
 }
 
 pub struct WeekDayCheck {
+    name: String,
     is_week: bool,
 }
 
 impl WeekDayCheck {
-    pub fn new(is_week: bool) -> Self {
-        Self { is_week }
+    pub fn new(name: String, is_week: bool) -> Self {
+        Self { name, is_week }
     }
 }
 
 impl Default for WeekDayCheck {
     fn default() -> Self {
-        Self::new(true)
+        Self::new("IsWeekday".to_string(), true)
     }
 }
 
 impl DateRule for WeekDayCheck {
-    fn name(&self) -> &'static str {
-        "WeekDayCheck"
+    fn name(&self) -> String {
+        self.name.clone()
     }
 
     fn validate(&self, array: &Date32Array, _column: String) -> Result<usize, RuleError> {

@@ -8,12 +8,13 @@ use crate::errors::RuleError;
 
 pub trait NumericRule<T: ArrowNumericType>: Send + Sync {
     /// Returns the name of the rule.
-    fn name(&self) -> &'static str;
+    fn name(&self) -> String;
     /// Validates an Arrow `Array`.
     fn validate(&self, array: &PrimitiveArray<T>, column: String) -> Result<usize, RuleError>;
 }
 
 pub struct Range<N: Num + PartialOrd + Copy + Debug> {
+    name: String,
     min: Option<N>,
     max: Option<N>,
 }
@@ -22,8 +23,8 @@ impl<N> Range<N>
 where
     N: Num + PartialOrd + Copy + Debug,
 {
-    pub fn new(min: Option<N>, max: Option<N>) -> Self {
-        Self { min, max }
+    pub fn new(name: String, min: Option<N>, max: Option<N>) -> Self {
+        Self { name, min, max }
     }
 }
 
@@ -32,8 +33,8 @@ where
     T: ArrowNumericType<Native = N>,
     N: Num + PartialOrd + Copy + Debug + Send + Sync,
 {
-    fn name(&self) -> &'static str {
-        "NumericRange"
+    fn name(&self) -> String {
+        self.name.clone()
     }
 
     fn validate(&self, array: &PrimitiveArray<T>, _column: String) -> Result<usize, RuleError> {
@@ -60,13 +61,15 @@ where
 }
 
 pub struct Monotonicity<N> {
+    name: String,
     asc: bool,
     _phantom: PhantomData<N>, // To tie N to the struct
 }
 
 impl<N: PartialOrd> Monotonicity<N> {
-    pub fn new(asc: bool) -> Self {
+    pub fn new(name: String, asc: bool) -> Self {
         Self {
+            name,
             asc,
             _phantom: PhantomData,
         }
@@ -76,6 +79,7 @@ impl<N: PartialOrd> Monotonicity<N> {
 impl<N: PartialOrd> Default for Monotonicity<N> {
     fn default() -> Self {
         Self {
+            name: "IsIngreasing".to_string(),
             asc: true,
             _phantom: PhantomData,
         }
@@ -87,8 +91,8 @@ where
     T: ArrowNumericType<Native = N>,
     N: PartialOrd + Copy + Debug + Send + Sync,
 {
-    fn name(&self) -> &'static str {
-        "Monotonicity"
+    fn name(&self) -> String {
+        self.name.clone()
     }
 
     fn validate(&self, array: &PrimitiveArray<T>, _column: String) -> Result<usize, RuleError> {

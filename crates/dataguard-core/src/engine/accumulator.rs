@@ -46,9 +46,9 @@ impl ResultAccumulator {
     /// Record errors for a specific column and rule.
     ///
     /// Thread-safe - can be called from multiple threads concurrently.
-    pub fn record_column_result(&self, column_name: &str, rule_name: &str, error_count: usize) {
+    pub fn record_column_result(&self, column_name: &str, rule_name: String, error_count: usize) {
         self.column_results
-            .entry((column_name.to_string(), rule_name.to_string()))
+            .entry((column_name.to_string(), rule_name))
             .or_insert_with(|| AtomicUsize::new(0))
             .fetch_add(error_count, Ordering::Relaxed);
     }
@@ -56,9 +56,14 @@ impl ResultAccumulator {
     /// Record errors for a specific relation and rule.
     ///
     /// Thread-safe - can be called from multiple threads concurrently.
-    pub fn record_relation_result(&self, relation_name: &str, rule_name: &str, error_count: usize) {
+    pub fn record_relation_result(
+        &self,
+        relation_name: &str,
+        rule_name: String,
+        error_count: usize,
+    ) {
         self.relation_results
-            .entry((relation_name.to_string(), rule_name.to_string()))
+            .entry((relation_name.to_string(), rule_name))
             .or_insert_with(|| AtomicUsize::new(0))
             .fetch_add(error_count, Ordering::Relaxed);
     }

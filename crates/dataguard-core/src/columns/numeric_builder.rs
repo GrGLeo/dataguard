@@ -54,6 +54,7 @@ impl<T: NumericType> NumericColumnBuilder<T> {
     /// Set numeric range (both min and max)
     pub fn between(&mut self, min: T, max: T) -> &mut Self {
         self.rules.push(ColumnRule::NumericRange {
+            name: "Between".to_string(),
             min: Some(min.to_f64()),
             max: Some(max.to_f64()),
         });
@@ -63,6 +64,7 @@ impl<T: NumericType> NumericColumnBuilder<T> {
     /// Set minimum value
     pub fn min(&mut self, min: T) -> &mut Self {
         self.rules.push(ColumnRule::NumericRange {
+            name: "Min".to_string(),
             min: Some(min.to_f64()),
             max: None,
         });
@@ -72,6 +74,7 @@ impl<T: NumericType> NumericColumnBuilder<T> {
     /// Set maximum value
     pub fn max(&mut self, max: T) -> &mut Self {
         self.rules.push(ColumnRule::NumericRange {
+            name: "Max".to_string(),
             min: None,
             max: Some(max.to_f64()),
         });
@@ -81,6 +84,7 @@ impl<T: NumericType> NumericColumnBuilder<T> {
     /// Check if values are positive (> 0)
     pub fn is_positive(&mut self) -> &mut Self {
         self.rules.push(ColumnRule::NumericRange {
+            name: "IsPositive".to_string(),
             min: Some(T::positive_threshold()),
             max: None,
         });
@@ -90,6 +94,7 @@ impl<T: NumericType> NumericColumnBuilder<T> {
     /// Check if values are negative (< 0)
     pub fn is_negative(&mut self) -> &mut Self {
         self.rules.push(ColumnRule::NumericRange {
+            name: "IsNegative".to_string(),
             min: None,
             max: Some(T::negative_threshold()),
         });
@@ -99,6 +104,7 @@ impl<T: NumericType> NumericColumnBuilder<T> {
     /// Check if values are non-negative (>= 0)
     pub fn is_non_negative(&mut self) -> &mut Self {
         self.rules.push(ColumnRule::NumericRange {
+            name: "IsNonNegative".to_string(),
             min: Some(0.0),
             max: None,
         });
@@ -108,6 +114,7 @@ impl<T: NumericType> NumericColumnBuilder<T> {
     /// Check if values are non-positive (<= 0)
     pub fn is_non_positive(&mut self) -> &mut Self {
         self.rules.push(ColumnRule::NumericRange {
+            name: "IsNonPositive".to_string(),
             min: None,
             max: Some(0.0),
         });
@@ -116,15 +123,19 @@ impl<T: NumericType> NumericColumnBuilder<T> {
 
     /// Check if values are monotonically increasing
     pub fn is_monotonically_increasing(&mut self) -> &mut Self {
-        self.rules
-            .push(ColumnRule::Monotonicity { ascending: true });
+        self.rules.push(ColumnRule::Monotonicity {
+            name: "IsIncreasing".to_string(),
+            ascending: true,
+        });
         self
     }
 
     /// Check if values are monotonically decreasing
     pub fn is_monotonically_decreasing(&mut self) -> &mut Self {
-        self.rules
-            .push(ColumnRule::Monotonicity { ascending: false });
+        self.rules.push(ColumnRule::Monotonicity {
+            name: "IsDecreasing".to_string(),
+            ascending: false,
+        });
         self
     }
 }

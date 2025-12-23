@@ -51,6 +51,7 @@ impl StringColumnBuilder {
     /// Set length constraints (both min and max)
     pub fn with_length_between(&mut self, min: usize, max: usize) -> &mut Self {
         self.rules.push(ColumnRule::StringLength {
+            name: "WithLengthBetween".to_string(),
             min: Some(min),
             max: Some(max),
         });
@@ -60,6 +61,7 @@ impl StringColumnBuilder {
     /// Set minimum length
     pub fn with_min_length(&mut self, min: usize) -> &mut Self {
         self.rules.push(ColumnRule::StringLength {
+            name: "WithMinLength".to_string(),
             min: Some(min),
             max: None,
         });
@@ -69,6 +71,7 @@ impl StringColumnBuilder {
     /// Set maximum length
     pub fn with_max_length(&mut self, max: usize) -> &mut Self {
         self.rules.push(ColumnRule::StringLength {
+            name: "WithMaxLength".to_string(),
             min: None,
             max: Some(max),
         });
@@ -78,6 +81,7 @@ impl StringColumnBuilder {
     /// Set exact length
     pub fn is_exact_length(&mut self, len: usize) -> &mut Self {
         self.rules.push(ColumnRule::StringLength {
+            name: "IsExactLength".to_string(),
             min: Some(len),
             max: Some(len),
         });
@@ -86,7 +90,10 @@ impl StringColumnBuilder {
 
     /// Check if value is in a set of allowed values
     pub fn is_in(&mut self, members: Vec<String>) -> &mut Self {
-        self.rules.push(ColumnRule::StringMembers { members });
+        self.rules.push(ColumnRule::StringMembers {
+            name: "IsIn".to_string(),
+            members,
+        });
         self
     }
 
@@ -100,43 +107,82 @@ impl StringColumnBuilder {
         Regex::new(&pattern).map_err(|e| {
             RuleError::ValidationError(format!("Invalid regex pattern '{}': {}", pattern, e))
         })?;
-        self.rules.push(ColumnRule::StringRegex { pattern, flags });
+        self.rules.push(ColumnRule::StringRegex {
+            name: "WithRegex".to_string(),
+            pattern,
+            flags,
+        });
+        Ok(self)
+    }
+
+    fn with_defined_regex(
+        &mut self,
+        name: String,
+        pattern: String,
+        flags: Option<String>,
+    ) -> Result<&mut Self, RuleError> {
+        // Validate regex at build time
+        Regex::new(&pattern).map_err(|e| {
+            RuleError::ValidationError(format!("Invalid regex pattern '{}': {}", pattern, e))
+        })?;
+        self.rules.push(ColumnRule::StringRegex {
+            name,
+            pattern,
+            flags,
+        });
         Ok(self)
     }
 
     /// Check if string contains only numeric characters
     pub fn is_numeric(&mut self) -> Result<&mut Self, RuleError> {
-        self.with_regex(r"^\d+$".to_string(), None)
+        self.with_defined_regex("IsNumeric".to_string(), r"^\d+$".to_string(), None)
     }
 
     /// Check if string contains only alphabetic characters
     pub fn is_alpha(&mut self) -> Result<&mut Self, RuleError> {
-        self.with_regex(r"^[a-zA-Z]+$".to_string(), None)
+        self.with_defined_regex("IsAlpha".to_string(), r"^[a-zA-Z]+$".to_string(), None)
     }
 
     /// Check if string contains only alphanumeric characters
     pub fn is_alphanumeric(&mut self) -> Result<&mut Self, RuleError> {
-        self.with_regex(r"^[a-zA-Z0-9]+$".to_string(), None)
+        self.with_defined_regex(
+            "IsAlphaNumeric".to_string(),
+            r"^[a-zA-Z0-9]+$".to_string(),
+            None,
+        )
     }
 
     /// Check if string is lowercase
     pub fn is_lowercase(&mut self) -> Result<&mut Self, RuleError> {
-        self.with_regex(r"^[a-z0-9\s-]+$".to_string(), None)
+        self.with_defined_regex(
+            "IsLowerCase".to_string(),
+            r"^[a-z0-9\s-]+$".to_string(),
+            None,
+        )
     }
 
     /// Check if string is uppercase
     pub fn is_uppercase(&mut self) -> Result<&mut Self, RuleError> {
-        self.with_regex(r"^[A-Z0-9\s-]+$".to_string(), None)
+        self.with_defined_regex(
+            "IsUpperCase".to_string(),
+            r"^[A-Z0-9\s-]+$".to_string(),
+            None,
+        )
     }
 
     /// Check if string is a valid URL
     pub fn is_url(&mut self) -> Result<&mut Self, RuleError> {
-        self.with_regex(r"^https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}".to_string(), None)
+        self.with_defined_regex(
+            "IsUrl".to_string(),
+            r"^https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}".to_string(),
+            None,
+        )
     }
 
     /// Check if string is a valid email
     pub fn is_email(&mut self) -> Result<&mut Self, RuleError> {
-        self.with_regex(
+        self.with_defined_regex(
+            "IsEmail".to_string(),
             r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$".to_string(),
             None,
         )
@@ -144,7 +190,8 @@ impl StringColumnBuilder {
 
     /// Check if string is a valid UUID
     pub fn is_uuid(&mut self) -> Result<&mut Self, RuleError> {
-        self.with_regex(
+        self.with_defined_regex(
+            "IsUuid".to_string(),
             r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
                 .to_string(),
             None,

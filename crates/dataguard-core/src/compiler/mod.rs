@@ -49,14 +49,22 @@ fn compile_string_rules(
 
     for rule in rules {
         match rule {
-            ColumnRule::StringLength { min, max } => {
-                executable_rules.push(Box::new(StringLengthCheck::new(*min, *max)));
+            ColumnRule::StringLength { name, min, max } => {
+                executable_rules.push(Box::new(StringLengthCheck::new(name.clone(), *min, *max)));
             }
-            ColumnRule::StringRegex { pattern, flags } => {
-                executable_rules.push(Box::new(RegexMatch::new(pattern.clone(), flags.clone())));
+            ColumnRule::StringRegex {
+                name,
+                pattern,
+                flags,
+            } => {
+                executable_rules.push(Box::new(RegexMatch::new(
+                    name.clone(),
+                    pattern.clone(),
+                    flags.clone(),
+                )));
             }
-            ColumnRule::StringMembers { members } => {
-                executable_rules.push(Box::new(IsInCheck::new(members.to_vec())));
+            ColumnRule::StringMembers { name, members } => {
+                executable_rules.push(Box::new(IsInCheck::new(name.clone(), members.to_vec())));
             }
             ColumnRule::Unicity => {
                 unicity_check = Some(UnicityCheck::new());
@@ -100,16 +108,17 @@ fn compile_date_rules(
                 null_check = Some(NullCheck::new());
             }
             ColumnRule::DateBoundary {
+                name,
                 after,
                 year,
                 month,
                 day,
             } => {
-                let rule = DateBoundaryCheck::new(*after, *year, *month, *day)?;
+                let rule = DateBoundaryCheck::new(name.clone(), *after, *year, *month, *day)?;
                 executable_rules.push(Box::new(rule));
             }
-            ColumnRule::WeekDay { is_week } => {
-                let rule = WeekDayCheck::new(*is_week);
+            ColumnRule::WeekDay { name, is_week } => {
+                let rule = WeekDayCheck::new(name.clone(), *is_week);
                 executable_rules.push(Box::new(rule));
             }
             _ => {
@@ -150,13 +159,13 @@ where
     let mut executable_rules: Vec<Box<dyn NumericRule<A>>> = Vec::new();
     for rule in rules {
         match rule {
-            ColumnRule::NumericRange { min, max } => {
+            ColumnRule::NumericRange { name, min, max } => {
                 let min_conv = min.and_then(|v| N::from(v));
                 let max_conv = max.and_then(|v| N::from(v));
-                executable_rules.push(Box::new(Range::<N>::new(min_conv, max_conv)));
+                executable_rules.push(Box::new(Range::<N>::new(name.clone(), min_conv, max_conv)));
             }
-            ColumnRule::Monotonicity { ascending } => {
-                executable_rules.push(Box::new(Monotonicity::<N>::new(*ascending)));
+            ColumnRule::Monotonicity { name, ascending } => {
+                executable_rules.push(Box::new(Monotonicity::<N>::new(name.clone(), *ascending)));
             }
             ColumnRule::NullCheck => null_rule = Some(NullCheck::new()),
             ColumnRule::Unicity => {

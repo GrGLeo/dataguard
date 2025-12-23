@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::RuleError;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -7,6 +9,18 @@ pub enum CompOperator {
     Eq,
     Lte,
     Lt,
+}
+
+impl Display for CompOperator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CompOperator::Gt => write!(f, "GreaterThan"),
+            CompOperator::Gte => write!(f, "GreaterThanEqual"),
+            CompOperator::Eq => write!(f, "Equal"),
+            CompOperator::Lte => write!(f, "LesserThanEqual"),
+            CompOperator::Lt => write!(f, "LesserThan"),
+        }
+    }
 }
 
 impl TryFrom<&str> for CompOperator {
