@@ -129,28 +129,27 @@ impl<'a> ValidationEngine<'a> {
                         unicity_check,
                         null_check,
                     } => {
-                        //TODO: new polishing and remove that unwrap
-                        if let Ok(col_index) = batch.schema().index_of(name) {
-                            let array = batch.column(col_index);
-                            let casted_array = validate_date_column(
-                                name,
-                                rules,
-                                type_check,
-                                unicity_check,
-                                null_check,
-                                array,
-                                &error_counter,
-                                &report,
-                                &unicity_accumulators,
-                            )
-                            .unwrap();
+                        let Ok(col_index) = batch.schema().index_of(name) else {
+                            continue;
+                        };
+                        let array = batch.column(col_index);
+                        if let Ok(casted_array) = validate_date_column(
+                            name,
+                            rules,
+                            type_check,
+                            unicity_check,
+                            null_check,
+                            array,
+                            &error_counter,
+                            &report,
+                            &unicity_accumulators,
+                        ) {
                             array_ref.insert(name.clone(), casted_array);
                         }
                     }
                 }
             }
             for executable_relation in self.relations {
-                // TODO: need polishing and remove unwrap
                 validate_relation(executable_relation, &array_ref, &error_counter, &report);
             }
         });
@@ -170,7 +169,7 @@ impl<'a> ValidationEngine<'a> {
         results.add_column_results(column_results);
         results.add_relation_results(relation_result);
 
-        // TODO: not sure about that
+        // Not sure about that part, is this really usefull?
         if total_errors > 0 {
             results.set_failed("Too much errors found".to_string());
         }
@@ -393,6 +392,7 @@ pub fn validate_date_column(
             }
         }
     }
+    // HACK: for now we return an err, since we always have a typecheck rule
     Err(RuleError::TypeCastError(
         name.to_string(),
         "Date32Array".to_string(),
