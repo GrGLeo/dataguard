@@ -21,8 +21,8 @@ impl DateTypeCheck {
         }
     }
 
-    pub fn name(&self) -> &'static str {
-        "TypeCheck"
+    pub fn name(&self) -> String {
+        "TypeCheck".to_string()
     }
 
     pub fn validate(&self, array: &dyn Array) -> Result<(usize, Date32Array), RuleError> {
@@ -39,18 +39,20 @@ impl DateTypeCheck {
 /// A trait for defining validation rules on Arrow arrays.
 pub trait DateRule: Send + Sync {
     /// Returns the name of the rule.
-    fn name(&self) -> &'static str;
+    fn name(&self) -> String;
     /// Validates an Arrow `Array`.
     fn validate(&self, array: &Date32Array, column: String) -> Result<usize, RuleError>;
 }
 
 pub struct DateBoundaryCheck {
+    name: String,
     days: i32,
     after: bool,
 }
 
 impl DateBoundaryCheck {
     pub fn new(
+        name: String,
         after: bool,
         year: usize,
         month: Option<usize>,
@@ -64,7 +66,7 @@ impl DateBoundaryCheck {
                 // Here we can unwrap date is correct
                 let unix = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
                 let days = date.signed_duration_since(unix).num_days() as i32;
-                Ok(Self { after, days })
+                Ok(Self { name, after, days })
             }
             None => Err(RuleError::IncorrectDateError(year, m, d)),
         }
@@ -72,8 +74,8 @@ impl DateBoundaryCheck {
 }
 
 impl DateRule for DateBoundaryCheck {
-    fn name(&self) -> &'static str {
-        "DateBoundaryCheck"
+    fn name(&self) -> String {
+        self.name.clone()
     }
 
     fn validate(&self, array: &Date32Array, _column: String) -> Result<usize, RuleError> {
@@ -92,24 +94,25 @@ impl DateRule for DateBoundaryCheck {
 }
 
 pub struct WeekDayCheck {
+    name: String,
     is_week: bool,
 }
 
 impl WeekDayCheck {
-    pub fn new(is_week: bool) -> Self {
-        Self { is_week }
+    pub fn new(name: String, is_week: bool) -> Self {
+        Self { name, is_week }
     }
 }
 
 impl Default for WeekDayCheck {
     fn default() -> Self {
-        Self::new(true)
+        Self::new("IsWeekday".to_string(), true)
     }
 }
 
 impl DateRule for WeekDayCheck {
-    fn name(&self) -> &'static str {
-        "WeekDayCheck"
+    fn name(&self) -> String {
+        self.name.clone()
     }
 
     fn validate(&self, array: &Date32Array, _column: String) -> Result<usize, RuleError> {
@@ -154,7 +157,13 @@ mod tests {
 
     #[test]
     fn test_constructor_valid_date_all_parameters() {
-        let result = DateBoundaryCheck::new(true, 2020, Some(6), Some(15));
+        let result = DateBoundaryCheck::new(
+            "date_boundary_test".to_string(),
+            true,
+            2020,
+            Some(6),
+            Some(15),
+        );
         assert!(result.is_ok());
         let rule = result.unwrap();
         assert_eq!(rule.days, date_to_days(2020, 6, 15));
@@ -163,7 +172,8 @@ mod tests {
 
     #[test]
     fn test_constructor_valid_date_year_and_month() {
-        let result = DateBoundaryCheck::new(false, 2020, Some(6), None);
+        let result =
+            DateBoundaryCheck::new("date_boundary_test".to_string(), false, 2020, Some(6), None);
         assert!(result.is_ok());
         let rule = result.unwrap();
         // Should default to day 1
@@ -173,7 +183,8 @@ mod tests {
 
     #[test]
     fn test_constructor_valid_date_year_only() {
-        let result = DateBoundaryCheck::new(true, 2020, None, None);
+        let result =
+            DateBoundaryCheck::new("date_boundary_test".to_string(), true, 2020, None, None);
         assert!(result.is_ok());
         let rule = result.unwrap();
         // Should default to January 1st
@@ -182,7 +193,13 @@ mod tests {
 
     #[test]
     fn test_constructor_invalid_month() {
-        let result = DateBoundaryCheck::new(true, 2020, Some(13), Some(1));
+        let result = DateBoundaryCheck::new(
+            "date_boundary_test".to_string(),
+            true,
+            2020,
+            Some(13),
+            Some(1),
+        );
         assert!(result.is_err());
         match result {
             Err(RuleError::IncorrectDateError(year, month, day)) => {
@@ -196,7 +213,13 @@ mod tests {
 
     #[test]
     fn test_constructor_invalid_day() {
-        let result = DateBoundaryCheck::new(true, 2020, Some(2), Some(30));
+        let result = DateBoundaryCheck::new(
+            "date_boundary_test".to_string(),
+            true,
+            2020,
+            Some(2),
+            Some(30),
+        );
         assert!(result.is_err());
         match result {
             Err(RuleError::IncorrectDateError(year, month, day)) => {
@@ -211,7 +234,13 @@ mod tests {
     #[test]
     fn test_constructor_leap_year_feb_29() {
         // 2020 is a leap year, Feb 29 should be valid
-        let result = DateBoundaryCheck::new(true, 2020, Some(2), Some(29));
+        let result = DateBoundaryCheck::new(
+            "date_boundary_test".to_string(),
+            true,
+            2020,
+            Some(2),
+            Some(29),
+        );
         assert!(result.is_ok());
         let rule = result.unwrap();
         assert_eq!(rule.days, date_to_days(2020, 2, 29));
@@ -220,13 +249,25 @@ mod tests {
     #[test]
     fn test_constructor_non_leap_year_feb_29() {
         // 2021 is not a leap year, Feb 29 should be invalid
-        let result = DateBoundaryCheck::new(true, 2021, Some(2), Some(29));
+        let result = DateBoundaryCheck::new(
+            "date_boundary_test".to_string(),
+            true,
+            2021,
+            Some(2),
+            Some(29),
+        );
         assert!(result.is_err());
     }
 
     #[test]
     fn test_constructor_unix_epoch() {
-        let result = DateBoundaryCheck::new(true, 1970, Some(1), Some(1));
+        let result = DateBoundaryCheck::new(
+            "date_boundary_test".to_string(),
+            true,
+            1970,
+            Some(1),
+            Some(1),
+        );
         assert!(result.is_ok());
         let rule = result.unwrap();
         assert_eq!(rule.days, 0); // Unix epoch is day 0
@@ -234,7 +275,13 @@ mod tests {
 
     #[test]
     fn test_constructor_date_before_epoch() {
-        let result = DateBoundaryCheck::new(true, 1969, Some(12), Some(31));
+        let result = DateBoundaryCheck::new(
+            "date_boundary_test".to_string(),
+            true,
+            1969,
+            Some(12),
+            Some(31),
+        );
         assert!(result.is_ok());
         let rule = result.unwrap();
         assert_eq!(rule.days, -1); // Day before epoch
@@ -242,7 +289,13 @@ mod tests {
 
     #[test]
     fn test_constructor_far_future_date() {
-        let result = DateBoundaryCheck::new(true, 2100, Some(1), Some(1));
+        let result = DateBoundaryCheck::new(
+            "date_boundary_test".to_string(),
+            true,
+            2100,
+            Some(1),
+            Some(1),
+        );
         assert!(result.is_ok());
         let rule = result.unwrap();
         assert_eq!(rule.days, date_to_days(2100, 1, 1));
@@ -250,13 +303,25 @@ mod tests {
 
     #[test]
     fn test_constructor_month_zero_invalid() {
-        let result = DateBoundaryCheck::new(true, 2020, Some(0), Some(1));
+        let result = DateBoundaryCheck::new(
+            "date_boundary_test".to_string(),
+            true,
+            2020,
+            Some(0),
+            Some(1),
+        );
         assert!(result.is_err());
     }
 
     #[test]
     fn test_constructor_day_zero_invalid() {
-        let result = DateBoundaryCheck::new(true, 2020, Some(1), Some(0));
+        let result = DateBoundaryCheck::new(
+            "date_boundary_test".to_string(),
+            true,
+            2020,
+            Some(1),
+            Some(0),
+        );
         assert!(result.is_err());
     }
 
@@ -267,7 +332,14 @@ mod tests {
     #[test]
     fn test_validate_after_all_dates_after_threshold() {
         // Threshold: 2020-01-01
-        let rule = DateBoundaryCheck::new(true, 2020, Some(1), Some(1)).unwrap();
+        let rule = DateBoundaryCheck::new(
+            "date_boundary_test".to_string(),
+            true,
+            2020,
+            Some(1),
+            Some(1),
+        )
+        .unwrap();
 
         // All dates after 2020-01-01
         let array = Date32Array::from(vec![
@@ -283,7 +355,14 @@ mod tests {
     #[test]
     fn test_validate_after_all_dates_before_threshold() {
         // Threshold: 2020-01-01
-        let rule = DateBoundaryCheck::new(true, 2020, Some(1), Some(1)).unwrap();
+        let rule = DateBoundaryCheck::new(
+            "date_boundary_test".to_string(),
+            true,
+            2020,
+            Some(1),
+            Some(1),
+        )
+        .unwrap();
 
         // All dates before 2020-01-01
         let array = Date32Array::from(vec![
@@ -299,7 +378,14 @@ mod tests {
     #[test]
     fn test_validate_after_mixed_dates() {
         // Threshold: 2020-06-01
-        let rule = DateBoundaryCheck::new(true, 2020, Some(6), Some(1)).unwrap();
+        let rule = DateBoundaryCheck::new(
+            "date_boundary_test".to_string(),
+            true,
+            2020,
+            Some(6),
+            Some(1),
+        )
+        .unwrap();
 
         let array = Date32Array::from(vec![
             Some(date_to_days(2020, 5, 31)),  // Before (violation)
@@ -316,7 +402,14 @@ mod tests {
     #[test]
     fn test_validate_after_date_equal_to_threshold() {
         // Threshold: 2020-01-01
-        let rule = DateBoundaryCheck::new(true, 2020, Some(1), Some(1)).unwrap();
+        let rule = DateBoundaryCheck::new(
+            "date_boundary_test".to_string(),
+            true,
+            2020,
+            Some(1),
+            Some(1),
+        )
+        .unwrap();
 
         // Date exactly equal to threshold
         let array = Date32Array::from(vec![
@@ -330,7 +423,14 @@ mod tests {
     #[test]
     fn test_validate_after_with_nulls() {
         // Threshold: 2020-01-01
-        let rule = DateBoundaryCheck::new(true, 2020, Some(1), Some(1)).unwrap();
+        let rule = DateBoundaryCheck::new(
+            "date_boundary_test".to_string(),
+            true,
+            2020,
+            Some(1),
+            Some(1),
+        )
+        .unwrap();
 
         let array = Date32Array::from(vec![
             Some(date_to_days(2019, 12, 31)), // Before (violation)
@@ -351,7 +451,14 @@ mod tests {
     #[test]
     fn test_validate_before_all_dates_before_threshold() {
         // Threshold: 2020-12-31
-        let rule = DateBoundaryCheck::new(false, 2020, Some(12), Some(31)).unwrap();
+        let rule = DateBoundaryCheck::new(
+            "date_boundary_test".to_string(),
+            false,
+            2020,
+            Some(12),
+            Some(31),
+        )
+        .unwrap();
 
         // All dates before 2020-12-31
         let array = Date32Array::from(vec![
@@ -367,7 +474,14 @@ mod tests {
     #[test]
     fn test_validate_before_all_dates_after_threshold() {
         // Threshold: 2020-01-01
-        let rule = DateBoundaryCheck::new(false, 2020, Some(1), Some(1)).unwrap();
+        let rule = DateBoundaryCheck::new(
+            "date_boundary_test".to_string(),
+            false,
+            2020,
+            Some(1),
+            Some(1),
+        )
+        .unwrap();
 
         // All dates after 2020-01-01
         let array = Date32Array::from(vec![
@@ -383,7 +497,14 @@ mod tests {
     #[test]
     fn test_validate_before_mixed_dates() {
         // Threshold: 2020-06-01
-        let rule = DateBoundaryCheck::new(false, 2020, Some(6), Some(1)).unwrap();
+        let rule = DateBoundaryCheck::new(
+            "date_boundary_test".to_string(),
+            false,
+            2020,
+            Some(6),
+            Some(1),
+        )
+        .unwrap();
 
         let array = Date32Array::from(vec![
             Some(date_to_days(2020, 5, 31)),  // Before (valid)
@@ -400,7 +521,14 @@ mod tests {
     #[test]
     fn test_validate_before_date_equal_to_threshold() {
         // Threshold: 2020-01-01
-        let rule = DateBoundaryCheck::new(false, 2020, Some(1), Some(1)).unwrap();
+        let rule = DateBoundaryCheck::new(
+            "date_boundary_test".to_string(),
+            false,
+            2020,
+            Some(1),
+            Some(1),
+        )
+        .unwrap();
 
         // Date exactly equal to threshold
         let array = Date32Array::from(vec![
@@ -414,7 +542,14 @@ mod tests {
     #[test]
     fn test_validate_before_with_nulls() {
         // Threshold: 2020-12-31
-        let rule = DateBoundaryCheck::new(false, 2020, Some(12), Some(31)).unwrap();
+        let rule = DateBoundaryCheck::new(
+            "date_boundary_test".to_string(),
+            false,
+            2020,
+            Some(12),
+            Some(31),
+        )
+        .unwrap();
 
         let array = Date32Array::from(vec![
             Some(date_to_days(2021, 1, 1)),  // After (violation)
@@ -434,7 +569,14 @@ mod tests {
 
     #[test]
     fn test_validate_empty_array() {
-        let rule = DateBoundaryCheck::new(true, 2020, Some(1), Some(1)).unwrap();
+        let rule = DateBoundaryCheck::new(
+            "date_boundary_test".to_string(),
+            true,
+            2020,
+            Some(1),
+            Some(1),
+        )
+        .unwrap();
         let array = Date32Array::from(Vec::<Option<i32>>::new());
 
         // Empty array has no violations
@@ -443,7 +585,14 @@ mod tests {
 
     #[test]
     fn test_validate_all_nulls() {
-        let rule = DateBoundaryCheck::new(true, 2020, Some(1), Some(1)).unwrap();
+        let rule = DateBoundaryCheck::new(
+            "date_boundary_test".to_string(),
+            true,
+            2020,
+            Some(1),
+            Some(1),
+        )
+        .unwrap();
         let array = Date32Array::from(vec![None, None, None, None]);
 
         // All nulls are ignored, no violations
@@ -452,7 +601,14 @@ mod tests {
 
     #[test]
     fn test_validate_single_value_valid() {
-        let rule = DateBoundaryCheck::new(true, 2020, Some(1), Some(1)).unwrap();
+        let rule = DateBoundaryCheck::new(
+            "date_boundary_test".to_string(),
+            true,
+            2020,
+            Some(1),
+            Some(1),
+        )
+        .unwrap();
         let array = Date32Array::from(vec![Some(date_to_days(2020, 6, 15))]);
 
         // Single date after threshold - no violation
@@ -461,7 +617,14 @@ mod tests {
 
     #[test]
     fn test_validate_single_value_violation() {
-        let rule = DateBoundaryCheck::new(true, 2020, Some(1), Some(1)).unwrap();
+        let rule = DateBoundaryCheck::new(
+            "date_boundary_test".to_string(),
+            true,
+            2020,
+            Some(1),
+            Some(1),
+        )
+        .unwrap();
         let array = Date32Array::from(vec![Some(date_to_days(2019, 6, 15))]);
 
         // Single date before threshold - 1 violation
@@ -470,7 +633,14 @@ mod tests {
 
     #[test]
     fn test_validate_large_dataset() {
-        let rule = DateBoundaryCheck::new(true, 2020, Some(1), Some(1)).unwrap();
+        let rule = DateBoundaryCheck::new(
+            "date_boundary_test".to_string(),
+            true,
+            2020,
+            Some(1),
+            Some(1),
+        )
+        .unwrap();
 
         // Create array with 1000 dates: half before, half after
         let mut dates = Vec::new();
@@ -489,13 +659,27 @@ mod tests {
 
     #[test]
     fn test_rule_name() {
-        let rule = DateBoundaryCheck::new(true, 2020, Some(1), Some(1)).unwrap();
-        assert_eq!(rule.name(), "DateBoundaryCheck");
+        let rule = DateBoundaryCheck::new(
+            "date_boundary_test".to_string(),
+            true,
+            2020,
+            Some(1),
+            Some(1),
+        )
+        .unwrap();
+        assert_eq!(rule.name(), "date_boundary_test");
     }
 
     #[test]
     fn test_dates_around_epoch() {
-        let rule = DateBoundaryCheck::new(true, 1970, Some(1), Some(1)).unwrap();
+        let rule = DateBoundaryCheck::new(
+            "date_boundary_test".to_string(),
+            true,
+            1970,
+            Some(1),
+            Some(1),
+        )
+        .unwrap();
 
         let array = Date32Array::from(vec![
             Some(date_to_days(1969, 12, 31)), // Before epoch (violation)
@@ -510,7 +694,14 @@ mod tests {
     #[test]
     fn test_year_boundaries() {
         // Test year boundary crossing
-        let rule = DateBoundaryCheck::new(true, 2020, Some(1), Some(1)).unwrap();
+        let rule = DateBoundaryCheck::new(
+            "date_boundary_test".to_string(),
+            true,
+            2020,
+            Some(1),
+            Some(1),
+        )
+        .unwrap();
 
         let array = Date32Array::from(vec![
             Some(date_to_days(2019, 12, 31)), // Last day of 2019 (violation)
@@ -552,7 +743,7 @@ mod tests {
     fn test_weekday_check_all_weekdays_us_format() {
         // Happy path: All dates are weekdays (Monday-Friday)
         // Using US format: %m/%d/%Y (conceptually - we're testing with Date32Array)
-        let rule = WeekDayCheck::new(true); // is_week = true
+        let rule = WeekDayCheck::new("weekday_test".to_string(), true); // is_week = true
 
         // Different week to show format independence
         // 2025-01-13 = Monday
@@ -576,7 +767,7 @@ mod tests {
     fn test_weekday_check_with_weekend_iso_format() {
         // Failing path: Contains weekend dates
         // Using ISO format: %Y-%m-%d
-        let rule = WeekDayCheck::new(true); // is_week = true
+        let rule = WeekDayCheck::new("weekday_test".to_string(), true); // is_week = true
 
         // 2025-01-06 = Monday
         // 2025-01-11 = Saturday (violation)
@@ -599,7 +790,7 @@ mod tests {
     fn test_weekday_check_with_weekend_us_format() {
         // Failing path: Contains weekend dates
         // Using US format: %m/%d/%Y (conceptually)
-        let rule = WeekDayCheck::new(true); // is_week = true
+        let rule = WeekDayCheck::new("weekday_test".to_string(), true); // is_week = true
 
         // Different dates
         // 2025-01-13 = Monday
@@ -627,7 +818,7 @@ mod tests {
     fn test_weekend_check_all_weekends_iso_format() {
         // Happy path: All dates are weekends (Saturday-Sunday)
         // Using ISO format: %Y-%m-%d
-        let rule = WeekDayCheck::new(false); // is_week = false
+        let rule = WeekDayCheck::new("weekday_test".to_string(), false); // is_week = false
 
         // 2025-01-04 = Saturday
         // 2025-01-05 = Sunday
@@ -648,7 +839,7 @@ mod tests {
     fn test_weekend_check_all_weekends_us_format() {
         // Happy path: All dates are weekends (Saturday-Sunday)
         // Using US format: %m/%d/%Y (conceptually)
-        let rule = WeekDayCheck::new(false); // is_week = false
+        let rule = WeekDayCheck::new("weekday_test".to_string(), false); // is_week = false
 
         // Different dates
         // 2025-01-18 = Saturday
@@ -670,7 +861,7 @@ mod tests {
     fn test_weekend_check_with_weekdays_iso_format() {
         // Failing path: Contains weekday dates
         // Using ISO format: %Y-%m-%d
-        let rule = WeekDayCheck::new(false); // is_week = false
+        let rule = WeekDayCheck::new("weekday_test".to_string(), false); // is_week = false
 
         // 2025-01-04 = Saturday
         // 2025-01-06 = Monday (violation)
@@ -693,7 +884,7 @@ mod tests {
     fn test_weekend_check_with_weekdays_us_format() {
         // Failing path: Contains weekday dates
         // Using US format: %m/%d/%Y (conceptually)
-        let rule = WeekDayCheck::new(false); // is_week = false
+        let rule = WeekDayCheck::new("weekday_test".to_string(), false); // is_week = false
 
         // Different dates
         // 2025-01-18 = Saturday

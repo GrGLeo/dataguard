@@ -16,8 +16,8 @@ impl NullCheck {
         Self {}
     }
 
-    pub fn name(&self) -> &'static str {
-        "NullCheck"
+    pub fn name(&self) -> String {
+        "NullCheck".to_string()
     }
 
     pub fn validate(&self, array: &dyn Array) -> usize {
@@ -41,8 +41,8 @@ impl TypeCheck {
         Self { column, expected }
     }
 
-    pub fn name(&self) -> &'static str {
-        "TypeCheck"
+    pub fn name(&self) -> String {
+        "TypeCheck".to_string()
     }
 
     pub fn validate(&self, array: &dyn Array) -> Result<(usize, Arc<dyn Array>), RuleError> {
@@ -70,8 +70,8 @@ impl UnicityCheck {
         Self {}
     }
 
-    pub fn name(&self) -> &'static str {
-        "UnicityCheck"
+    pub fn name(&self) -> String {
+        "UnicityCheck".to_string()
     }
 
     pub fn validate_str(&self, array: &StringArray) -> (usize, HashSet<u64, Xxh3Builder>) {

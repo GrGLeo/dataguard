@@ -39,7 +39,7 @@ fn bench_string_length_between(c: &mut Criterion) {
 
     let min_len = Some(5usize);
     let max_len = Some(10usize);
-    let rule = StringLengthCheck::new(min_len, max_len);
+    let rule = StringLengthCheck::new("string_length_bench".to_string(), min_len, max_len);
 
     for (size, arr) in PREBUILT_ARRAYS.iter() {
         group.throughput(criterion::Throughput::Elements(*size as u64));
@@ -60,7 +60,7 @@ fn bench_string_length_min(c: &mut Criterion) {
 
     let min_len = Some(5usize);
     let max_len = None;
-    let rule = StringLengthCheck::new(min_len, max_len);
+    let rule = StringLengthCheck::new("string_length_bench".to_string(), min_len, max_len);
 
     for (size, arr) in PREBUILT_ARRAYS.iter() {
         group.throughput(criterion::Throughput::Elements(*size as u64));
@@ -80,7 +80,7 @@ fn bench_string_length_max(c: &mut Criterion) {
 
     let min_len = None;
     let max_len = Some(5usize);
-    let rule = StringLengthCheck::new(min_len, max_len);
+    let rule = StringLengthCheck::new("string_length_bench".to_string(), min_len, max_len);
 
     for (size, arr) in PREBUILT_ARRAYS.iter() {
         group.throughput(criterion::Throughput::Elements(*size as u64));

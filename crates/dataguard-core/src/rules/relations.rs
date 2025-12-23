@@ -5,7 +5,7 @@ use arrow_array::{Array, Date32Array};
 use crate::{utils::operator::CompOperator, RuleError};
 
 pub trait RelationRule: Send + Sync {
-    fn name(&self) -> &'static str;
+    fn name(&self) -> String;
     fn validate(
         &self,
         lhs: &Arc<dyn Array>,
@@ -25,8 +25,8 @@ impl DateCompareCheck {
 }
 
 impl RelationRule for DateCompareCheck {
-    fn name(&self) -> &'static str {
-        "DateCompareCheck"
+    fn name(&self) -> String {
+        format!("DateCompare{}", self.op)
     }
 
     fn validate(

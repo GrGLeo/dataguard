@@ -2,6 +2,8 @@ use dataguard_core::ValidationResult;
 
 use crate::{utils::numbers::format_numbers, Reporter};
 
+const MAX_LEN: usize = 30;
+
 pub struct StdOutFormatter {
     intro: String,
     intro_len: usize,
@@ -55,14 +57,8 @@ impl StdOutFormatter {
         for (column_name, rule_results) in result.get_column_results() {
             println!("  {}:", column_name);
 
-            let max_len = rule_results
-                .iter()
-                .map(|r| r.rule_name.len())
-                .max()
-                .unwrap_or(0);
-
             for rule in rule_results {
-                let dots = ".".repeat(max_len - rule.rule_name.len() + 10);
+                let dots = ".".repeat(MAX_LEN - rule.rule_name.len());
                 let count_str = format_numbers(rule.error_count);
                 println!(
                     "    {} {} {:>6} ({:.2}%)",
@@ -79,14 +75,8 @@ impl StdOutFormatter {
             for (column_name, relation_results) in relation_results {
                 println!("  {}:", column_name);
 
-                let max_len = relation_results
-                    .iter()
-                    .map(|r| r.rule_name.len())
-                    .max()
-                    .unwrap_or(0);
-
                 for rule in relation_results {
-                    let dots = ".".repeat(max_len - rule.rule_name.len() + 10);
+                    let dots = ".".repeat(MAX_LEN - rule.rule_name.len());
                     let count_str = format_numbers(rule.error_count);
                     println!(
                         "    {} {} {:>6} ({:.2}%)",

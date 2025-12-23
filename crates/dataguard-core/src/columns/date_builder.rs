@@ -60,6 +60,7 @@ impl DateColumnBuilder {
         day: Option<usize>,
     ) -> &mut Self {
         self.rules.push(ColumnRule::DateBoundary {
+            name: "IsBefore".to_string(),
             after: false,
             year,
             month,
@@ -71,6 +72,7 @@ impl DateColumnBuilder {
     /// Set a limit, the date should be after the given date
     pub fn is_after(&mut self, year: usize, month: Option<usize>, day: Option<usize>) -> &mut Self {
         self.rules.push(ColumnRule::DateBoundary {
+            name: "IsAfter".to_string(),
             after: true,
             year,
             month,
@@ -86,6 +88,7 @@ impl DateColumnBuilder {
         let month = Some(now.month() as usize);
         let day = Some(now.day() as usize);
         self.rules.push(ColumnRule::DateBoundary {
+            name: "IsNotFutur".to_string(),
             after: false,
             year,
             month,
@@ -101,6 +104,7 @@ impl DateColumnBuilder {
         let month = Some(now.month() as usize);
         let day = Some(now.day() as usize);
         self.rules.push(ColumnRule::DateBoundary {
+            name: "IsNotPast".to_string(),
             after: true,
             year,
             month,
@@ -110,12 +114,18 @@ impl DateColumnBuilder {
     }
 
     pub fn is_weekday(&mut self) -> &mut Self {
-        self.rules.push(ColumnRule::WeekDay { is_week: true });
+        self.rules.push(ColumnRule::WeekDay {
+            name: "IsWeekday".to_string(),
+            is_week: true,
+        });
         self
     }
 
     pub fn is_weekend(&mut self) -> &mut Self {
-        self.rules.push(ColumnRule::WeekDay { is_week: false });
+        self.rules.push(ColumnRule::WeekDay {
+            name: "IsWeekend".to_string(),
+            is_week: false,
+        });
         self
     }
 }
