@@ -3,7 +3,7 @@ use dataguard_core::rules::string::{IsInCheck, RegexMatch, StringLengthCheck, St
 
 #[test]
 fn test_string_length_check_with_nulls() {
-    let rule = StringLengthCheck::new(Some(3), Some(10));
+    let rule = StringLengthCheck::new("string_length_test".to_string(), Some(3), Some(10));
     let array = StringArray::from(vec![
         Some("abc"),
         None,
@@ -17,7 +17,7 @@ fn test_string_length_check_with_nulls() {
 
 #[test]
 fn test_string_length_exact() {
-    let rule = StringLengthCheck::new(Some(5), Some(5));
+    let rule = StringLengthCheck::new("string_length_test".to_string(), Some(5), Some(5));
     let array = StringArray::from(vec![
         Some("hello"),
         Some("world"),
@@ -31,6 +31,7 @@ fn test_string_length_exact() {
 #[test]
 fn test_regex_match_email() {
     let rule = RegexMatch::new(
+        "regex_match_test".to_string(),
         r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$".to_string(),
         None,
     );
@@ -47,7 +48,11 @@ fn test_regex_match_email() {
 
 #[test]
 fn test_regex_match_case_insensitive() {
-    let rule = RegexMatch::new("^HELLO$".to_string(), Some("i".to_string()));
+    let rule = RegexMatch::new(
+        "regex_match_test".to_string(),
+        "^HELLO$".to_string(),
+        Some("i".to_string()),
+    );
     let array = StringArray::from(vec![
         Some("hello"),
         Some("HELLO"),
@@ -62,7 +67,7 @@ fn test_regex_match_case_insensitive() {
 #[test]
 fn test_is_in_check_with_duplicates() {
     let members = vec!["a".to_string(), "b".to_string(), "a".to_string()]; // "a" appears twice
-    let rule = IsInCheck::new(members);
+    let rule = IsInCheck::new("is_in_test".to_string(), members);
     let array = StringArray::from(vec![Some("a"), Some("b"), Some("c")]);
     // "c" is not in members
     assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 1);
@@ -75,7 +80,7 @@ fn test_is_in_check_all_valid() {
         "banana".to_string(),
         "cherry".to_string(),
     ];
-    let rule = IsInCheck::new(members);
+    let rule = IsInCheck::new("is_in_test".to_string(), members);
     let array = StringArray::from(vec![
         Some("apple"),
         Some("banana"),
@@ -89,7 +94,7 @@ fn test_is_in_check_all_valid() {
 #[test]
 fn test_is_in_check_all_invalid() {
     let members = vec!["apple".to_string()];
-    let rule = IsInCheck::new(members);
+    let rule = IsInCheck::new("is_in_test".to_string(), members);
     let array = StringArray::from(vec![Some("banana"), Some("cherry"), Some("orange"), None]);
     // All values are invalid (excluding None)
     assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 3);
@@ -97,7 +102,7 @@ fn test_is_in_check_all_invalid() {
 
 #[test]
 fn test_string_length_no_min() {
-    let rule = StringLengthCheck::new(None, Some(5));
+    let rule = StringLengthCheck::new("string_length_test".to_string(), None, Some(5));
     let array = StringArray::from(vec![Some(""), Some("a"), Some("12345"), Some("123456")]);
     // Only "123456" exceeds max
     assert_eq!(rule.validate(&array, "col".to_string()).unwrap(), 1);
@@ -105,7 +110,7 @@ fn test_string_length_no_min() {
 
 #[test]
 fn test_string_length_no_max() {
-    let rule = StringLengthCheck::new(Some(5), None);
+    let rule = StringLengthCheck::new("string_length_test".to_string(), Some(5), None);
     let array = StringArray::from(vec![
         Some(""),
         Some("abcd"),
@@ -118,7 +123,11 @@ fn test_string_length_no_max() {
 
 #[test]
 fn test_regex_match_url_pattern() {
-    let rule = RegexMatch::new(r"^https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}".to_string(), None);
+    let rule = RegexMatch::new(
+        "regex_match_test".to_string(),
+        r"^https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}".to_string(),
+        None,
+    );
     let array = StringArray::from(vec![
         Some("https://example.com"),
         Some("http://test.org"),

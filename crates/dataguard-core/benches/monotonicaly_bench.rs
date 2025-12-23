@@ -29,7 +29,7 @@ static COLUMN_NAME: Lazy<String> = Lazy::new(|| "test_col".to_string());
 fn bench_monotonicity_asc(c: &mut Criterion) {
     let mut group = c.benchmark_group("monotonicity_asc");
 
-    let rule = Monotonicity::new(true);
+    let rule = Monotonicity::new("monotonicity_bench".to_string(), true);
 
     for (size, arr) in PREBUILT_ARRAYS.iter() {
         group.throughput(criterion::Throughput::Elements(*size as u64));
@@ -47,7 +47,7 @@ fn bench_monotonicity_asc(c: &mut Criterion) {
 fn bench_monotonicity_desc(c: &mut Criterion) {
     let mut group = c.benchmark_group("monotonicity_desc");
 
-    let rule = Monotonicity::new(false);
+    let rule = Monotonicity::new("monotonicity_bench".to_string(), false);
 
     for (size, arr) in PREBUILT_ARRAYS.iter() {
         group.throughput(criterion::Throughput::Elements(*size as u64));

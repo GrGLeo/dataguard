@@ -131,15 +131,15 @@ fn test_table_get_rules() {
     assert_eq!(rules.len(), 3);
     assert_eq!(
         rules.get("col1").unwrap(),
-        &vec!["TypeCheck".to_string(), "StringLengthCheck".to_string()]
+        &vec!["TypeCheck".to_string(), "WithLengthBetween".to_string()]
     );
     assert_eq!(
         rules.get("col2").unwrap(),
-        &vec!["TypeCheck".to_string(), "RegexMatch".to_string()]
+        &vec!["TypeCheck".to_string(), "WithRegex".to_string()]
     );
     assert_eq!(
         rules.get("col3").unwrap(),
-        &vec!["TypeCheck".to_string(), "NumericRange".to_string()]
+        &vec!["TypeCheck".to_string(), "Between".to_string()]
     );
 }
 

@@ -53,7 +53,7 @@ fn test_integer_column_is_positive() {
     builder.is_positive();
 
     match &builder.rules()[0] {
-        ColumnRule::NumericRange { min, max } => {
+        ColumnRule::NumericRange { min, max, .. } => {
             assert_eq!(min, &Some(1.0));
             assert_eq!(max, &None);
         }
@@ -77,7 +77,7 @@ fn test_float_column_monotonicity() {
     builder.is_monotonically_increasing();
 
     match &builder.rules()[0] {
-        ColumnRule::Monotonicity { ascending } => {
+        ColumnRule::Monotonicity { ascending, .. } => {
             assert!(ascending);
         }
         _ => panic!("Expected Monotonicity rule"),
@@ -123,6 +123,7 @@ fn test_date_column_is_after_full_date() {
             year,
             month,
             day,
+            ..
         } => {
             assert_eq!(after, &true);
             assert_eq!(year, &2020);
@@ -144,6 +145,7 @@ fn test_date_column_is_after_year_and_month() {
             year,
             month,
             day,
+            ..
         } => {
             assert_eq!(after, &true);
             assert_eq!(year, &2020);
@@ -165,6 +167,7 @@ fn test_date_column_is_after_year_only() {
             year,
             month,
             day,
+            ..
         } => {
             assert_eq!(after, &true);
             assert_eq!(year, &2020);
@@ -187,6 +190,7 @@ fn test_date_column_is_before_full_date() {
             year,
             month,
             day,
+            ..
         } => {
             assert_eq!(after, &false);
             assert_eq!(year, &2025);
@@ -208,6 +212,7 @@ fn test_date_column_is_before_year_and_month() {
             year,
             month,
             day,
+            ..
         } => {
             assert_eq!(after, &false);
             assert_eq!(year, &2024);
@@ -229,6 +234,7 @@ fn test_date_column_is_before_year_only() {
             year,
             month,
             day,
+            ..
         } => {
             assert_eq!(after, &false);
             assert_eq!(year, &2030);
