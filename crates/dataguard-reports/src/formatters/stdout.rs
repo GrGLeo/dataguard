@@ -50,18 +50,17 @@ impl StdOutFormatter {
             return;
         }
 
-        let title = String::from("Column result");
-        let n = (table_res.len() - title.len()) / 2;
-        println!("{}{}", " ".repeat(n), title);
+        let title = String::from("Column result:");
+        println!("  {}", title);
 
         for (column_name, rule_results) in result.get_column_results() {
-            println!("  {}:", column_name);
+            println!("    {}:", column_name);
 
             for rule in rule_results {
                 let dots = ".".repeat(MAX_LEN - rule.rule_name.len());
                 let count_str = format_numbers(rule.error_count);
                 println!(
-                    "    {} {} {:>6} ({:.2}%)",
+                    "      {} {} {:>6} ({:.2}%)",
                     rule.rule_name, dots, count_str, rule.error_percentage
                 );
             }
@@ -69,17 +68,16 @@ impl StdOutFormatter {
 
         let relation_results = result.get_relation_results();
         if !relation_results.is_empty() {
-            let title = String::from("Relation result");
-            let n = (table_res.len() - title.len()) / 2;
-            println!("\n{}{}", " ".repeat(n), title);
+            let title = String::from("Relation result:");
+            println!("\n  {}", title);
             for (column_name, relation_results) in relation_results {
-                println!("  {}:", column_name);
+                println!("    {}:", column_name);
 
                 for rule in relation_results {
                     let dots = ".".repeat(MAX_LEN - rule.rule_name.len());
                     let count_str = format_numbers(rule.error_count);
                     println!(
-                        "    {} {} {:>6} ({:.2}%)",
+                        "      {} {} {:>6} ({:.2}%)",
                         rule.rule_name, dots, count_str, rule.error_percentage
                     );
                 }
