@@ -46,9 +46,13 @@ impl TypeCheck {
     }
 
     pub fn validate(&self, array: &dyn Array) -> Result<(usize, Arc<dyn Array>), RuleError> {
+        let valid_value = array.len() - array.null_count();
         match compute::cast(array, &self.expected) {
             Ok(casted_array) => {
                 let errors = casted_array.null_count() - array.null_count();
+                if errors == valid_value {
+                    return Err(RuleError::TypeCastFailed);
+                }
                 Ok((errors, casted_array))
             }
             Err(e) => Err(RuleError::TypeCastError(self.column.clone(), e.to_string())),

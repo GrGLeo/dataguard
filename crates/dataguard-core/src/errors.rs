@@ -10,6 +10,10 @@ pub enum RuleError {
     #[error("Failed to cast column '{0}' to type {1}")]
     TypeCastError(String, String),
 
+    /// The value was cast but result in all null values
+    #[error("All value failed type casting.")]
+    TypeCastFailed,
+
     /// The Arrow kernel produced an error (e.g., unsupported cast)
     #[error("Arrow computation error: {0}")]
     ArrowError(#[from] arrow::error::ArrowError),

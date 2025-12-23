@@ -222,7 +222,6 @@ fn record_type_check_error(
     error_count: &AtomicUsize,
     report: &ResultAccumulator,
 ) {
-    println!("here we are");
     error_count.fetch_add(array_len, Ordering::Relaxed);
     report.record_column_result(column_name, type_check_name, array_len);
 }
@@ -276,9 +275,22 @@ fn validate_string_column(
                     }
                 }
             }
-            Err(_) => {
-                record_type_check_error(array.len(), name, type_rule.name(), error_counter, report);
-            }
+            Err(err) => match err {
+                RuleError::TypeCastFailed => {
+                    println!("{}", err.to_string());
+                }
+                RuleError::TypeCastError(col, arrow_err) => {
+                    println!("where we here");
+                    record_type_check_error(
+                        array.len(),
+                        name,
+                        type_rule.name(),
+                        error_counter,
+                        report,
+                    );
+                }
+                _ => {}
+            },
         }
     }
 }
@@ -337,9 +349,30 @@ fn validate_numeric_column<T>(
                     }
                 }
             }
-            Err(_) => {
-                record_type_check_error(array.len(), name, type_rule.name(), error_counter, report);
-            }
+            Err(err) => match err {
+                RuleError::TypeCastFailed => {
+                    println!("{}", err.to_string());
+                }
+                RuleError::TypeCastError(col, arrow_err) => {
+                    println!("where we here");
+                    record_type_check_error(
+                        array.len(),
+                        name,
+                        type_rule.name(),
+                        error_counter,
+                        report,
+                    );
+                }
+                _ => {
+                    record_type_check_error(
+                        array.len(),
+                        name,
+                        type_rule.name(),
+                        error_counter,
+                        report,
+                    );
+                }
+            },
         }
     }
 }
