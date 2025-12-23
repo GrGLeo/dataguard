@@ -215,6 +215,7 @@ fn record_type_check_error(
     error_count: &AtomicUsize,
     report: &ResultAccumulator,
 ) {
+    println!("here we are");
     error_count.fetch_add(array_len, Ordering::Relaxed);
     report.record_column_result(column_name, type_check_name, array_len);
 }

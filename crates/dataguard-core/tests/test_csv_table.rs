@@ -1,4 +1,7 @@
-use dataguard_core::{CsvTable, NumericColumnBuilder, StringColumnBuilder, Table};
+use dataguard_core::{
+    columns::date_builder::DateColumnBuilder, columns::relation_builder::RelationBuilder,
+    utils::operator::CompOperator, CsvTable, NumericColumnBuilder, StringColumnBuilder, Table,
+};
 use std::fs::File;
 use std::io::Write;
 use tempfile::tempdir;
@@ -27,7 +30,7 @@ fn test_table_string_column_validation() {
 
     // Commit to validator
     let mut csv_table = CsvTable::new(file_path, "stdout".to_string()).unwrap();
-    csv_table.prepare(vec![Box::new(desc_col)]).unwrap();
+    csv_table.prepare(vec![Box::new(desc_col)], vec![]).unwrap();
 
     // Run validation
     let _res = csv_table.validate();
@@ -66,7 +69,7 @@ fn test_table_integer_column_validation() {
     let file_path = file_path.into_os_string().into_string().unwrap();
     let mut csv_table = CsvTable::new(file_path, "stdout".to_string()).unwrap();
     csv_table
-        .prepare(vec![Box::new(age_col), Box::new(score_col)])
+        .prepare(vec![Box::new(age_col), Box::new(score_col)], vec![])
         .unwrap();
 
     let _res = csv_table.validate();
@@ -96,7 +99,9 @@ fn test_table_float_column_validation() {
     price_col.is_monotonically_increasing();
 
     let mut csv_table = CsvTable::new(file_path, "stdout".to_string()).unwrap();
-    csv_table.prepare(vec![Box::new(price_col)]).unwrap();
+    csv_table
+        .prepare(vec![Box::new(price_col)], vec![])
+        .unwrap();
 
     // Expected: 1 error (5.0 < 25.0 violates monotonicity)
     if let Ok(res) = csv_table.validate() {
@@ -119,7 +124,7 @@ fn test_table_get_rules() {
 
     let mut csv_table = CsvTable::new("hi".to_string(), "stdout".to_string()).unwrap();
     csv_table
-        .prepare(vec![Box::new(col1), Box::new(col2), Box::new(col3)])
+        .prepare(vec![Box::new(col1), Box::new(col2), Box::new(col3)], vec![])
         .unwrap();
 
     let rules = csv_table.get_rules();
@@ -160,7 +165,9 @@ fn test_table_multiple_rules_per_column() {
         .unwrap();
 
     let mut csv_table = CsvTable::new(file_path, "stdout".to_string()).unwrap();
-    csv_table.prepare(vec![Box::new(username_col)]).unwrap();
+    csv_table
+        .prepare(vec![Box::new(username_col)], vec![])
+        .unwrap();
 
     // Expected:
     // - "ab": fail (length < 3) = 1 error
@@ -192,7 +199,7 @@ fn test_table_all_pass() {
     let file_path = file_path.into_os_string().into_string().unwrap();
     let mut csv_table = CsvTable::new(file_path, "stdout".to_string()).unwrap();
     csv_table
-        .prepare(vec![Box::new(name_col), Box::new(age_col)])
+        .prepare(vec![Box::new(name_col), Box::new(age_col)], vec![])
         .unwrap();
 
     let res = csv_table.validate();
@@ -216,7 +223,9 @@ fn test_table_email_validation() {
 
     let file_path = file_path.into_os_string().into_string().unwrap();
     let mut csv_table = CsvTable::new(file_path, "stdout".to_string()).unwrap();
-    csv_table.prepare(vec![Box::new(email_col)]).unwrap();
+    csv_table
+        .prepare(vec![Box::new(email_col)], vec![])
+        .unwrap();
 
     if let Ok(res) = csv_table.validate() {
         assert!(!res.is_passed());
@@ -230,11 +239,11 @@ fn test_table_mixed_column_types() {
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("test.csv");
     let mut file = File::create(&file_path).unwrap();
-    writeln!(file, "name,age,score,price").unwrap();
-    writeln!(file, "alice,25,85,10.5").unwrap(); // all ok
-    writeln!(file, "ab,150,95,25.0").unwrap(); // name fail, age fail
-    writeln!(file, "charlie,30,105,30.0").unwrap(); // score fail
-    writeln!(file, "dave,35,90,5.0").unwrap(); // price fail (monotonicity)
+    writeln!(file, "name,age,score,price,start_date,end_date").unwrap();
+    writeln!(file, "alice,25,85,10.5,2024-01-01,2024-12-31").unwrap(); // all ok
+    writeln!(file, "ab,150,95,25.0,2024-06-01,2024-03-01").unwrap(); // name fail, age fail, date relation fail (end < start)
+    writeln!(file, "charlie,30,105,30.0,2024-01-15,2024-01-20").unwrap(); // score fail
+    writeln!(file, "dave,35,90,5.0,2024-02-01,2024-02-28").unwrap(); // price fail (monotonicity)
 
     let mut name_col = StringColumnBuilder::new("name".to_string());
     name_col.with_min_length(3);
@@ -250,19 +259,33 @@ fn test_table_mixed_column_types() {
 
     let email_col = StringColumnBuilder::new("email".to_string());
 
+    let start_date_col = DateColumnBuilder::new("start_date".to_string(), "%Y-%m-%d".to_string());
+    let end_date_col = DateColumnBuilder::new("end_date".to_string(), "%Y-%m-%d".to_string());
+
+    // Create relation: start_date <= end_date
+    let mut date_relation =
+        RelationBuilder::new(["start_date".to_string(), "end_date".to_string()]);
+    date_relation.date_comparaison(CompOperator::Lte);
+
     let file_path = file_path.into_os_string().into_string().unwrap();
     let mut csv_table = CsvTable::new(file_path, "stdout".to_string()).unwrap();
     csv_table
-        .prepare(vec![
-            Box::new(name_col),
-            Box::new(age_col),
-            Box::new(score_col),
-            Box::new(price_col),
-            Box::new(email_col),
-        ])
+        .prepare(
+            vec![
+                Box::new(name_col),
+                Box::new(age_col),
+                Box::new(score_col),
+                Box::new(price_col),
+                Box::new(email_col),
+                Box::new(start_date_col),
+                Box::new(end_date_col),
+            ],
+            vec![date_relation],
+        )
         .unwrap();
 
-    // Expected: 4 errors (ab too short, 150 > 120, 105 > 100, 5.0 < 30.0)
+    // Expected: 4 column errors (ab too short, 150 > 120, 105 > 100, 5.0 < 30.0)
+    // Plus 1 relation error (2024-06-01 > 2024-03-01 violates start_date <= end_date)
     if let Ok(res) = csv_table.validate() {
         assert!(!res.is_passed());
     } else {
