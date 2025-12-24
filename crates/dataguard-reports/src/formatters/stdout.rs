@@ -38,7 +38,7 @@ impl StdOutFormatter {
             format!("PASSED: {}/{} rules valid", passed, total)
         } else {
             let failed = total - passed;
-            format!("FAILED: {}/{} rule valid", failed, total)
+            format!("FAILED: {}/{} rules valid", failed, total)
         };
         let rows_formatted = format_numbers(result.total_rows);
 
