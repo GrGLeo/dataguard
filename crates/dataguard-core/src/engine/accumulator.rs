@@ -9,7 +9,7 @@ use std::{
 };
 
 use crate::{
-    types::{RuleResultMap, ValidationReport},
+    types::{RuleResultMap, ValidationMapReport},
     RuleResult,
 };
 
@@ -89,14 +89,16 @@ impl ResultAccumulator {
             .fetch_add(error_count, Ordering::Relaxed);
     }
 
-    /// Convert accumulated results to structured format.
+    /// Consolidates atomic counters into a final report of validation results.
     ///
-    /// Returns two map, column results and relations result.
-    /// map of column names to their rule results, sorted by column then rule name.
-    /// map of relation names to their rule results, sorted by column then rule name.
+    /// This method performs the following:
+    /// - Snapshots current atomic values for valid row counts.
+    /// - Iterates through column and relation rule failures.
+    /// - Calculates error percentages based on `total_rows`.
+    /// - Groups results by their respective column or relation names.
     ///
-    /// Error percentages are calculated based on `total_rows`.
-    pub fn to_results(&self) -> ValidationReport {
+    /// Returns a `ValidationMapReport` type containing all mapped data.
+    pub fn to_results(&self) -> ValidationMapReport {
         let mut column_results: RuleResultMap = HashMap::new();
         let mut relation_results: RuleResultMap = HashMap::new();
         let total_rows = self.total_rows.load(Ordering::Relaxed);

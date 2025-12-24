@@ -16,4 +16,4 @@ pub type ValidValueMap = HashMap<String, usize>;
 pub type RuleResultMap = HashMap<String, Vec<RuleResult>>;
 
 /// The complete report generated after validation
-pub type ValidationReport = (ValidValueMap, RuleResultMap, RuleResultMap);
+pub type ValidationMapReport = (ValidValueMap, RuleResultMap, RuleResultMap);
