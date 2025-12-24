@@ -68,7 +68,7 @@ impl<'a> ValidationEngine<'a> {
                     } => {
                         if let Ok(col_index) = batch.schema().index_of(name) {
                             let array = batch.column(col_index);
-                            validate_string_column(
+                            let _ = validate_string_column(
                                 name,
                                 rules,
                                 type_check,
@@ -90,7 +90,7 @@ impl<'a> ValidationEngine<'a> {
                     } => {
                         if let Ok(col_index) = batch.schema().index_of(name) {
                             let array = batch.column(col_index);
-                            validate_numeric_column::<Int64Type>(
+                            let _ = validate_numeric_column::<Int64Type>(
                                 name,
                                 rules,
                                 type_check,
@@ -112,7 +112,7 @@ impl<'a> ValidationEngine<'a> {
                     } => {
                         if let Ok(col_index) = batch.schema().index_of(name) {
                             let array = batch.column(col_index);
-                            validate_numeric_column::<Float64Type>(
+                            let _ = validate_numeric_column::<Float64Type>(
                                 name,
                                 rules,
                                 type_check,
@@ -154,7 +154,13 @@ impl<'a> ValidationEngine<'a> {
             }
             if let Some(relations) = self.relations {
                 for executable_relation in relations {
-                    validate_relation(executable_relation, &array_ref, &error_counter, &report);
+                    // Since the array could not be added in case of type cast failure
+                    // We ensure that both key exist before running the validation
+                    if array_ref.contains_key(&executable_relation.names[0])
+                        && array_ref.contains_key(&executable_relation.names[1])
+                    {
+                        validate_relation(executable_relation, &array_ref, &error_counter, &report);
+                    }
                 }
             }
         });
@@ -168,18 +174,12 @@ impl<'a> ValidationEngine<'a> {
         }
 
         // We create the validation result for report formatting
-        let (column_results, relation_result) = report.to_results();
-        let total_errors = error_counter.load(Ordering::Relaxed);
+        let (column_values, column_results, relation_result) = report.to_results();
         let mut results = ValidationResult::new(table_name.clone(), total_rows);
+        results.add_columns_values(column_values);
         results.add_column_results(column_results);
         results.add_relation_results(relation_result);
 
-        // Not sure about that part, is this really usefull?
-        // This will be modify when we add a rule threshold.
-        // We will instead return number of column(or rules?) pass and failed
-        if total_errors > 0 {
-            results.set_failed("Too much errors found".to_string());
-        }
         Ok(results)
     }
 }
@@ -219,10 +219,10 @@ fn record_type_check_error(
     array_len: usize,
     column_name: &str,
     type_check_name: String,
-    error_count: &AtomicUsize,
+    error_counter: &AtomicUsize,
     report: &ResultAccumulator,
 ) {
-    error_count.fetch_add(array_len, Ordering::Relaxed);
+    error_counter.fetch_add(array_len, Ordering::Relaxed);
     report.record_column_result(column_name, type_check_name, array_len);
 }
 
@@ -236,7 +236,9 @@ fn validate_string_column(
     error_counter: &AtomicUsize,
     report: &ResultAccumulator,
     unicity_accumulators: &UnicityAccumulator,
-) {
+) -> Result<(), RuleError> {
+    let array_values = array.len() - array.null_count();
+    report.record_valid_values(name, array_values);
     // Run null check if present
     validate_null_check(null_check, array, name, report);
 
@@ -252,51 +254,48 @@ fn validate_string_column(
                     report,
                     true,
                 );
+                if errors == array_values {
+                    // We return early in case of a full invalid initial data type
+                    return Err(RuleError::TypeCastFailed);
+                }
 
-                // We downcast once the array
-                if let Some(string_array) = casted_array.as_any().downcast_ref::<StringArray>() {
-                    // We run all domain level rules
-                    for rule in rules {
-                        if let Ok(count) = rule.validate(string_array, name.to_string()) {
-                            record_validation_result(
-                                name,
-                                rule.name(),
-                                count,
-                                error_counter,
-                                report,
-                                true,
-                            );
-                        }
-                    }
-                    // If we have a unicity rule in place, update the global hashset
-                    if let Some(unicity_rule) = unicity_check {
-                        let (null_count, local_hash) = unicity_rule.validate_str(string_array);
-                        unicity_accumulators.record_hashes(name, null_count, local_hash);
+                // Safety: casted_array is StringArray in Ok path
+                let string_array = casted_array.as_any().downcast_ref::<StringArray>().unwrap();
+                // We run all domain level rules
+                for rule in rules {
+                    if let Ok(count) = rule.validate(string_array, name.to_string()) {
+                        record_validation_result(
+                            name,
+                            rule.name(),
+                            count,
+                            error_counter,
+                            report,
+                            true,
+                        );
                     }
                 }
+                // If we have a unicity rule in place, update the global hashset
+                if let Some(unicity_rule) = unicity_check {
+                    let (null_count, local_hash) = unicity_rule.validate_str(string_array);
+                    unicity_accumulators.record_hashes(name, null_count, local_hash);
+                }
+                return Ok(());
             }
-            Err(err) => match err {
-                RuleError::TypeCastFailed => {
-                    println!("{}", err.to_string());
-                }
-                RuleError::TypeCastError(col, arrow_err) => {
-                    println!("where we here");
-                    record_type_check_error(
-                        array.len(),
-                        name,
-                        type_rule.name(),
-                        error_counter,
-                        report,
-                    );
-                }
-                _ => {}
-            },
+            Err(e) => {
+                record_type_check_error(array.len(), name, type_rule.name(), error_counter, report);
+                return Err(e);
+            }
         }
     }
+    // HACK: for now we return an err, since we always have a typecheck rule
+    Err(RuleError::TypeCastError(
+        name.to_string(),
+        "NumericType".to_string(),
+    ))
 }
 
 /// Validate a numeric column (generic over Int64Type and Float64Type)
-fn validate_numeric_column<T>(
+fn validate_numeric_column<T: ArrowNumericType>(
     name: &str,
     rules: &[Box<dyn NumericRule<T>>],
     type_check: &Option<TypeCheck>,
@@ -306,13 +305,13 @@ fn validate_numeric_column<T>(
     error_counter: &AtomicUsize,
     report: &ResultAccumulator,
     unicity_accumulators: &UnicityAccumulator,
-) where
-    T: ArrowNumericType,
-{
+) -> Result<(), RuleError> {
+    let array_values = array.len() - array.null_count();
+    report.record_valid_values(name, array_values);
     // Run null check if present
     validate_null_check(null_check, array, name, report);
 
-    // Type check is not needed for table other than CSV
+    // we only run a type check if the table is a CsvTable
     if let Some(type_rule) = type_check {
         match type_rule.validate(array) {
             Ok((errors, casted_array)) => {
@@ -324,57 +323,47 @@ fn validate_numeric_column<T>(
                     report,
                     true,
                 );
+                if errors == array_values {
+                    // We return early in case of a full invalid initial data type
+                    return Err(RuleError::TypeCastFailed);
+                }
 
-                // We downcast once the array
-                if let Some(numeric_array) =
-                    casted_array.as_any().downcast_ref::<PrimitiveArray<T>>()
-                {
-                    // We run all domain level rules
-                    for rule in rules {
-                        if let Ok(count) = rule.validate(numeric_array, name.to_string()) {
-                            record_validation_result(
-                                name,
-                                rule.name(),
-                                count,
-                                error_counter,
-                                report,
-                                true,
-                            );
-                        }
-                    }
-                    // If we have a unicity rule in place, update the global hashset
-                    if let Some(unicity_rule) = unicity_check {
-                        let (null_count, local_hash) = unicity_rule.validate_numeric(numeric_array);
-                        unicity_accumulators.record_hashes(name, null_count, local_hash);
+                // Safety: casted_array is StringArray in Ok path
+                let numeric_array = casted_array
+                    .as_any()
+                    .downcast_ref::<PrimitiveArray<T>>()
+                    .unwrap();
+                // We run all domain level rules
+                for rule in rules {
+                    if let Ok(count) = rule.validate(numeric_array, name.to_string()) {
+                        record_validation_result(
+                            name,
+                            rule.name(),
+                            count,
+                            error_counter,
+                            report,
+                            true,
+                        );
                     }
                 }
+                // If we have a unicity rule in place, update the global hashset
+                if let Some(unicity_rule) = unicity_check {
+                    let (null_count, local_hash) = unicity_rule.validate_numeric(numeric_array);
+                    unicity_accumulators.record_hashes(name, null_count, local_hash);
+                }
+                return Ok(());
             }
-            Err(err) => match err {
-                RuleError::TypeCastFailed => {
-                    println!("{}", err.to_string());
-                }
-                RuleError::TypeCastError(col, arrow_err) => {
-                    println!("where we here");
-                    record_type_check_error(
-                        array.len(),
-                        name,
-                        type_rule.name(),
-                        error_counter,
-                        report,
-                    );
-                }
-                _ => {
-                    record_type_check_error(
-                        array.len(),
-                        name,
-                        type_rule.name(),
-                        error_counter,
-                        report,
-                    );
-                }
-            },
+            Err(e) => {
+                record_type_check_error(array.len(), name, type_rule.name(), error_counter, report);
+                return Err(e);
+            }
         }
     }
+    // HACK: for now we return an err, since we always have a typecheck rule
+    Err(RuleError::TypeCastError(
+        name.to_string(),
+        "NumericType".to_string(),
+    ))
 }
 
 pub fn validate_date_column(
@@ -388,6 +377,8 @@ pub fn validate_date_column(
     report: &ResultAccumulator,
     unicity_accumulators: &UnicityAccumulator,
 ) -> Result<Arc<dyn Array>, RuleError> {
+    let array_values = array.len() - array.null_count();
+    report.record_valid_values(name, array_values);
     // Run null check if present
     validate_null_check(null_check, array, name, report);
 
@@ -403,6 +394,10 @@ pub fn validate_date_column(
                     report,
                     true,
                 );
+                if errors == array_values {
+                    // We return early in case of a full invalid initial data type
+                    return Err(RuleError::TypeCastFailed);
+                }
 
                 // We run all domain level rules
                 for rule in rules {
@@ -446,9 +441,9 @@ fn validate_relation(
     error_counter: &AtomicUsize,
     report: &ResultAccumulator,
 ) {
-    // TODO: need polishing and remove unwrap
     let lhs_name = executable_relation.names[0].as_str();
     let rhs_name = executable_relation.names[1].as_str();
+    // We can safely unwrap as both keys are check before calling the function
     let lsh = array_ref.get(lhs_name).unwrap();
     let rhs = array_ref.get(rhs_name).unwrap();
     for rule in &executable_relation.rules {

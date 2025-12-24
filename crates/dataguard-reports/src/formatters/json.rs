@@ -129,13 +129,15 @@ impl Reporter for JsonFormatter {
                 )
             }
         };
+        let (pass, total) = result.is_passed();
+        let pass = pass == total;
 
         let table = TableFormatter {
             name,
             n_rows,
             columns,
             relations,
-            pass: result.is_passed(),
+            pass,
         };
         self.tables.push(table);
     }

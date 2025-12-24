@@ -19,7 +19,8 @@ fn test_type_check_invalid_type() {
     let array = StringArray::from(vec![Some("hello"), Some("world"), None]);
     let array_ref: &dyn Array = &array;
     let result = rule.validate(array_ref);
-    assert!(result.is_err())
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap().0, 2);
 }
 
 #[test]

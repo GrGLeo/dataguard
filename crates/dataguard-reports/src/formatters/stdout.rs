@@ -33,15 +33,17 @@ impl StdOutFormatter {
     }
 
     pub fn print_table_result(&self, result: &ValidationResult) {
-        let status = if result.is_passed() {
-            "PASSED"
+        let (passed, total) = result.is_passed();
+        let status = if passed == total {
+            format!("PASSED: {}/{} rules valid", passed, total)
         } else {
-            "FAILED"
+            let failed = total - passed;
+            format!("FAILED: {}/{} rule valid", failed, total)
         };
         let rows_formatted = format_numbers(result.total_rows);
 
         let table_res = format!(
-            "{} ({} rows) - {}",
+            "{} ({} rows) - \n{}",
             result.table_name, rows_formatted, status
         );
         println!("\n{}", table_res);
@@ -59,10 +61,15 @@ impl StdOutFormatter {
             for rule in rule_results {
                 let dots = ".".repeat(MAX_LEN - rule.rule_name.len());
                 let count_str = format_numbers(rule.error_count);
-                println!(
-                    "      {} {} {:>6} ({:.2}%)",
-                    rule.rule_name, dots, count_str, rule.error_percentage
-                );
+                if rule.error_message.is_some() {
+                    let msg = rule.error_message.as_ref().unwrap();
+                    println!("      {}", msg);
+                } else {
+                    println!(
+                        "      {} {} {:>6} ({:.2}%)",
+                        rule.rule_name, dots, count_str, rule.error_percentage
+                    );
+                }
             }
         }
 
