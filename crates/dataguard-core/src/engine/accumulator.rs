@@ -8,15 +8,22 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-use crate::RuleResult;
+use crate::{
+    types::{RuleResultMap, ValidationMapReport},
+    RuleResult,
+};
 
 /// Thread-safe accumulator for validation errors.
 ///
 /// Collects error counts per (column, rule) pair during parallel validation.
 /// After all batches are processed, converts to structured results with percentages.
 pub struct ResultAccumulator {
-    column_results: DashMap<(String, String), AtomicUsize>, // (column_name, rule_name) -> error_count
-    relation_results: DashMap<(String, String), AtomicUsize>, // (column_name, rule_name) -> error_count
+    // (column_name, rule_name) -> error_count
+    column_results: DashMap<(String, String), AtomicUsize>,
+    // (column_name, rule_name) -> error_count
+    relation_results: DashMap<(String, String), AtomicUsize>,
+    // column_name -> total_valid_values
+    valid_values: DashMap<String, AtomicUsize>,
     total_rows: AtomicUsize,
 }
 
@@ -32,6 +39,7 @@ impl ResultAccumulator {
         Self {
             column_results: DashMap::new(),
             relation_results: DashMap::new(),
+            valid_values: DashMap::new(),
             total_rows: AtomicUsize::new(0),
         }
     }
@@ -41,6 +49,19 @@ impl ResultAccumulator {
     /// Must be called before `to_results()` to get correct percentages.
     pub fn set_total_rows(&self, total_rows: usize) {
         self.total_rows.store(total_rows, Ordering::Relaxed);
+    }
+
+    /// Record total valid value per column
+    /// We call valid values all initial non null values
+    ///
+    /// Thread-safe - can be called from multiple threads concurrently.
+    pub fn record_valid_values(&self, column_name: &str, array_values: usize) {
+        self.valid_values
+            .entry(column_name.to_string())
+            .and_modify(|total| {
+                total.fetch_add(array_values, Ordering::Relaxed);
+            })
+            .or_insert_with(|| AtomicUsize::new(array_values));
     }
 
     /// Record errors for a specific column and rule.
@@ -68,41 +89,52 @@ impl ResultAccumulator {
             .fetch_add(error_count, Ordering::Relaxed);
     }
 
-    /// Convert accumulated results to structured format.
+    /// Consolidates atomic counters into a final report of validation results.
     ///
-    /// Returns two map, column results and relations result.
-    /// map of column names to their rule results, sorted by column then rule name.
-    /// map of relation names to their rule results, sorted by column then rule name.
+    /// This method performs the following:
+    /// - Snapshots current atomic values for valid row counts.
+    /// - Iterates through column and relation rule failures.
+    /// - Calculates error percentages based on `total_rows`.
+    /// - Groups results by their respective column or relation names.
     ///
-    /// Error percentages are calculated based on `total_rows`.
-    pub fn to_results(
-        &self,
-    ) -> (
-        HashMap<String, Vec<RuleResult>>,
-        HashMap<String, Vec<RuleResult>>,
-    ) {
-        let mut column_results: HashMap<String, Vec<RuleResult>> = HashMap::new();
-        let mut relation_results: HashMap<String, Vec<RuleResult>> = HashMap::new();
+    /// Returns a `ValidationMapReport` type containing all mapped data.
+    pub fn to_results(&self) -> ValidationMapReport {
+        let mut column_results: RuleResultMap = HashMap::new();
+        let mut relation_results: RuleResultMap = HashMap::new();
         let total_rows = self.total_rows.load(Ordering::Relaxed);
 
+        let column_values = self
+            .valid_values
+            .iter()
+            .map(|entry| {
+                let (k, v) = entry.pair();
+                (k.clone(), v.load(Ordering::Relaxed))
+            })
+            .collect::<HashMap<String, usize>>();
+
         let mut sorted: Vec<_> = self.column_results.iter().collect();
-        sorted.sort_by(|a, b| {
-            let col_cmp = a.key().0.cmp(&b.key().0);
-            if col_cmp != std::cmp::Ordering::Equal {
-                col_cmp
-            } else {
-                a.key().1.cmp(&b.key().1)
-            }
-        });
+        sorted.sort_by(|a, b| a.key().0.cmp(&b.key().0));
 
         for entry in sorted {
+            let mut error_message = None;
             let (column_name, rule_name) = entry.key();
+            let valid_values = self
+                .valid_values
+                .get(column_name)
+                .unwrap()
+                .value()
+                .load(Ordering::Relaxed);
             let error_count = entry.value().load(Ordering::Relaxed);
             let error_percentage = if total_rows > 0 {
                 (error_count as f64 / total_rows as f64) * 100.
             } else {
                 0.0
             };
+            if error_count == valid_values {
+                error_message = Some(String::from(
+                    r"/!\ TypeCast failure all associated rules are passed",
+                ));
+            }
 
             column_results
                 .entry(column_name.clone())
@@ -111,18 +143,13 @@ impl ResultAccumulator {
                     rule_name.clone(),
                     error_count,
                     error_percentage,
+                    error_message,
+                    error_percentage > 0.,
                 ));
         }
 
         let mut sorted: Vec<_> = self.relation_results.iter().collect();
-        sorted.sort_by(|a, b| {
-            let col_cmp = a.key().0.cmp(&b.key().0);
-            if col_cmp != std::cmp::Ordering::Equal {
-                col_cmp
-            } else {
-                a.key().1.cmp(&b.key().1)
-            }
-        });
+        sorted.sort_by(|a, b| a.key().0.cmp(&b.key().0));
 
         for entry in sorted {
             let (relation_name, rule_name) = entry.key();
@@ -140,9 +167,11 @@ impl ResultAccumulator {
                     rule_name.clone(),
                     error_count,
                     error_percentage,
+                    None,
+                    error_percentage > 0.,
                 ));
         }
 
-        (column_results, relation_results)
+        (column_values, column_results, relation_results)
     }
 }

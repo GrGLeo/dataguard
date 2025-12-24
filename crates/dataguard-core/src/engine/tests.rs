@@ -118,7 +118,8 @@ mod result_accumulator_tests {
     fn test_new_accumulator_empty() {
         let accumulator = ResultAccumulator::new();
         accumulator.set_total_rows(100);
-        let (column_results, relation_results) = accumulator.to_results();
+        let (column_values, column_results, relation_results) = accumulator.to_results();
+        assert_eq!(column_values.len(), 0);
         assert_eq!(column_results.len(), 0);
         assert_eq!(relation_results.len(), 0);
     }
@@ -128,16 +129,19 @@ mod result_accumulator_tests {
         let accumulator = ResultAccumulator::new();
         accumulator.set_total_rows(100);
         accumulator.record_column_result("column1", "rule1".to_string().to_string(), 5);
+        accumulator.record_valid_values("column1", 5);
 
-        let (column_results, relation_results) = accumulator.to_results();
+        let (valid_values, column_results, relation_results) = accumulator.to_results();
         assert_eq!(column_results.len(), 1);
         assert!(column_results.contains_key("column1"));
 
         let column_res = &column_results["column1"];
         assert_eq!(column_res.len(), 1);
+        assert_eq!(valid_values.len(), 1);
         assert_eq!(column_res[0].rule_name, "rule1".to_string());
         assert_eq!(column_res[0].error_count, 5);
         assert_eq!(column_res[0].error_percentage, 5.0);
+        assert!(column_res[0].error_message.is_some());
         assert_eq!(relation_results.len(), 0);
     }
 
@@ -145,10 +149,11 @@ mod result_accumulator_tests {
     fn test_record_multiple_results_same_column() {
         let accumulator = ResultAccumulator::new();
         accumulator.set_total_rows(100);
+        accumulator.record_valid_values("column1", 100);
         accumulator.record_column_result("column1", "rule1".to_string().to_string(), 5);
         accumulator.record_column_result("column1", "rule2".to_string().to_string(), 10);
 
-        let (column_results, _relation_results) = accumulator.to_results();
+        let (_, column_results, _relation_results) = accumulator.to_results();
         assert_eq!(column_results.len(), 1);
 
         let column_res = &column_results["column1"];
@@ -160,9 +165,11 @@ mod result_accumulator_tests {
         let accumulator = ResultAccumulator::new();
         accumulator.set_total_rows(100);
         accumulator.record_column_result("column1", "rule1".to_string().to_string(), 5);
+        accumulator.record_valid_values("column1", 100);
         accumulator.record_column_result("column2", "rule1".to_string().to_string(), 10);
+        accumulator.record_valid_values("column2", 100);
 
-        let (column_results, _relation_results) = accumulator.to_results();
+        let (_, column_results, _relation_results) = accumulator.to_results();
         assert_eq!(column_results.len(), 2);
         assert!(column_results.contains_key("column1"));
         assert!(column_results.contains_key("column2"));
@@ -172,9 +179,10 @@ mod result_accumulator_tests {
     fn test_percentage_calculation() {
         let accumulator = ResultAccumulator::new();
         accumulator.set_total_rows(200);
+        accumulator.record_valid_values("column1", 200);
         accumulator.record_column_result("column1", "rule1".to_string().to_string(), 50);
 
-        let (column_results, _relation_results) = accumulator.to_results();
+        let (_, column_results, _relation_results) = accumulator.to_results();
         let column_res = &column_results["column1"];
         assert_eq!(column_res[0].error_percentage, 25.0);
     }
@@ -183,9 +191,10 @@ mod result_accumulator_tests {
     fn test_percentage_zero_total_rows() {
         let accumulator = ResultAccumulator::new();
         accumulator.set_total_rows(0);
+        accumulator.record_valid_values("column1", 0);
         accumulator.record_column_result("column1", "rule1".to_string().to_string(), 5);
 
-        let (column_results, _relation_results) = accumulator.to_results();
+        let (_, column_results, _relation_results) = accumulator.to_results();
         let column_res = &column_results["column1"];
         assert_eq!(column_res[0].error_percentage, 0.0);
     }
@@ -194,11 +203,12 @@ mod result_accumulator_tests {
     fn test_accumulates_errors() {
         let accumulator = ResultAccumulator::new();
         accumulator.set_total_rows(100);
+        accumulator.record_valid_values("column1", 100);
         accumulator.record_column_result("column1", "rule1".to_string().to_string(), 5);
         accumulator.record_column_result("column1", "rule1".to_string().to_string(), 3);
         accumulator.record_column_result("column1", "rule1".to_string().to_string(), 2);
 
-        let (column_results, _relation_results) = accumulator.to_results();
+        let (_, column_results, _relation_results) = accumulator.to_results();
         let column_res = &column_results["column1"];
         assert_eq!(column_res[0].error_count, 10);
     }
@@ -207,11 +217,14 @@ mod result_accumulator_tests {
     fn test_results_sorted_by_column() {
         let accumulator = ResultAccumulator::new();
         accumulator.set_total_rows(100);
+        accumulator.record_valid_values("zebra", 100);
+        accumulator.record_valid_values("apple", 100);
+        accumulator.record_valid_values("banana", 100);
         accumulator.record_column_result("zebra", "rule1".to_string().to_string(), 1);
         accumulator.record_column_result("apple", "rule1".to_string().to_string(), 1);
         accumulator.record_column_result("banana", "rule1".to_string().to_string(), 1);
 
-        let (column_results, _relation_results) = accumulator.to_results();
+        let (_, column_results, _relation_results) = accumulator.to_results();
         let keys: Vec<_> = column_results.keys().cloned().collect();
         // Results are stored in HashMap, so we can't guarantee order
         // But we know all three should be present
@@ -228,14 +241,12 @@ mod result_accumulator_tests {
 
         // Record from multiple threads
         (0..10).into_par_iter().for_each(|i| {
-            accumulator.record_column_result(
-                &format!("column{}", i),
-                "rule1".to_string().to_string(),
-                1,
-            );
+            let colname = &format!("column{}", i);
+            accumulator.record_valid_values(&colname, 100);
+            accumulator.record_column_result(&colname, "rule1".to_string().to_string(), 1);
         });
 
-        let (column_results, _relation_results) = accumulator.to_results();
+        let (_, column_results, _relation_results) = accumulator.to_results();
         assert_eq!(column_results.len(), 10);
     }
 
@@ -243,13 +254,14 @@ mod result_accumulator_tests {
     fn test_concurrent_same_column_rule() {
         let accumulator = ResultAccumulator::new();
         accumulator.set_total_rows(1000);
+        accumulator.record_valid_values("column1", 1000);
 
         // Multiple threads recording to same (column, rule)
         (0..100).into_par_iter().for_each(|_| {
             accumulator.record_column_result("column1", "rule1".to_string().to_string(), 1);
         });
 
-        let (column_results, _relation_results) = accumulator.to_results();
+        let (_, column_results, _relation_results) = accumulator.to_results();
         let column_res = &column_results["column1"];
         assert_eq!(column_res[0].error_count, 100);
     }

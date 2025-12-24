@@ -14,6 +14,27 @@ fn test_type_check_valid_string_array() {
 }
 
 #[test]
+fn test_type_check_invalid_type() {
+    let rule = TypeCheck::new("col".to_string(), DataType::Int32);
+    let array = StringArray::from(vec![Some("hello"), Some("world"), None]);
+    let array_ref: &dyn Array = &array;
+    let result = rule.validate(array_ref);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap().0, 2);
+}
+
+#[test]
+fn test_type_check_mixed_type() {
+    let rule = TypeCheck::new("col".to_string(), DataType::Int32);
+    let array = StringArray::from(vec![Some("hello"), Some("32"), None]);
+    let array_ref: &dyn Array = &array;
+    let result = rule.validate(array_ref);
+    assert!(result.is_ok());
+    let (errors, _casted) = result.unwrap();
+    assert_eq!(errors, 1);
+}
+
+#[test]
 fn test_unicity_check_all_unique() {
     let rule = UnicityCheck::new();
     let array = StringArray::from(vec![

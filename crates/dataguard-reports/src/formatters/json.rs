@@ -43,6 +43,8 @@ struct RuleFormatter {
     name: String,
     errors: usize,
     error_percent: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error_message: Option<String>,
 }
 
 impl JsonFormatter {
@@ -96,6 +98,7 @@ impl Reporter for JsonFormatter {
                                 name: r.rule_name.clone(),
                                 errors: r.error_count,
                                 error_percent: r.error_percentage,
+                                error_message: r.error_message.to_owned(),
                             })
                             .collect();
                         ColumnFomatter { name: n, rules }
@@ -121,6 +124,7 @@ impl Reporter for JsonFormatter {
                                     name: r.rule_name.clone(),
                                     errors: r.error_count,
                                     error_percent: r.error_percentage,
+                                    error_message: r.error_message.to_owned(),
                                 })
                                 .collect();
                             RelationFormatter { name: n, rules }
@@ -129,13 +133,15 @@ impl Reporter for JsonFormatter {
                 )
             }
         };
+        let (pass, total) = result.is_passed();
+        let pass = pass == total;
 
         let table = TableFormatter {
             name,
             n_rows,
             columns,
             relations,
-            pass: result.is_passed(),
+            pass,
         };
         self.tables.push(table);
     }

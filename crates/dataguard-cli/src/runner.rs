@@ -79,7 +79,13 @@ fn execute_validation<R: Reporter>(args: &Args, reporter: &mut R) -> Result<bool
         reporter.on_table_result(r);
     }
 
-    let passed = res.iter().filter(|r| r.is_passed()).count();
+    let passed = res
+        .iter()
+        .filter(|r| {
+            let (pass, total) = r.is_passed();
+            pass == total
+        })
+        .count();
     let failed = res.len() - passed;
     reporter.on_complete(passed, failed);
 
