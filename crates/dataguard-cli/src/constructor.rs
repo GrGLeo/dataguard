@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 use dataguard_core::{
     columns::{date_builder::DateColumnBuilder, relation_builder::RelationBuilder, ColumnBuilder},
     utils::operator::CompOperator,
-    CsvTable, NumericColumnBuilder, StringColumnBuilder, Table,
+    CsvTable, NumericColumnBuilder, ParquetTable, StringColumnBuilder, Table,
 };
 use toml::Value;
 
@@ -386,7 +386,7 @@ fn apply_relation_rule(
     }
 }
 
-pub fn construct_csv_table(table: &ConfigTable) -> Result<CsvTable> {
+pub fn construct_csv_table(table: &ConfigTable) -> Result<Box<dyn Table>> {
     let path = &table.path;
     let global_type_threshold = &table.type_checking_threshold.unwrap_or(0.);
     let global_rule_threshold = &table.rule_threshold.unwrap_or(0.);
@@ -488,10 +488,33 @@ pub fn construct_csv_table(table: &ConfigTable) -> Result<CsvTable> {
             all_relation_builder.push(builder);
         }
     }
-    let mut t = CsvTable::new(path.clone(), table.name.clone())
-        .with_context(|| format!("Failed to create validation table: {}", table.name))?;
-    t.prepare(all_column_builder, all_relation_builder).unwrap();
-    Ok(t)
+    match table.path.split_once(".") {
+        Some((_, format)) => match format {
+            "csv" => {
+                let mut t = CsvTable::new(path.clone(), table.name.clone()).with_context(|| {
+                    format!("Failed to create validation table: {}", table.name)
+                })?;
+                t.prepare(all_column_builder, all_relation_builder).unwrap();
+                Ok(Box::new(t))
+            }
+            "parquet" => {
+                let mut t =
+                    ParquetTable::new(path.clone(), table.name.clone()).with_context(|| {
+                        format!("Failed to create validation table: {}", table.name)
+                    })?;
+                t.prepare(all_column_builder, all_relation_builder).unwrap();
+                Ok(Box::new(t))
+            }
+            _ => Err(CliError::UnknownFormat {
+                format: format.to_string(),
+            }
+            .into()),
+        },
+        None => Err(CliError::UnknownFilePath {
+            path: table.path.to_string(),
+        }
+        .into()),
+    }
 }
 
 #[cfg(test)]
