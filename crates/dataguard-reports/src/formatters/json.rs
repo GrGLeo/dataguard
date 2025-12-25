@@ -43,6 +43,8 @@ struct RuleFormatter {
     name: String,
     errors: usize,
     error_percent: f64,
+    threshold: f64,
+    pass: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     error_message: Option<String>,
 }
@@ -99,6 +101,8 @@ impl Reporter for JsonFormatter {
                                 errors: r.error_count,
                                 error_percent: r.error_percentage,
                                 error_message: r.error_message.to_owned(),
+                                threshold: r.threshold,
+                                pass: r.pass,
                             })
                             .collect();
                         ColumnFomatter { name: n, rules }
@@ -125,6 +129,8 @@ impl Reporter for JsonFormatter {
                                     errors: r.error_count,
                                     error_percent: r.error_percentage,
                                     error_message: r.error_message.to_owned(),
+                                    threshold: r.threshold,
+                                    pass: r.pass,
                                 })
                                 .collect();
                             RelationFormatter { name: n, rules }

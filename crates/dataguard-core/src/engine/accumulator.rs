@@ -82,7 +82,7 @@ impl ResultAccumulator {
             .and_modify(|(counter, _)| {
                 counter.fetch_add(error_count, Ordering::Relaxed);
             })
-            .or_insert_with(|| (AtomicUsize::new(0), Mutex::new(threshold)));
+            .or_insert_with(|| (AtomicUsize::new(error_count), Mutex::new(threshold)));
     }
 
     /// Record errors for a specific relation and rule.
@@ -151,12 +151,6 @@ impl ResultAccumulator {
                 ));
             }
 
-            println!(
-                "{}: {}/ {}",
-                column_name.clone(),
-                error_percentage,
-                threshold
-            );
             column_results
                 .entry(column_name.clone())
                 .or_default()
