@@ -14,7 +14,7 @@ use crate::{errors::RuleError, utils::hasher::Xxh3Builder};
 pub trait StringRule: Send + Sync {
     /// Returns the name of the rule.
     fn name(&self) -> String;
-    fn get_treshold(&self) -> f64;
+    fn get_threshold(&self) -> f64;
     /// Validates an Arrow `Array`.
     fn validate(&self, array: &StringArray, column: String) -> Result<usize, RuleError>;
 }
@@ -43,7 +43,7 @@ impl StringRule for StringLengthCheck {
         self.name.clone()
     }
 
-    fn get_treshold(&self) -> f64 {
+    fn get_threshold(&self) -> f64 {
         self.threshold
     }
 
@@ -105,7 +105,7 @@ impl StringRule for RegexMatch {
         self.name.clone()
     }
 
-    fn get_treshold(&self) -> f64 {
+    fn get_threshold(&self) -> f64 {
         self.threshold
     }
 
@@ -150,7 +150,7 @@ impl StringRule for IsInCheck {
         self.name.clone()
     }
 
-    fn get_treshold(&self) -> f64 {
+    fn get_threshold(&self) -> f64 {
         self.threshold
     }
 
