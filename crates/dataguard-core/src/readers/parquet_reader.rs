@@ -100,7 +100,7 @@ pub fn read_parquet_parallel(
 mod tests {
     use super::*;
 
-    const TEST_FILE: &str = "/home/leo/code/dataguard/benchmark/ecommerce_data.parquet";
+    const TEST_FILE: &str = "/tmp/test_ecommerce_data.parquet";
 
     #[test]
     fn test_parquet_sequential_all_columns() {
@@ -109,51 +109,43 @@ mod tests {
         assert!(!batches.is_empty(), "Should have at least one batch");
 
         let total_rows: usize = batches.iter().map(|b| b.num_rows()).sum();
-        assert_eq!(total_rows, 2_000_000, "Should have 2M rows");
+        assert_eq!(total_rows, 512_000, "Should have 512k rows");
 
-        // Check that we have all 8 columns
-        assert_eq!(batches[0].num_columns(), 8, "Should have 8 columns");
+        // Check that we have all 3 columns
+        assert_eq!(batches[0].num_columns(), 3, "Should have 3 columns");
     }
 
     #[test]
     fn test_parquet_sequential_specific_columns() {
-        let batches = read_parquet_sequential(
-            TEST_FILE,
-            vec![
-                String::from("customer_id"),
-                String::from("product_id"),
-                String::from("product_price"),
-            ],
-        )
-        .unwrap();
+        let batches =
+            read_parquet_sequential(TEST_FILE, vec![String::from("id"), String::from("value")])
+                .unwrap();
 
         assert!(!batches.is_empty());
 
-        // Should only have 3 columns
-        assert_eq!(batches[0].num_columns(), 3, "Should have 3 columns");
+        // Should only have 2 columns
+        assert_eq!(batches[0].num_columns(), 2, "Should have 2 columns");
 
         let schema = batches[0].schema();
-        assert!(schema.column_with_name("customer_id").is_some());
-        assert!(schema.column_with_name("product_id").is_some());
-        assert!(schema.column_with_name("product_price").is_some());
+        assert!(schema.column_with_name("id").is_some());
+        assert!(schema.column_with_name("value").is_some());
 
         let total_rows: usize = batches.iter().map(|b| b.num_rows()).sum();
-        assert_eq!(total_rows, 2_000_000, "Should still have 2M rows");
+        assert_eq!(total_rows, 512_000, "Should still have 512k rows");
     }
 
     #[test]
     fn test_parquet_sequential_single_column() {
-        let batches =
-            read_parquet_sequential(TEST_FILE, vec![String::from("customer_name")]).unwrap();
+        let batches = read_parquet_sequential(TEST_FILE, vec![String::from("name")]).unwrap();
 
         assert!(!batches.is_empty());
         assert_eq!(batches[0].num_columns(), 1, "Should have 1 column");
 
         let schema = batches[0].schema();
-        assert!(schema.column_with_name("customer_name").is_some());
+        assert!(schema.column_with_name("name").is_some());
 
         let total_rows: usize = batches.iter().map(|b| b.num_rows()).sum();
-        assert_eq!(total_rows, 2_000_000);
+        assert_eq!(total_rows, 512_000);
     }
 
     #[test]
@@ -163,47 +155,43 @@ mod tests {
         assert!(!batches.is_empty());
 
         let total_rows: usize = batches.iter().map(|b| b.num_rows()).sum();
-        assert_eq!(total_rows, 2_000_000, "Should have 2M rows");
+        assert_eq!(total_rows, 512_000, "Should have 512k rows");
 
-        assert_eq!(batches[0].num_columns(), 8, "Should have 8 columns");
+        assert_eq!(batches[0].num_columns(), 3, "Should have 3 columns");
     }
 
     #[test]
     fn test_parquet_parallel_with_projection() {
         let batches =
-            read_parquet_parallel(TEST_FILE, vec![String::from("email"), String::from("sexe")])
+            read_parquet_parallel(TEST_FILE, vec![String::from("name"), String::from("value")])
                 .unwrap();
 
         assert!(!batches.is_empty());
         assert_eq!(batches[0].num_columns(), 2, "Should have 2 columns");
 
         let schema = batches[0].schema();
-        assert!(schema.column_with_name("email").is_some());
-        assert!(schema.column_with_name("sexe").is_some());
+        assert!(schema.column_with_name("name").is_some());
+        assert!(schema.column_with_name("value").is_some());
 
         let total_rows: usize = batches.iter().map(|b| b.num_rows()).sum();
-        assert_eq!(total_rows, 2_000_000);
+        assert_eq!(total_rows, 512_000);
     }
 
     #[test]
     fn test_parquet_parallel_vs_sequential() {
-        let sequential = read_parquet_sequential(
-            TEST_FILE,
-            vec![String::from("product_id"), String::from("product_price")],
-        )
-        .unwrap();
+        let sequential =
+            read_parquet_sequential(TEST_FILE, vec![String::from("id"), String::from("value")])
+                .unwrap();
 
-        let parallel = read_parquet_parallel(
-            TEST_FILE,
-            vec![String::from("product_id"), String::from("product_price")],
-        )
-        .unwrap();
+        let parallel =
+            read_parquet_parallel(TEST_FILE, vec![String::from("id"), String::from("value")])
+                .unwrap();
 
         let seq_rows: usize = sequential.iter().map(|b| b.num_rows()).sum();
         let par_rows: usize = parallel.iter().map(|b| b.num_rows()).sum();
 
         assert_eq!(seq_rows, par_rows, "Should have same number of rows");
-        assert_eq!(seq_rows, 2_000_000);
+        assert_eq!(seq_rows, 512_000);
 
         assert_eq!(
             sequential[0].schema(),
