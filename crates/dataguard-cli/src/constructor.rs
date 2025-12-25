@@ -390,16 +390,18 @@ pub fn construct_csv_table(table: &ConfigTable) -> Result<CsvTable> {
     let path = &table.path;
     let global_type_threshold = &table.type_checking_threshold.unwrap_or(0.);
     let global_rule_threshold = &table.rule_threshold.unwrap_or(0.);
+    println!("t: {}", global_rule_threshold);
     let mut all_column_builder: Vec<Box<dyn ColumnBuilder>> = Vec::new();
     let mut all_relation_builder: Vec<RelationBuilder> = Vec::new();
     for column in &table.column {
-        let _column_type_threshold = column
+        let column_type_threshold = column
             .type_checking_threshold
             .unwrap_or(*global_type_threshold);
         let column_rule_threshold = column.rule_threshold.unwrap_or(*global_rule_threshold);
         match column.datatype.as_str() {
             "float" => {
-                let mut builder = NumericColumnBuilder::<f64>::new(column.name.clone());
+                let mut builder = NumericColumnBuilder::<f64>::new(column.name.clone())
+                    .with_type_threshold(column_type_threshold);
                 for rule in &column.rule {
                     apply_float_rule(
                         &mut builder,
@@ -414,7 +416,8 @@ pub fn construct_csv_table(table: &ConfigTable) -> Result<CsvTable> {
                 all_column_builder.push(Box::new(builder));
             }
             "integer" => {
-                let mut builder = NumericColumnBuilder::<i64>::new(column.name.clone());
+                let mut builder = NumericColumnBuilder::<i64>::new(column.name.clone())
+                    .with_type_threshold(column_type_threshold);
                 for rule in &column.rule {
                     apply_integer_rule(
                         &mut builder,
@@ -429,7 +432,8 @@ pub fn construct_csv_table(table: &ConfigTable) -> Result<CsvTable> {
                 all_column_builder.push(Box::new(builder));
             }
             "string" => {
-                let mut builder = StringColumnBuilder::new(column.name.clone());
+                let mut builder = StringColumnBuilder::new(column.name.clone())
+                    .with_type_threshold(column_type_threshold);
                 for rule in &column.rule {
                     apply_string_rule(
                         &mut builder,
@@ -443,7 +447,8 @@ pub fn construct_csv_table(table: &ConfigTable) -> Result<CsvTable> {
             }
             "date" => {
                 let mut builder =
-                    DateColumnBuilder::new(column.name.clone(), column.format.clone().unwrap());
+                    DateColumnBuilder::new(column.name.clone(), column.format.clone().unwrap())
+                        .with_type_threshold(column_type_threshold);
                 for rule in &column.rule {
                     apply_date_rule(
                         &mut builder,

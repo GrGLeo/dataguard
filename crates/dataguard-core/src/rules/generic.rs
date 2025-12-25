@@ -39,16 +39,25 @@ impl Default for NullCheck {
 
 pub struct TypeCheck {
     column: String,
+    threshold: f64,
     expected: DataType,
 }
 
 impl TypeCheck {
-    pub fn new(column: String, expected: DataType) -> Self {
-        Self { column, expected }
+    pub fn new(column: String, expected: DataType, threshold: f64) -> Self {
+        Self {
+            column,
+            threshold,
+            expected,
+        }
     }
 
     pub fn name(&self) -> String {
         "TypeCheck".to_string()
+    }
+
+    pub fn get_threshold(&self) -> f64 {
+        self.threshold
     }
 
     pub fn validate(&self, array: &dyn Array) -> Result<(usize, Arc<dyn Array>), RuleError> {

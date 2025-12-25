@@ -5,6 +5,7 @@ use crate::{columns::ColumnBuilder, ColumnRule, ColumnType};
 #[derive(Debug, Clone)]
 pub struct DateColumnBuilder {
     name: String,
+    type_threshold: Option<f64>,
     format: String,
     rules: Vec<ColumnRule>,
 }
@@ -12,6 +13,10 @@ pub struct DateColumnBuilder {
 impl ColumnBuilder for DateColumnBuilder {
     fn name(&self) -> &str {
         self.name.as_str()
+    }
+
+    fn type_threshold(&self) -> f64 {
+        self.type_threshold.unwrap_or(0.)
     }
 
     fn column_type(&self) -> ColumnType {
@@ -32,8 +37,15 @@ impl DateColumnBuilder {
         Self {
             name,
             format,
+            type_threshold: None,
             rules: Vec::new(),
         }
+    }
+
+    /// Set the type checking threshold
+    pub fn with_type_threshold(mut self, threshold: f64) -> Self {
+        self.type_threshold = Some(threshold);
+        self
     }
 
     pub fn get_format(&self) -> String {

@@ -249,7 +249,12 @@ pub fn compile_column(
                 compile_string_rules(builder.rules(), builder.name())?;
             let mut type_check = None;
             if need_type_check {
-                type_check = Some(TypeCheck::new(builder.name().to_string(), DataType::Utf8));
+                let t = builder.type_threshold();
+                type_check = Some(TypeCheck::new(
+                    builder.name().to_string(),
+                    DataType::Utf8,
+                    t,
+                ));
             }
             Ok(ExecutableColumn::String {
                 name: builder.name().to_string(),
@@ -264,7 +269,12 @@ pub fn compile_column(
                 compile_numeric_rules(builder.rules(), builder.name())?;
             let mut type_check = None;
             if need_type_check {
-                type_check = Some(TypeCheck::new(builder.name().to_string(), DataType::Int64));
+                let t = builder.type_threshold();
+                type_check = Some(TypeCheck::new(
+                    builder.name().to_string(),
+                    DataType::Int64,
+                    t,
+                ));
             }
             Ok(ExecutableColumn::Integer {
                 name: builder.name().to_string(),
@@ -279,9 +289,11 @@ pub fn compile_column(
                 compile_numeric_rules(builder.rules(), builder.name())?;
             let mut type_check = None;
             if need_type_check {
+                let t = builder.type_threshold();
                 type_check = Some(TypeCheck::new(
                     builder.name().to_string(),
                     DataType::Float64,
+                    t,
                 ));
             }
             Ok(ExecutableColumn::Float {
@@ -299,10 +311,12 @@ pub fn compile_column(
             if need_type_check {
                 // Safety: DateColumnBuilder can only return Some()
                 let format = builder.format().unwrap();
+                let t = builder.type_threshold();
                 type_check = Some(DateTypeCheck::new(
                     builder.name().to_string(),
                     DataType::Date32,
                     format.to_string(),
+                    t,
                 ));
             }
             Ok(ExecutableColumn::Date {

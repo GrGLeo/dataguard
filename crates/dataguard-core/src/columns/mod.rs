@@ -14,6 +14,7 @@ pub trait ColumnBuilder {
     fn name(&self) -> &str;
     fn column_type(&self) -> ColumnType;
     fn rules(&self) -> &[ColumnRule];
+    fn type_threshold(&self) -> f64;
 
     // For now only used for date, could be usefull for thousand separator in numeric or decimal
     // precision etc..

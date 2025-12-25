@@ -264,7 +264,7 @@ fn validate_string_column(
                     type_rule.name(),
                     errors,
                     error_counter,
-                    0.,
+                    type_rule.get_threshold(),
                     report,
                     true,
                 );
@@ -301,7 +301,7 @@ fn validate_string_column(
                     array.len(),
                     name,
                     type_rule.name(),
-                    0.,
+                    type_rule.get_threshold(),
                     error_counter,
                     report,
                 );
@@ -342,7 +342,7 @@ fn validate_numeric_column<T: ArrowNumericType>(
                     type_rule.name(),
                     errors,
                     error_counter,
-                    0.,
+                    type_rule.get_threshold(),
                     report,
                     true,
                 );
@@ -382,7 +382,7 @@ fn validate_numeric_column<T: ArrowNumericType>(
                     array.len(),
                     name,
                     type_rule.name(),
-                    0.,
+                    type_rule.get_threshold(),
                     error_counter,
                     report,
                 );
@@ -422,7 +422,7 @@ pub fn validate_date_column(
                     type_rule.name(),
                     errors,
                     error_counter,
-                    0.,
+                    type_rule.get_threshold(),
                     report,
                     true,
                 );
@@ -457,7 +457,7 @@ pub fn validate_date_column(
                     array.len(),
                     name,
                     type_rule.name(),
-                    0.,
+                    type_rule.get_threshold(),
                     error_counter,
                     report,
                 );

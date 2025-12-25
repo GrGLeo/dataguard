@@ -9,20 +9,26 @@ pub struct DateTypeCheck {
     // datatype this will be used later on when we also handle Date64Type
     _column: String,
     _expected: DataType,
+    threshold: f64,
     format: String,
 }
 
 impl DateTypeCheck {
-    pub fn new(column: String, expected: DataType, format: String) -> Self {
+    pub fn new(column: String, expected: DataType, format: String, threshold: f64) -> Self {
         Self {
             _column: column,
             _expected: expected,
+            threshold,
             format,
         }
     }
 
     pub fn name(&self) -> String {
         "TypeCheck".to_string()
+    }
+
+    pub fn get_threshold(&self) -> f64 {
+        self.threshold
     }
 
     pub fn validate(&self, array: &dyn Array) -> Result<(usize, Date32Array), RuleError> {

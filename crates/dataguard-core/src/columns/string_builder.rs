@@ -7,12 +7,17 @@ use regex::Regex;
 #[derive(Debug, Clone)]
 pub struct StringColumnBuilder {
     name: String,
+    type_threshold: Option<f64>,
     rules: Vec<ColumnRule>,
 }
 
 impl ColumnBuilder for StringColumnBuilder {
     fn name(&self) -> &str {
         self.name.as_str()
+    }
+
+    fn type_threshold(&self) -> f64 {
+        self.type_threshold.unwrap_or(0.)
     }
 
     fn column_type(&self) -> ColumnType {
@@ -32,8 +37,15 @@ impl StringColumnBuilder {
     pub fn new(name: String) -> Self {
         Self {
             name,
+            type_threshold: None,
             rules: Vec::new(),
         }
+    }
+
+    /// Set the type checking threshold
+    pub fn with_type_threshold(mut self, threshold: f64) -> Self {
+        self.type_threshold = Some(threshold);
+        self
     }
 
     /// Add not null constraint
