@@ -2,7 +2,7 @@ pub mod columns;
 mod compiler;
 mod engine;
 pub mod errors;
-pub mod reader;
+pub mod readers;
 pub mod results;
 pub mod rules;
 pub mod tables;

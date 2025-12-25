@@ -6,7 +6,8 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader, Read, Seek, SeekFrom};
 use std::sync::Arc;
 
-const BATCH: usize = 256_000; // Increased from 256K
+use crate::readers::BATCH_SIZE;
+
 const MIN_CHUNK_SIZE: u64 = 50 * 1024 * 1024; // 50MB minimum per chunk
 
 pub fn read_csv_parallel(
@@ -108,7 +109,7 @@ fn parse_chunk(
     let reader = ReaderBuilder::new(schema.clone())
         .with_header(true)
         .with_projection(projection.to_vec())
-        .with_batch_size(BATCH)
+        .with_batch_size(BATCH_SIZE)
         .build(cursor)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
@@ -135,7 +136,7 @@ pub fn read_csv_sequential(
     let reader = ReaderBuilder::new(schema)
         .with_header(true)
         .with_projection(projection.to_vec())
-        .with_batch_size(BATCH)
+        .with_batch_size(BATCH_SIZE)
         .build(file)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
