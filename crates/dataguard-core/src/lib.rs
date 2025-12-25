@@ -15,5 +15,5 @@ pub use columns::string_builder::StringColumnBuilder;
 pub use columns::{ColumnRule, ColumnType};
 pub use errors::RuleError;
 pub use results::{RuleResult, ValidationResult};
-pub use tables::{csv_table::CsvTable, Table};
+pub use tables::{csv_table::CsvTable, parquet_table::ParquetTable, Table};
 pub use validator::Validator;

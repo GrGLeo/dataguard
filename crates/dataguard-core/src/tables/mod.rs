@@ -6,6 +6,7 @@ use crate::{
 };
 
 pub mod csv_table;
+pub mod parquet_table;
 
 pub trait Table {
     fn validate(&mut self) -> Result<ValidationResult, RuleError>;

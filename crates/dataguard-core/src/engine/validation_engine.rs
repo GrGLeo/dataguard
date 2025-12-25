@@ -1,5 +1,5 @@
 use super::accumulator::ResultAccumulator;
-use arrow::datatypes::{Float64Type, Int64Type};
+use arrow::datatypes::{Date32Type, Float64Type, Int64Type};
 use std::{
     collections::HashMap,
     sync::{
@@ -239,6 +239,16 @@ fn record_type_check_error(
     report.record_column_result(column_name, type_check_name, threshold, array_len);
 }
 
+/// Record downcast failure
+fn record_downcast_failure(
+    array_len: usize,
+    column_name: &str,
+    type_check_name: String,
+    report: &ResultAccumulator,
+) {
+    report.record_column_result(column_name, type_check_name, 0., array_len);
+}
+
 fn validate_string_column(
     name: &str,
     rules: &[Box<dyn StringRule>],
@@ -283,7 +293,7 @@ fn validate_string_column(
                             rule.name(),
                             count,
                             error_counter,
-                            rule.get_treshold(),
+                            rule.get_threshold(),
                             report,
                             true,
                         );
@@ -294,7 +304,7 @@ fn validate_string_column(
                     let (null_count, local_hash) = unicity_rule.validate_str(string_array);
                     unicity_accumulators.record_hashes(name, null_count, local_hash);
                 }
-                return Ok(());
+                Ok(())
             }
             Err(e) => {
                 record_type_check_error(
@@ -305,15 +315,41 @@ fn validate_string_column(
                     error_counter,
                     report,
                 );
-                return Err(e);
+                Err(e)
             }
         }
+    } else {
+        // Contrary to using TypeCheck here we cant ensure that the given array can be safely
+        // downcast. We need to match on the result
+        let res = array.as_any().downcast_ref::<StringArray>();
+        match res {
+            Some(string_array) => {
+                // We run all domain level rules
+                for rule in rules {
+                    if let Ok(count) = rule.validate(string_array, name.to_string()) {
+                        record_validation_result(
+                            name,
+                            rule.name(),
+                            count,
+                            error_counter,
+                            rule.get_threshold(),
+                            report,
+                            true,
+                        );
+                    }
+                }
+                // If we have a unicity rule in place, update the global hashset
+                if let Some(unicity_rule) = unicity_check {
+                    let (null_count, local_hash) = unicity_rule.validate_str(string_array);
+                    unicity_accumulators.record_hashes(name, null_count, local_hash);
+                }
+            }
+            None => {
+                record_downcast_failure(array.len(), name, "DowncastFailure".to_string(), report);
+            }
+        }
+        Ok(())
     }
-    // HACK: for now we return an err, since we always have a typecheck rule
-    Err(RuleError::TypeCastError(
-        name.to_string(),
-        "NumericType".to_string(),
-    ))
 }
 
 /// Validate a numeric column (generic over Int64Type and Float64Type)
@@ -375,7 +411,7 @@ fn validate_numeric_column<T: ArrowNumericType>(
                     let (null_count, local_hash) = unicity_rule.validate_numeric(numeric_array);
                     unicity_accumulators.record_hashes(name, null_count, local_hash);
                 }
-                return Ok(());
+                Ok(())
             }
             Err(e) => {
                 record_type_check_error(
@@ -386,15 +422,41 @@ fn validate_numeric_column<T: ArrowNumericType>(
                     error_counter,
                     report,
                 );
-                return Err(e);
+                Err(e)
             }
         }
+    } else {
+        // Contrary to using TypeCheck here we cant ensure that the given array can be safely
+        // downcast. We need to match on the result
+        let res = array.as_any().downcast_ref::<PrimitiveArray<T>>();
+        match res {
+            Some(numeric_array) => {
+                // We run all domain level rules
+                for rule in rules {
+                    if let Ok(count) = rule.validate(numeric_array, name.to_string()) {
+                        record_validation_result(
+                            name,
+                            rule.name(),
+                            count,
+                            error_counter,
+                            rule.get_threshold(),
+                            report,
+                            true,
+                        );
+                    }
+                }
+                // If we have a unicity rule in place, update the global hashset
+                if let Some(unicity_rule) = unicity_check {
+                    let (null_count, local_hash) = unicity_rule.validate_numeric(numeric_array);
+                    unicity_accumulators.record_hashes(name, null_count, local_hash);
+                }
+            }
+            None => {
+                record_downcast_failure(array.len(), name, "DowncastFailure".to_string(), report);
+            }
+        }
+        Ok(())
     }
-    // HACK: for now we return an err, since we always have a typecheck rule
-    Err(RuleError::TypeCastError(
-        name.to_string(),
-        "NumericType".to_string(),
-    ))
 }
 
 pub fn validate_date_column(
@@ -450,7 +512,7 @@ pub fn validate_date_column(
                     let (null_count, local_hash) = unicity_rule.validate_date(&date_array);
                     unicity_accumulators.record_hashes(name, null_count, local_hash);
                 }
-                return Ok(Arc::new(date_array));
+                Ok(Arc::new(date_array))
             }
             Err(_) => {
                 record_type_check_error(
@@ -461,18 +523,45 @@ pub fn validate_date_column(
                     error_counter,
                     report,
                 );
-                return Err(RuleError::TypeCastError(
+                Err(RuleError::TypeCastError(
                     name.to_string(),
                     "Date32Array".to_string(),
-                ));
+                ))
+            }
+        }
+    } else {
+        // Contrary to using TypeCheck here we cant ensure that the given array can be safely
+        // downcast. We need to match on the result
+        let res = array.as_any().downcast_ref::<PrimitiveArray<Date32Type>>();
+        match res {
+            Some(date_array) => {
+                // We run all domain level rules
+                for rule in rules {
+                    if let Ok(count) = rule.validate(date_array, name.to_string()) {
+                        record_validation_result(
+                            name,
+                            rule.name(),
+                            count,
+                            error_counter,
+                            rule.get_threshold(),
+                            report,
+                            true,
+                        );
+                    }
+                }
+                // If we have a unicity rule in place, update the global hashset
+                if let Some(unicity_rule) = unicity_check {
+                    let (null_count, local_hash) = unicity_rule.validate_numeric(date_array);
+                    unicity_accumulators.record_hashes(name, null_count, local_hash);
+                }
+                Ok(Arc::new(date_array.to_owned()))
+            }
+            None => {
+                record_downcast_failure(array.len(), name, "DowncastFailure".to_string(), report);
+                Err(RuleError::TypeCastFailed)
             }
         }
     }
-    // HACK: for now we return an err, since we always have a typecheck rule
-    Err(RuleError::TypeCastError(
-        name.to_string(),
-        "Date32Array".to_string(),
-    ))
 }
 
 fn validate_relation(
