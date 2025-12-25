@@ -142,7 +142,7 @@ mod tests {
 
     #[test]
     fn test_unicity_sequential_happy() {
-        let rule = UnicityCheck::new();
+        let rule = UnicityCheck::new(0.0);
         let array = StringArray::from(vec![Some("a"), Some("b"), Some("c")]);
 
         let (null_count, local_set) = rule.validate_str(&array);
@@ -155,7 +155,7 @@ mod tests {
 
     #[test]
     fn test_unicity_parallel_happy() {
-        let rule = UnicityCheck::new();
+        let rule = UnicityCheck::new(0.0);
         let arrays = vec![
             StringArray::from(vec![Some("a"), Some("b"), Some("c")]),
             StringArray::from(vec![Some("d"), Some("e"), Some("f")]),
@@ -186,7 +186,7 @@ mod tests {
 
     #[test]
     fn test_unicity_sequential_with_duplicates() {
-        let rule = UnicityCheck::new();
+        let rule = UnicityCheck::new(0.0);
         let array = StringArray::from(vec![Some("a"), Some("b"), Some("a"), Some("c")]);
 
         let (null_count, local_set) = rule.validate_str(&array);
@@ -199,7 +199,7 @@ mod tests {
 
     #[test]
     fn test_unicity_parallel_with_duplicates() {
-        let rule = UnicityCheck::new();
+        let rule = UnicityCheck::new(0.0);
         let arrays = vec![
             StringArray::from(vec![Some("a"), Some("b"), Some("a")]),
             StringArray::from(vec![Some("c"), Some("b"), Some("d"), Some("c")]),
@@ -228,7 +228,7 @@ mod tests {
 
     #[test]
     fn test_unicity_with_nulls() {
-        let rule = UnicityCheck::new();
+        let rule = UnicityCheck::new(0.0);
         let array = StringArray::from(vec![Some("a"), None, Some("b"), None, Some("a")]);
 
         let (null_count, local_set) = rule.validate_str(&array);

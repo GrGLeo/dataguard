@@ -22,9 +22,9 @@ fn test_table_string_column_validation() {
     // Create column rules
     let mut desc_col = StringColumnBuilder::new("description".to_string());
     desc_col
-        .with_regex("^[a-z ]+$".to_string(), None)
+        .with_regex("^[a-z ]+$".to_string(), None, 0.0)
         .unwrap()
-        .with_min_length(6);
+        .with_min_length(6, 0.0);
 
     let file_path = file_path.into_os_string().into_string().unwrap();
 
@@ -50,10 +50,10 @@ fn test_table_integer_column_validation() {
     writeln!(file, "45,50").unwrap(); // ok
 
     let mut age_col = NumericColumnBuilder::<i64>::new("age".to_string());
-    age_col.between(0, 120);
+    age_col.between(0, 120, 0.0);
 
     let mut score_col = NumericColumnBuilder::<i64>::new("score".to_string());
-    score_col.between(0, 100);
+    score_col.between(0, 100, 0.0);
 
     let file_path = file_path.into_os_string().into_string().unwrap();
     let mut csv_table = CsvTable::new(file_path, "stdout".to_string()).unwrap();
@@ -79,7 +79,7 @@ fn test_table_float_column_validation() {
     let file_path = file_path.into_os_string().into_string().unwrap();
 
     let mut price_col = NumericColumnBuilder::<f64>::new("price".to_string());
-    price_col.is_monotonically_increasing();
+    price_col.is_monotonically_increasing(0.0);
 
     let mut csv_table = CsvTable::new(file_path, "stdout".to_string()).unwrap();
     csv_table
@@ -94,13 +94,13 @@ fn test_table_float_column_validation() {
 #[test]
 fn test_table_get_rules() {
     let mut col1 = StringColumnBuilder::new("col1".to_string());
-    col1.with_length_between(1, 10);
+    col1.with_length_between(1, 10, 0.0);
 
     let mut col2 = StringColumnBuilder::new("col2".to_string());
-    col2.with_regex("^[a-z]+$".to_string(), None).unwrap();
+    col2.with_regex("^[a-z]+$".to_string(), None, 0.0).unwrap();
 
     let mut col3 = NumericColumnBuilder::<i64>::new("col3".to_string());
-    col3.between(2, 5);
+    col3.between(2, 5, 0.0);
 
     let mut csv_table = CsvTable::new("hi".to_string(), "stdout".to_string()).unwrap();
     csv_table
@@ -139,9 +139,9 @@ fn test_table_multiple_rules_per_column() {
 
     let mut username_col = StringColumnBuilder::new("username".to_string());
     username_col
-        .with_min_length(3)
-        .with_max_length(20)
-        .is_alpha()
+        .with_min_length(3, 0.0)
+        .with_max_length(20, 0.0)
+        .is_alpha(0.0)
         .unwrap();
 
     let mut csv_table = CsvTable::new(file_path, "stdout".to_string()).unwrap();
@@ -163,10 +163,10 @@ fn test_table_all_pass() {
     writeln!(file, "charlie,35").unwrap();
 
     let mut name_col = StringColumnBuilder::new("name".to_string());
-    name_col.with_min_length(3);
+    name_col.with_min_length(3, 0.0);
 
     let mut age_col = NumericColumnBuilder::<i64>::new("age".to_string());
-    age_col.is_positive();
+    age_col.is_positive(0.0);
 
     let file_path = file_path.into_os_string().into_string().unwrap();
     let mut csv_table = CsvTable::new(file_path, "stdout".to_string()).unwrap();
@@ -191,7 +191,7 @@ fn test_table_email_validation() {
     writeln!(file, "@invalid.com").unwrap(); // fail
 
     let mut email_col = StringColumnBuilder::new("email".to_string());
-    email_col.is_email().unwrap();
+    email_col.is_email(0.0).unwrap();
 
     let file_path = file_path.into_os_string().into_string().unwrap();
     let mut csv_table = CsvTable::new(file_path, "stdout".to_string()).unwrap();
@@ -215,16 +215,16 @@ fn test_table_mixed_column_types() {
     writeln!(file, "dave,35,90,5.0,2024-02-01,2024-02-28").unwrap(); // price fail (monotonicity)
 
     let mut name_col = StringColumnBuilder::new("name".to_string());
-    name_col.with_min_length(3);
+    name_col.with_min_length(3, 0.0);
 
     let mut age_col = NumericColumnBuilder::<i64>::new("age".to_string());
-    age_col.between(0, 120);
+    age_col.between(0, 120, 0.0);
 
     let mut score_col = NumericColumnBuilder::<i64>::new("score".to_string());
-    score_col.between(0, 100);
+    score_col.between(0, 100, 0.0);
 
     let mut price_col = NumericColumnBuilder::<f64>::new("price".to_string());
-    price_col.is_monotonically_increasing();
+    price_col.is_monotonically_increasing(0.0);
 
     let email_col = StringColumnBuilder::new("email".to_string());
 
@@ -234,7 +234,7 @@ fn test_table_mixed_column_types() {
     // Create relation: start_date <= end_date
     let mut date_relation =
         RelationBuilder::new(["start_date".to_string(), "end_date".to_string()]);
-    date_relation.date_comparaison(CompOperator::Lte);
+    date_relation.date_comparaison(CompOperator::Lte, 0.0);
 
     let file_path = file_path.into_os_string().into_string().unwrap();
     let mut csv_table = CsvTable::new(file_path, "stdout".to_string()).unwrap();

@@ -49,28 +49,28 @@ fn create_float_batch(column_name: &str, values: Vec<Option<f64>>) -> Arc<Record
 /// Create an ExecutableColumn for a string column with unicity check.
 fn create_string_column_with_unicity(name: &str) -> ExecutableColumn {
     let mut builder = StringColumnBuilder::new(name.to_string());
-    builder.is_unique();
+    builder.is_unique(0.0);
     compiler::compile_column(Box::new(builder), true).unwrap()
 }
 
 /// Create an ExecutableColumn for a string column with length constraints.
 fn create_string_column_with_length(name: &str, min: usize, max: usize) -> ExecutableColumn {
     let mut builder = StringColumnBuilder::new(name.to_string());
-    builder.with_min_length(min).with_max_length(max);
+    builder.with_min_length(min, 0.0).with_max_length(max, 0.0);
     compiler::compile_column(Box::new(builder), true).unwrap()
 }
 
 /// Create an ExecutableColumn for an integer column with range constraints.
 fn create_int_column_with_range(name: &str, min: i64, max: i64) -> ExecutableColumn {
     let mut builder = NumericColumnBuilder::<i64>::new(name.to_string());
-    builder.between(min, max);
+    builder.between(min, max, 0.0);
     compiler::compile_column(Box::new(builder), true).unwrap()
 }
 
 /// Create an ExecutableColumn for a string column with null check.
 fn create_string_column_with_null_check(name: &str) -> ExecutableColumn {
     let mut builder = StringColumnBuilder::new(name.to_string());
-    builder.is_not_null();
+    builder.is_not_null(0.0);
     compiler::compile_column(Box::new(builder), true).unwrap()
 }
 
@@ -128,7 +128,7 @@ mod result_accumulator_tests {
     fn test_record_single_result() {
         let accumulator = ResultAccumulator::new();
         accumulator.set_total_rows(100);
-        accumulator.record_column_result("column1", "rule1".to_string().to_string(), 5);
+        accumulator.record_column_result("column1", "rule1".to_string(), 0.0, 5);
         accumulator.record_valid_values("column1", 5);
 
         let (valid_values, column_results, relation_results) = accumulator.to_results();
@@ -150,8 +150,8 @@ mod result_accumulator_tests {
         let accumulator = ResultAccumulator::new();
         accumulator.set_total_rows(100);
         accumulator.record_valid_values("column1", 100);
-        accumulator.record_column_result("column1", "rule1".to_string().to_string(), 5);
-        accumulator.record_column_result("column1", "rule2".to_string().to_string(), 10);
+        accumulator.record_column_result("column1", "rule1".to_string(), 0.0, 5);
+        accumulator.record_column_result("column1", "rule2".to_string(), 0.0, 10);
 
         let (_, column_results, _relation_results) = accumulator.to_results();
         assert_eq!(column_results.len(), 1);
@@ -164,9 +164,9 @@ mod result_accumulator_tests {
     fn test_record_multiple_columns() {
         let accumulator = ResultAccumulator::new();
         accumulator.set_total_rows(100);
-        accumulator.record_column_result("column1", "rule1".to_string().to_string(), 5);
+        accumulator.record_column_result("column1", "rule1".to_string(), 0.0, 5);
         accumulator.record_valid_values("column1", 100);
-        accumulator.record_column_result("column2", "rule1".to_string().to_string(), 10);
+        accumulator.record_column_result("column2", "rule1".to_string(), 0.0, 10);
         accumulator.record_valid_values("column2", 100);
 
         let (_, column_results, _relation_results) = accumulator.to_results();
@@ -180,7 +180,7 @@ mod result_accumulator_tests {
         let accumulator = ResultAccumulator::new();
         accumulator.set_total_rows(200);
         accumulator.record_valid_values("column1", 200);
-        accumulator.record_column_result("column1", "rule1".to_string().to_string(), 50);
+        accumulator.record_column_result("column1", "rule1".to_string(), 0.0, 50);
 
         let (_, column_results, _relation_results) = accumulator.to_results();
         let column_res = &column_results["column1"];
@@ -192,7 +192,7 @@ mod result_accumulator_tests {
         let accumulator = ResultAccumulator::new();
         accumulator.set_total_rows(0);
         accumulator.record_valid_values("column1", 0);
-        accumulator.record_column_result("column1", "rule1".to_string().to_string(), 5);
+        accumulator.record_column_result("column1", "rule1".to_string(), 0.0, 5);
 
         let (_, column_results, _relation_results) = accumulator.to_results();
         let column_res = &column_results["column1"];
@@ -204,9 +204,9 @@ mod result_accumulator_tests {
         let accumulator = ResultAccumulator::new();
         accumulator.set_total_rows(100);
         accumulator.record_valid_values("column1", 100);
-        accumulator.record_column_result("column1", "rule1".to_string().to_string(), 5);
-        accumulator.record_column_result("column1", "rule1".to_string().to_string(), 3);
-        accumulator.record_column_result("column1", "rule1".to_string().to_string(), 2);
+        accumulator.record_column_result("column1", "rule1".to_string(), 0.0, 5);
+        accumulator.record_column_result("column1", "rule1".to_string(), 0.0, 3);
+        accumulator.record_column_result("column1", "rule1".to_string(), 0.0, 2);
 
         let (_, column_results, _relation_results) = accumulator.to_results();
         let column_res = &column_results["column1"];
@@ -220,9 +220,9 @@ mod result_accumulator_tests {
         accumulator.record_valid_values("zebra", 100);
         accumulator.record_valid_values("apple", 100);
         accumulator.record_valid_values("banana", 100);
-        accumulator.record_column_result("zebra", "rule1".to_string().to_string(), 1);
-        accumulator.record_column_result("apple", "rule1".to_string().to_string(), 1);
-        accumulator.record_column_result("banana", "rule1".to_string().to_string(), 1);
+        accumulator.record_column_result("zebra", "rule1".to_string(), 0.0, 1);
+        accumulator.record_column_result("apple", "rule1".to_string(), 0.0, 1);
+        accumulator.record_column_result("banana", "rule1".to_string(), 0.0, 1);
 
         let (_, column_results, _relation_results) = accumulator.to_results();
         let keys: Vec<_> = column_results.keys().cloned().collect();
@@ -243,7 +243,7 @@ mod result_accumulator_tests {
         (0..10).into_par_iter().for_each(|i| {
             let colname = &format!("column{}", i);
             accumulator.record_valid_values(&colname, 100);
-            accumulator.record_column_result(&colname, "rule1".to_string().to_string(), 1);
+            accumulator.record_column_result(&colname, "rule1".to_string(), 0.0, 1);
         });
 
         let (_, column_results, _relation_results) = accumulator.to_results();
@@ -258,7 +258,7 @@ mod result_accumulator_tests {
 
         // Multiple threads recording to same (column, rule)
         (0..100).into_par_iter().for_each(|_| {
-            accumulator.record_column_result("column1", "rule1".to_string().to_string(), 1);
+            accumulator.record_column_result("column1", "rule1".to_string(), 0.0, 1);
         });
 
         let (_, column_results, _relation_results) = accumulator.to_results();
@@ -324,7 +324,7 @@ mod unicity_accumulator_tests {
         accumulator.record_hashes("email", 0, hashes);
 
         let results = accumulator.finalize(2);
-        assert_eq!(results["email"], 0); // No duplicates
+        assert_eq!(results["email"].0, 0); // No duplicates
     }
 
     #[test]
@@ -343,7 +343,7 @@ mod unicity_accumulator_tests {
         accumulator.record_hashes("email", 0, hashes2);
 
         let results = accumulator.finalize(2);
-        assert_eq!(results["email"], 0); // 2 unique values, 2 total rows
+        assert_eq!(results["email"].0, 0); // 2 unique values, 2 total rows
     }
 
     #[test]
@@ -364,7 +364,7 @@ mod unicity_accumulator_tests {
         accumulator.record_hashes("email", 0, hashes2);
 
         let results = accumulator.finalize(2);
-        assert_eq!(results["email"], 1); // 1 unique value, 2 total rows = 1 duplicate
+        assert_eq!(results["email"].0, 1); // 1 unique value, 2 total rows = 1 duplicate
     }
 
     #[test]
@@ -381,7 +381,7 @@ mod unicity_accumulator_tests {
         accumulator.record_hashes("email", 0, hashes);
 
         let results = accumulator.finalize(3);
-        assert_eq!(results["email"], 0);
+        assert_eq!(results["email"].0, 0);
     }
 
     #[test]
@@ -397,7 +397,7 @@ mod unicity_accumulator_tests {
         accumulator.record_hashes("email", 0, hashes);
 
         let results = accumulator.finalize(5);
-        assert_eq!(results["email"], 3); // 5 total - 2 unique = 3 duplicates
+        assert_eq!(results["email"].0, 3); // 5 total - 2 unique = 3 duplicates
     }
 
     #[test]
@@ -412,7 +412,7 @@ mod unicity_accumulator_tests {
         accumulator.record_hashes("email", 0, hashes);
 
         let results = accumulator.finalize(10);
-        assert_eq!(results["email"], 9); // 10 total - 1 unique = 9 duplicates
+        assert_eq!(results["email"].0, 9); // 10 total - 1 unique = 9 duplicates
     }
 
     #[test]
@@ -454,7 +454,7 @@ mod unicity_accumulator_tests {
         });
 
         let results = accumulator.finalize(10);
-        assert_eq!(results["email"], 0); // 10 unique values, 10 rows = no duplicates
+        assert_eq!(results["email"].0, 0); // 10 unique values, 10 rows = no duplicates
     }
 
     #[test]
@@ -569,7 +569,7 @@ mod validation_engine_tests {
     #[test]
     fn test_validate_single_batch_float_column() {
         let mut builder = NumericColumnBuilder::<f64>::new("price".to_string());
-        builder.between(0.0, 1000.0);
+        builder.between(0.0, 1000.0, 0.0);
         let col = compiler::compile_column(Box::new(builder), true).unwrap();
         let columns = vec![col].into_boxed_slice();
         let relations = None;
@@ -849,7 +849,7 @@ mod validation_engine_tests {
 
         // Create relation: start_date <= end_date
         let mut relation = RelationBuilder::new(["start_date".to_string(), "end_date".to_string()]);
-        relation.date_comparaison(CompOperator::Lte);
+        relation.date_comparaison(CompOperator::Lte, 0.0);
         let executable_relation = compiler::compile_relations(relation).unwrap();
         let relations = Some(vec![executable_relation].into_boxed_slice());
 

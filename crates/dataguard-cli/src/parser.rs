@@ -367,6 +367,8 @@ mod test {
 
     fn create_column(name: &str, rules: Vec<Rule>) -> Column {
         Column {
+            type_checking_threshold: None,
+            rule_threshold: None,
             name: name.to_string(),
             datatype: "string".to_string(),
             format: None,
@@ -377,6 +379,7 @@ mod test {
     #[test]
     fn test_validate_column_min_max_length_valid() {
         let rule = Rule::WithLengthBetween {
+            threshold: None,
             min_length: 3,
             max_length: 10,
         };
@@ -389,6 +392,7 @@ mod test {
     #[test]
     fn test_validate_column_min_greater_than_max_length() {
         let rule = Rule::WithLengthBetween {
+            threshold: None,
             min_length: 10,
             max_length: 3,
         };
@@ -408,6 +412,7 @@ mod test {
     #[test]
     fn test_validate_column_min_equal_max_length() {
         let rule = Rule::WithLengthBetween {
+            threshold: None,
             min_length: 5,
             max_length: 5,
         };
@@ -428,6 +433,7 @@ mod test {
     #[test]
     fn test_validate_column_integer_min_max_valid() {
         let rule = Rule::Between {
+            threshold: None,
             min: Value::Integer(1),
             max: Value::Integer(10),
         };
@@ -440,6 +446,7 @@ mod test {
     #[test]
     fn test_validate_column_integer_min_greater_than_max() {
         let rule = Rule::Between {
+            threshold: None,
             min: Value::Integer(10),
             max: Value::Integer(1),
         };
@@ -460,6 +467,7 @@ mod test {
     #[test]
     fn test_validate_column_integer_min_equal_max() {
         let rule = Rule::Between {
+            threshold: None,
             min: Value::Integer(5),
             max: Value::Integer(5),
         };
@@ -480,6 +488,7 @@ mod test {
     #[test]
     fn test_validate_column_integer_negative_values() {
         let rule = Rule::Between {
+            threshold: None,
             min: Value::Integer(-10),
             max: Value::Integer(-1),
         };
@@ -492,6 +501,7 @@ mod test {
     #[test]
     fn test_validate_column_float_min_max_valid() {
         let rule = Rule::Between {
+            threshold: None,
             min: Value::Float(1.5),
             max: Value::Float(10.5),
         };
@@ -504,6 +514,7 @@ mod test {
     #[test]
     fn test_validate_column_float_min_greater_than_max() {
         let rule = Rule::Between {
+            threshold: None,
             min: Value::Float(10.5),
             max: Value::Float(1.5),
         };
@@ -524,6 +535,7 @@ mod test {
     #[test]
     fn test_validate_column_float_min_equal_max() {
         let rule = Rule::Between {
+            threshold: None,
             min: Value::Float(5.5),
             max: Value::Float(5.5),
         };
@@ -544,6 +556,7 @@ mod test {
     #[test]
     fn test_validate_column_float_negative_values() {
         let rule = Rule::Between {
+            threshold: None,
             min: Value::Float(-10.5),
             max: Value::Float(-1.5),
         };
@@ -556,6 +569,7 @@ mod test {
     #[test]
     fn test_validate_column_type_mismatch_int_float() {
         let rule = Rule::Between {
+            threshold: None,
             min: Value::Integer(1),
             max: Value::Float(10.0),
         };
@@ -576,6 +590,7 @@ mod test {
     #[test]
     fn test_validate_column_type_mismatch_float_int() {
         let rule = Rule::Between {
+            threshold: None,
             min: Value::Float(1.0),
             max: Value::Integer(10),
         };
@@ -596,6 +611,7 @@ mod test {
     #[test]
     fn test_validate_column_unsupported_type_string() {
         let rule = Rule::Between {
+            threshold: None,
             min: Value::String("1".to_string()),
             max: Value::String("10".to_string()),
         };
@@ -616,6 +632,7 @@ mod test {
     #[test]
     fn test_validate_column_unsupported_type_boolean() {
         let rule = Rule::Between {
+            threshold: None,
             min: Value::Boolean(true),
             max: Value::Boolean(false),
         };
@@ -636,16 +653,19 @@ mod test {
     #[test]
     fn test_validate_column_multiple_rules_all_valid() {
         let rule1 = Rule::WithLengthBetween {
+            threshold: None,
             min_length: 3,
             max_length: 10,
         };
 
         let rule2 = Rule::Between {
+            threshold: None,
             min: Value::Integer(1),
             max: Value::Integer(100),
         };
 
         let rule3 = Rule::Between {
+            threshold: None,
             min: Value::Float(0.5),
             max: Value::Float(99.5),
         };
@@ -659,16 +679,19 @@ mod test {
     #[test]
     fn test_validate_column_multiple_rules_one_invalid() {
         let rule1 = Rule::WithLengthBetween {
+            threshold: None,
             min_length: 3,
             max_length: 10,
         };
 
         let rule2 = Rule::Between {
+            threshold: None,
             min: Value::Integer(100),
             max: Value::Integer(1), // Invalid: min > max
         };
 
         let rule3 = Rule::Between {
+            threshold: None,
             min: Value::Float(0.5),
             max: Value::Float(99.5),
         };
@@ -696,10 +719,138 @@ mod test {
 
     #[test]
     fn test_validate_column_no_constraints() {
-        let rule = Rule::IsUnique;
+        let rule = Rule::IsUnique { threshold: None };
         let column = create_column("test_col", vec![rule]);
 
         let result = validate_column(&column);
         assert!(result.is_ok());
+    }
+
+    // ============================================================================
+    // Threshold Parsing Tests
+    // ============================================================================
+
+    #[test]
+    fn test_rule_threshold_explicit() {
+        let rule = Rule::IsNotNull {
+            threshold: Some(5.0),
+        };
+
+        match rule {
+            Rule::IsNotNull { threshold } => {
+                assert_eq!(threshold, Some(5.0));
+            }
+            _ => panic!("Expected IsNotNull rule"),
+        }
+    }
+
+    #[test]
+    fn test_rule_threshold_none() {
+        let rule = Rule::IsNotNull { threshold: None };
+
+        match rule {
+            Rule::IsNotNull { threshold } => {
+                assert!(threshold.is_none());
+            }
+            _ => panic!("Expected IsNotNull rule"),
+        }
+    }
+
+    #[test]
+    fn test_column_type_threshold_explicit() {
+        let column = Column {
+            name: "test".to_string(),
+            datatype: "string".to_string(),
+            format: None,
+            type_checking_threshold: Some(10.0),
+            rule_threshold: None,
+            rule: vec![],
+        };
+
+        assert_eq!(column.type_checking_threshold, Some(10.0));
+    }
+
+    #[test]
+    fn test_column_rule_threshold_explicit() {
+        let column = Column {
+            name: "test".to_string(),
+            datatype: "string".to_string(),
+            format: None,
+            type_checking_threshold: None,
+            rule_threshold: Some(15.0),
+            rule: vec![],
+        };
+
+        assert_eq!(column.rule_threshold, Some(15.0));
+    }
+
+    #[test]
+    fn test_table_thresholds() {
+        let table = ConfigTable {
+            name: "test_table".to_string(),
+            path: "test.csv".to_string(),
+            type_checking_threshold: Some(5.0),
+            rule_threshold: Some(10.0),
+            relations: None,
+            column: vec![],
+        };
+
+        assert_eq!(table.type_checking_threshold, Some(5.0));
+        assert_eq!(table.rule_threshold, Some(10.0));
+    }
+
+    #[test]
+    fn test_string_rule_with_threshold() {
+        let rule = Rule::WithMinLength {
+            threshold: Some(7.5),
+            min_length: 5,
+        };
+
+        match rule {
+            Rule::WithMinLength {
+                threshold,
+                min_length,
+            } => {
+                assert_eq!(threshold, Some(7.5));
+                assert_eq!(min_length, 5);
+            }
+            _ => panic!("Expected WithMinLength rule"),
+        }
+    }
+
+    #[test]
+    fn test_numeric_rule_with_threshold() {
+        let rule = Rule::Between {
+            threshold: Some(3.0),
+            min: Value::Integer(0),
+            max: Value::Integer(100),
+        };
+
+        match rule {
+            Rule::Between { threshold, .. } => {
+                assert_eq!(threshold, Some(3.0));
+            }
+            _ => panic!("Expected Between rule"),
+        }
+    }
+
+    #[test]
+    fn test_date_rule_with_threshold() {
+        let rule = Rule::IsAfter {
+            threshold: Some(2.5),
+            year: 2020,
+            month: Some(1),
+            day: Some(1),
+        };
+
+        match rule {
+            Rule::IsAfter {
+                threshold, year, ..
+            } => {
+                assert_eq!(threshold, Some(2.5));
+                assert_eq!(year, 2020);
+            }
+            _ => panic!("Expected IsAfter rule"),
+        }
     }
 }

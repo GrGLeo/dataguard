@@ -7,7 +7,7 @@ use crate::columns::{
 #[test]
 fn test_string_column_builder() {
     let mut builder = StringColumnBuilder::new("name".to_string());
-    builder.with_min_length(3).with_max_length(50);
+    builder.with_min_length(3, 0.0).with_max_length(50, 0.0);
 
     assert_eq!(builder.name(), "name");
     assert_eq!(builder.column_type(), ColumnType::String);
@@ -17,7 +17,7 @@ fn test_string_column_builder() {
 #[test]
 fn test_string_column_with_regex() {
     let mut builder = StringColumnBuilder::new("email".to_string());
-    builder.is_email().unwrap();
+    builder.is_email(0.0).unwrap();
 
     assert_eq!(builder.column_type(), ColumnType::String);
     assert_eq!(builder.rules().len(), 1);
@@ -32,7 +32,7 @@ fn test_string_column_with_regex() {
 #[test]
 fn test_string_column_invalid_regex() {
     let mut builder = StringColumnBuilder::new("test".to_string());
-    let result = builder.with_regex("[invalid(".to_string(), None);
+    let result = builder.with_regex("[invalid(".to_string(), None, 0.0);
 
     assert!(result.is_err());
 }
@@ -40,7 +40,7 @@ fn test_string_column_invalid_regex() {
 #[test]
 fn test_integer_column_builder() {
     let mut builder = NumericColumnBuilder::<i64>::new("age".to_string());
-    builder.between(0, 120);
+    builder.between(0, 120, 0.0);
 
     assert_eq!(builder.name(), "age");
     assert_eq!(builder.column_type(), ColumnType::Integer);
@@ -50,7 +50,7 @@ fn test_integer_column_builder() {
 #[test]
 fn test_integer_column_is_positive() {
     let mut builder = NumericColumnBuilder::<i64>::new("count".to_string());
-    builder.is_positive();
+    builder.is_positive(0.0);
 
     match &builder.rules()[0] {
         ColumnRule::NumericRange { min, max, .. } => {
@@ -64,7 +64,7 @@ fn test_integer_column_is_positive() {
 #[test]
 fn test_float_column_builder() {
     let mut builder = NumericColumnBuilder::<f64>::new("price".to_string());
-    builder.between(0.0, 1000.0);
+    builder.between(0.0, 1000.0, 0.0);
 
     assert_eq!(builder.name(), "price");
     assert_eq!(builder.column_type(), ColumnType::Float);
@@ -74,7 +74,7 @@ fn test_float_column_builder() {
 #[test]
 fn test_float_column_monotonicity() {
     let mut builder = NumericColumnBuilder::<f64>::new("timestamp".to_string());
-    builder.is_monotonically_increasing();
+    builder.is_monotonically_increasing(0.0);
 
     match &builder.rules()[0] {
         ColumnRule::Monotonicity { ascending, .. } => {
@@ -88,11 +88,11 @@ fn test_float_column_monotonicity() {
 fn test_column_chaining() {
     let mut builder = StringColumnBuilder::new("username".to_string());
     builder
-        .with_min_length(3)
-        .with_max_length(20)
-        .is_alphanumeric()
+        .with_min_length(3, 0.0)
+        .with_max_length(20, 0.0)
+        .is_alphanumeric(0.0)
         .unwrap()
-        .is_unique();
+        .is_unique(0.0);
 
     assert_eq!(builder.rules().len(), 4);
 }
@@ -104,7 +104,7 @@ fn test_column_chaining() {
 #[test]
 fn test_date_column_builder() {
     let mut builder = DateColumnBuilder::new("created_at".to_string(), "%Y-%m-%d".to_string());
-    builder.is_after(2020, Some(1), Some(1));
+    builder.is_after(2020, Some(1), Some(1), 0.0);
 
     assert_eq!(builder.name(), "created_at");
     assert_eq!(builder.column_type(), ColumnType::DateType);
@@ -114,7 +114,7 @@ fn test_date_column_builder() {
 #[test]
 fn test_date_column_is_after_full_date() {
     let mut builder = DateColumnBuilder::new("event_date".to_string(), "%Y-%m-%d".to_string());
-    builder.is_after(2020, Some(6), Some(15));
+    builder.is_after(2020, Some(6), Some(15), 0.0);
 
     assert_eq!(builder.rules().len(), 1);
     match &builder.rules()[0] {
@@ -137,7 +137,7 @@ fn test_date_column_is_after_full_date() {
 #[test]
 fn test_date_column_is_after_year_and_month() {
     let mut builder = DateColumnBuilder::new("event_date".to_string(), "%Y-%m-%d".to_string());
-    builder.is_after(2020, Some(6), None);
+    builder.is_after(2020, Some(6), None, 0.0);
 
     match &builder.rules()[0] {
         ColumnRule::DateBoundary {
@@ -159,7 +159,7 @@ fn test_date_column_is_after_year_and_month() {
 #[test]
 fn test_date_column_is_after_year_only() {
     let mut builder = DateColumnBuilder::new("event_date".to_string(), "%Y-%m-%d".to_string());
-    builder.is_after(2020, None, None);
+    builder.is_after(2020, None, None, 0.0);
 
     match &builder.rules()[0] {
         ColumnRule::DateBoundary {
@@ -181,7 +181,7 @@ fn test_date_column_is_after_year_only() {
 #[test]
 fn test_date_column_is_before_full_date() {
     let mut builder = DateColumnBuilder::new("expiry_date".to_string(), "%Y-%m-%d".to_string());
-    builder.is_before(2025, Some(12), Some(31));
+    builder.is_before(2025, Some(12), Some(31), 0.0);
 
     assert_eq!(builder.rules().len(), 1);
     match &builder.rules()[0] {
@@ -204,7 +204,7 @@ fn test_date_column_is_before_full_date() {
 #[test]
 fn test_date_column_is_before_year_and_month() {
     let mut builder = DateColumnBuilder::new("deadline".to_string(), "%Y-%m-%d".to_string());
-    builder.is_before(2024, Some(3), None);
+    builder.is_before(2024, Some(3), None, 0.0);
 
     match &builder.rules()[0] {
         ColumnRule::DateBoundary {
@@ -226,7 +226,7 @@ fn test_date_column_is_before_year_and_month() {
 #[test]
 fn test_date_column_is_before_year_only() {
     let mut builder = DateColumnBuilder::new("deadline".to_string(), "%Y-%m-%d".to_string());
-    builder.is_before(2030, None, None);
+    builder.is_before(2030, None, None, 0.0);
 
     match &builder.rules()[0] {
         ColumnRule::DateBoundary {
@@ -248,11 +248,11 @@ fn test_date_column_is_before_year_only() {
 #[test]
 fn test_date_column_is_not_null() {
     let mut builder = DateColumnBuilder::new("birth_date".to_string(), "%Y-%m-%d".to_string());
-    builder.is_not_null();
+    builder.is_not_null(0.0);
 
     assert_eq!(builder.rules().len(), 1);
     match &builder.rules()[0] {
-        ColumnRule::NullCheck => {}
+        ColumnRule::NullCheck { .. } => {}
         _ => panic!("Expected NullCheck rule"),
     }
 }
@@ -261,11 +261,11 @@ fn test_date_column_is_not_null() {
 fn test_date_column_is_unique() {
     let mut builder =
         DateColumnBuilder::new("transaction_date".to_string(), "%Y-%m-%d".to_string());
-    builder.is_unique();
+    builder.is_unique(0.0);
 
     assert_eq!(builder.rules().len(), 1);
     match &builder.rules()[0] {
-        ColumnRule::Unicity => {}
+        ColumnRule::Unicity { .. } => {}
         _ => panic!("Expected Unicity rule"),
     }
 }
@@ -274,15 +274,15 @@ fn test_date_column_is_unique() {
 fn test_date_column_chaining() {
     let mut builder = DateColumnBuilder::new("order_date".to_string(), "%Y-%m-%d".to_string());
     builder
-        .is_not_null()
-        .is_after(2020, Some(1), Some(1))
-        .is_before(2030, Some(12), Some(31));
+        .is_not_null(0.0)
+        .is_after(2020, Some(1), Some(1), 0.0)
+        .is_before(2030, Some(12), Some(31), 0.0);
 
     assert_eq!(builder.rules().len(), 3);
 
     // Check first rule is NullCheck
     match &builder.rules()[0] {
-        ColumnRule::NullCheck => {}
+        ColumnRule::NullCheck { .. } => {}
         _ => panic!("Expected NullCheck as first rule"),
     }
 
@@ -308,9 +308,9 @@ fn test_date_column_multiple_boundaries() {
     // Test that you can set both before and after boundaries
     let mut builder = DateColumnBuilder::new("valid_period".to_string(), "%Y-%m-%d".to_string());
     builder
-        .is_after(2020, Some(1), Some(1))
-        .is_before(2025, Some(12), Some(31))
-        .is_unique();
+        .is_after(2020, Some(1), Some(1), 0.0)
+        .is_before(2025, Some(12), Some(31), 0.0)
+        .is_unique(0.0);
 
     assert_eq!(builder.rules().len(), 3);
 }

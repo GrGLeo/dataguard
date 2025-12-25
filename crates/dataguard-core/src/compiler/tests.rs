@@ -10,7 +10,7 @@ use crate::{
 #[test]
 fn test_compile_string_column_basic() {
     let mut builder = StringColumnBuilder::new("username".to_string());
-    builder.with_min_length(3).with_max_length(20);
+    builder.with_min_length(3, 0.0).with_max_length(20, 0.0);
 
     let result = compile_column(Box::new(builder), true);
     assert!(result.is_ok());
@@ -28,7 +28,7 @@ fn test_compile_string_column_basic() {
 #[test]
 fn test_compile_string_column_with_null_and_unicity() {
     let mut builder = StringColumnBuilder::new("email".to_string());
-    builder.is_not_null().is_unique();
+    builder.is_not_null(0.0).is_unique(0.0);
 
     let result = compile_column(Box::new(builder), true);
     assert!(result.is_ok());
@@ -52,7 +52,7 @@ fn test_compile_string_column_with_null_and_unicity() {
 #[test]
 fn test_compile_string_column_with_regex() {
     let mut builder = StringColumnBuilder::new("code".to_string());
-    builder.is_alphanumeric().unwrap();
+    builder.is_alphanumeric(0.0).unwrap();
 
     let result = compile_column(Box::new(builder), true);
     assert!(result.is_ok());
@@ -69,7 +69,7 @@ fn test_compile_string_column_with_regex() {
 #[test]
 fn test_compile_string_column_with_membership() {
     let mut builder = StringColumnBuilder::new("status".to_string());
-    builder.is_in(vec!["active".to_string(), "inactive".to_string()]);
+    builder.is_in(vec!["active".to_string(), "inactive".to_string()], 0.0);
 
     let result = compile_column(Box::new(builder), true);
     assert!(result.is_ok());
@@ -86,7 +86,7 @@ fn test_compile_string_column_with_membership() {
 #[test]
 fn test_compile_integer_column_basic() {
     let mut builder = NumericColumnBuilder::<i64>::new("age".to_string());
-    builder.between(0, 120);
+    builder.between(0, 120, 0.0);
 
     let result = compile_column(Box::new(builder), true);
     assert!(result.is_ok());
@@ -104,7 +104,7 @@ fn test_compile_integer_column_basic() {
 #[test]
 fn test_compile_integer_column_with_monotonicity() {
     let mut builder = NumericColumnBuilder::<i64>::new("timestamp".to_string());
-    builder.is_monotonically_increasing();
+    builder.is_monotonically_increasing(0.0);
 
     let result = compile_column(Box::new(builder), true);
     assert!(result.is_ok());
@@ -121,7 +121,7 @@ fn test_compile_integer_column_with_monotonicity() {
 #[test]
 fn test_compile_integer_column_positive() {
     let mut builder = NumericColumnBuilder::<i64>::new("count".to_string());
-    builder.is_positive();
+    builder.is_positive(0.0);
 
     let result = compile_column(Box::new(builder), true);
     assert!(result.is_ok());
@@ -138,7 +138,7 @@ fn test_compile_integer_column_positive() {
 #[test]
 fn test_compile_float_column_basic() {
     let mut builder = NumericColumnBuilder::<f64>::new("price".to_string());
-    builder.between(0.0, 1000.0);
+    builder.between(0.0, 1000.0, 0.0);
 
     let result = compile_column(Box::new(builder), true);
     assert!(result.is_ok());
@@ -156,7 +156,7 @@ fn test_compile_float_column_basic() {
 #[test]
 fn test_compile_float_column_non_negative() {
     let mut builder = NumericColumnBuilder::<f64>::new("amount".to_string());
-    builder.is_non_negative();
+    builder.is_non_negative(0.0);
 
     let result = compile_column(Box::new(builder), true);
     assert!(result.is_ok());
@@ -174,12 +174,12 @@ fn test_compile_float_column_non_negative() {
 fn test_compile_column_with_multiple_rules() {
     let mut builder = StringColumnBuilder::new("username".to_string());
     builder
-        .with_min_length(3)
-        .with_max_length(20)
-        .is_alphanumeric()
+        .with_min_length(3, 0.0)
+        .with_max_length(20, 0.0)
+        .is_alphanumeric(0.0)
         .unwrap()
-        .is_unique()
-        .is_not_null();
+        .is_unique(0.0)
+        .is_not_null(0.0);
 
     let result = compile_column(Box::new(builder), true);
     assert!(result.is_ok());
@@ -204,7 +204,7 @@ fn test_compile_column_with_multiple_rules() {
 #[test]
 fn test_compile_integer_with_unicity_and_null() {
     let mut builder = NumericColumnBuilder::<i64>::new("id".to_string());
-    builder.is_unique().is_not_null();
+    builder.is_unique(0.0).is_not_null(0.0);
 
     let result = compile_column(Box::new(builder), true);
     assert!(result.is_ok());
@@ -228,7 +228,7 @@ fn test_compile_integer_with_unicity_and_null() {
 #[test]
 fn test_compile_numeric_column_multiple_ranges() {
     let mut builder = NumericColumnBuilder::<i64>::new("value".to_string());
-    builder.min(10).max(100);
+    builder.min(10, 0.0).max(100, 0.0);
 
     let result = compile_column(Box::new(builder), true);
     assert!(result.is_ok());
@@ -246,7 +246,7 @@ fn test_compile_numeric_column_multiple_ranges() {
 #[test]
 fn test_compile_date_column_with_multiple_rules() {
     let mut builder = DateColumnBuilder::new("value".to_string(), "%Y-%m-%d".to_string());
-    builder.is_not_futur().is_weekday();
+    builder.is_not_futur(0.0).is_weekday(0.0);
 
     let result = compile_column(Box::new(builder), true);
     assert!(result.is_ok());

@@ -181,7 +181,7 @@ mod tests {
 
     #[test]
     fn test_string_length_check() {
-        let rule = StringLengthCheck::new("string_length_test".to_string(), Some(3), Some(5));
+        let rule = StringLengthCheck::new("string_length_test".to_string(), 0.0, Some(3), Some(5));
         // "a" (error), "abc", "abcde", "abcdef" (error), "" (error), NULL (error according to current code)
         let array = StringArray::from(vec![
             Some("a"),
@@ -198,7 +198,7 @@ mod tests {
 
     #[test]
     fn test_string_length_check_min_only() {
-        let rule = StringLengthCheck::new("string_length_test".to_string(), Some(3), None);
+        let rule = StringLengthCheck::new("string_length_test".to_string(), 0.0, Some(3), None);
         let array = StringArray::from(vec!["a", "ab", "abc", "abcd"]);
         // "a" (len 1, <3) -> 1 error
         // "ab" (len 2, <3) -> 1 error
@@ -207,7 +207,7 @@ mod tests {
 
     #[test]
     fn test_string_length_check_max_only() {
-        let rule = StringLengthCheck::new("string_length_test".to_string(), None, Some(3));
+        let rule = StringLengthCheck::new("string_length_test".to_string(), 0.0, None, Some(3));
         let array = StringArray::from(vec!["a", "ab", "abc", "abcd", "abcde"]);
         // "abcd" (len 4, >3) -> 1 error
         // "abcde" (len 5, >3) -> 1 error
@@ -216,7 +216,12 @@ mod tests {
 
     #[test]
     fn test_regex_match() {
-        let rule = RegexMatch::new("regex_match_test".to_string(), r"^\d{3}$".to_string(), None); // Expects exactly 3 digits
+        let rule = RegexMatch::new(
+            "regex_match_test".to_string(),
+            0.0,
+            r"^\d{3}$".to_string(),
+            None,
+        ); // Expects exactly 3 digits
         let array = StringArray::from(vec![
             Some("123"),  // ok
             Some("abc"),  // error
@@ -235,6 +240,7 @@ mod tests {
         // Case-insensitive match
         let rule = RegexMatch::new(
             "regex_match_test".to_string(),
+            0.0,
             "abc".to_string(),
             Some("i".to_string()),
         );
@@ -249,7 +255,7 @@ mod tests {
     #[test]
     fn test_is_in_check_basic() {
         let members = vec!["apple".to_string(), "banana".to_string()];
-        let rule = IsInCheck::new("is_in_test".to_string(), members);
+        let rule = IsInCheck::new("is_in_test".to_string(), 0.0, members);
         let array = StringArray::from(vec![
             Some("apple"),
             Some("banana"),
@@ -264,7 +270,7 @@ mod tests {
     #[test]
     fn test_is_in_check_case_sensitivity() {
         let members = vec!["apple".to_string()];
-        let rule = IsInCheck::new("is_in_test".to_string(), members);
+        let rule = IsInCheck::new("is_in_test".to_string(), 0.0, members);
         let array = StringArray::from(vec![
             Some("apple"),
             Some("Apple"), // Different case, not in members
@@ -276,7 +282,7 @@ mod tests {
     #[test]
     fn test_is_in_check_empty_members() {
         let members: Vec<String> = vec![];
-        let rule = IsInCheck::new("is_in_test".to_string(), members);
+        let rule = IsInCheck::new("is_in_test".to_string(), 0.0, members);
         let array = StringArray::from(vec![
             Some("apple"),  // Not in empty members
             Some("banana"), // Not in empty members

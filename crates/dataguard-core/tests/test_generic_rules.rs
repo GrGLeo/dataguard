@@ -4,7 +4,7 @@ use dataguard_core::rules::generic::{TypeCheck, UnicityCheck};
 
 #[test]
 fn test_type_check_valid_string_array() {
-    let rule = TypeCheck::new("col".to_string(), DataType::Utf8);
+    let rule = TypeCheck::new("col".to_string(), DataType::Utf8, 0.0);
     let array = StringArray::from(vec![Some("hello"), Some("world"), None]);
     let array_ref: &dyn Array = &array;
     let result = rule.validate(array_ref);
@@ -15,7 +15,7 @@ fn test_type_check_valid_string_array() {
 
 #[test]
 fn test_type_check_invalid_type() {
-    let rule = TypeCheck::new("col".to_string(), DataType::Int32);
+    let rule = TypeCheck::new("col".to_string(), DataType::Int32, 0.0);
     let array = StringArray::from(vec![Some("hello"), Some("world"), None]);
     let array_ref: &dyn Array = &array;
     let result = rule.validate(array_ref);
@@ -25,7 +25,7 @@ fn test_type_check_invalid_type() {
 
 #[test]
 fn test_type_check_mixed_type() {
-    let rule = TypeCheck::new("col".to_string(), DataType::Int32);
+    let rule = TypeCheck::new("col".to_string(), DataType::Int32, 0.0);
     let array = StringArray::from(vec![Some("hello"), Some("32"), None]);
     let array_ref: &dyn Array = &array;
     let result = rule.validate(array_ref);
@@ -36,7 +36,7 @@ fn test_type_check_mixed_type() {
 
 #[test]
 fn test_unicity_check_all_unique() {
-    let rule = UnicityCheck::new();
+    let rule = UnicityCheck::new(0.0);
     let array = StringArray::from(vec![
         Some("apple"),
         Some("banana"),
@@ -49,7 +49,7 @@ fn test_unicity_check_all_unique() {
 
 #[test]
 fn test_unicity_check_with_duplicates() {
-    let rule = UnicityCheck::new();
+    let rule = UnicityCheck::new(0.0);
     let array = StringArray::from(vec![
         Some("apple"),
         Some("banana"),
@@ -63,7 +63,7 @@ fn test_unicity_check_with_duplicates() {
 
 #[test]
 fn test_unicity_check_with_nulls() {
-    let rule = UnicityCheck::new();
+    let rule = UnicityCheck::new(0.0);
     let array = StringArray::from(vec![
         Some("apple"),
         None,
@@ -79,7 +79,7 @@ fn test_unicity_check_with_nulls() {
 
 #[test]
 fn test_unicity_check_all_nulls() {
-    let rule = UnicityCheck::new();
+    let rule = UnicityCheck::new(0.0);
     let null_vec: Vec<Option<&str>> = vec![None, None, None];
     let array = StringArray::from(null_vec);
     let (null_count, hash_set) = rule.validate_str(&array);
@@ -89,7 +89,7 @@ fn test_unicity_check_all_nulls() {
 
 #[test]
 fn test_unicity_check_empty_array() {
-    let rule = UnicityCheck::new();
+    let rule = UnicityCheck::new(0.0);
     let empty_vec: Vec<Option<&str>> = vec![];
     let array = StringArray::from(empty_vec);
     let (null_count, hash_set) = rule.validate_str(&array);
@@ -99,7 +99,7 @@ fn test_unicity_check_empty_array() {
 
 #[test]
 fn test_unicity_check_single_value() {
-    let rule = UnicityCheck::new();
+    let rule = UnicityCheck::new(0.0);
     let array = StringArray::from(vec![Some("only")]);
     let (_null_count, hash_set) = rule.validate_str(&array);
     assert_eq!(hash_set.len(), 1);
@@ -107,7 +107,7 @@ fn test_unicity_check_single_value() {
 
 #[test]
 fn test_unicity_check_case_sensitive() {
-    let rule = UnicityCheck::new();
+    let rule = UnicityCheck::new(0.0);
     let array = StringArray::from(vec![Some("Apple"), Some("apple"), Some("APPLE")]);
     let (_null_count, hash_set) = rule.validate_str(&array);
     // Case-sensitive, all different
@@ -116,7 +116,7 @@ fn test_unicity_check_case_sensitive() {
 
 #[test]
 fn test_unicity_check_empty_strings() {
-    let rule = UnicityCheck::new();
+    let rule = UnicityCheck::new(0.0);
     let array = StringArray::from(vec![Some(""), Some("a"), Some(""), Some("b")]);
     let (_null_count, hash_set) = rule.validate_str(&array);
     // Empty string is a valid value: "", "a", "b"

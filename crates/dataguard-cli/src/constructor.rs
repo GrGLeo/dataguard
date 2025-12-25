@@ -504,8 +504,8 @@ mod tests {
     #[test]
     fn test_apply_string_rule_is_unique() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let rule = Rule::IsUnique;
-        let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
+        let rule = Rule::IsUnique { threshold: None };
+        let result = apply_string_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
@@ -513,34 +513,44 @@ mod tests {
     fn test_apply_string_rule_with_length_between() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
         let rule = Rule::WithLengthBetween {
+            threshold: None,
             min_length: 5,
             max_length: 10,
         };
-        let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
+        let result = apply_string_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_apply_string_rule_with_min_length() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let rule = Rule::WithMinLength { min_length: 5 };
-        let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
+        let rule = Rule::WithMinLength {
+            threshold: None,
+            min_length: 5,
+        };
+        let result = apply_string_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_apply_string_rule_with_max_length() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let rule = Rule::WithMaxLength { max_length: 10 };
-        let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
+        let rule = Rule::WithMaxLength {
+            threshold: None,
+            max_length: 10,
+        };
+        let result = apply_string_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_apply_string_rule_is_exact_length() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let rule = Rule::IsExactLength { length: 5 };
-        let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
+        let rule = Rule::IsExactLength {
+            threshold: None,
+            length: 5,
+        };
+        let result = apply_string_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
@@ -548,9 +558,10 @@ mod tests {
     fn test_apply_string_rule_is_in() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
         let rule = Rule::IsIn {
+            threshold: None,
             members: vec!["a".to_string(), "b".to_string(), "c".to_string()],
         };
-        let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
+        let result = apply_string_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
@@ -558,74 +569,75 @@ mod tests {
     fn test_apply_string_rule_with_regex() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
         let rule = Rule::WithRegex {
+            threshold: None,
             pattern: "^[a-z]+$".to_string(),
             flag: None,
         };
-        let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
+        let result = apply_string_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_apply_string_rule_is_numeric() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let rule = Rule::IsNumeric;
-        let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
+        let rule = Rule::IsNumeric { threshold: None };
+        let result = apply_string_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_apply_string_rule_is_alpha() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let rule = Rule::IsAlpha;
-        let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
+        let rule = Rule::IsAlpha { threshold: None };
+        let result = apply_string_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_apply_string_rule_is_alphanumeric() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let rule = Rule::IsAlphaNumeric;
-        let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
+        let rule = Rule::IsAlphaNumeric { threshold: None };
+        let result = apply_string_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_apply_string_rule_is_uppercase() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let rule = Rule::IsUpperCase;
-        let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
+        let rule = Rule::IsUpperCase { threshold: None };
+        let result = apply_string_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_apply_string_rule_is_lowercase() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let rule = Rule::IsLowerCase;
-        let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
+        let rule = Rule::IsLowerCase { threshold: None };
+        let result = apply_string_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_apply_string_rule_is_url() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let rule = Rule::IsUrl;
-        let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
+        let rule = Rule::IsUrl { threshold: None };
+        let result = apply_string_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_apply_string_rule_is_email() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let rule = Rule::IsEmail;
-        let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
+        let rule = Rule::IsEmail { threshold: None };
+        let result = apply_string_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_apply_string_rule_is_uuid() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
-        let rule = Rule::IsUuid;
-        let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
+        let rule = Rule::IsUuid { threshold: None };
+        let result = apply_string_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
@@ -634,10 +646,11 @@ mod tests {
     fn test_apply_string_rule_unknown_rule() {
         let mut builder = StringColumnBuilder::new("test_col".to_string());
         let rule = Rule::Between {
+            threshold: None,
             min: Value::Integer(1),
             max: Value::Integer(10),
         };
-        let result = apply_string_rule(&mut builder, rule, "test_col".to_string());
+        let result = apply_string_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_err());
         match result.unwrap_err() {
             CliError::UnknownRule {
@@ -660,10 +673,11 @@ mod tests {
     fn test_apply_integer_rule_between() {
         let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
         let rule = Rule::Between {
+            threshold: None,
             min: Value::Integer(1),
             max: Value::Integer(10),
         };
-        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
+        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
@@ -671,9 +685,10 @@ mod tests {
     fn test_apply_integer_rule_min() {
         let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
         let rule = Rule::Min {
+            threshold: None,
             min: Value::Integer(5),
         };
-        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
+        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
@@ -681,57 +696,58 @@ mod tests {
     fn test_apply_integer_rule_max() {
         let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
         let rule = Rule::Max {
+            threshold: None,
             max: Value::Integer(100),
         };
-        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
+        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_apply_integer_rule_is_positive() {
         let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
-        let rule = Rule::IsPositive;
-        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
+        let rule = Rule::IsPositive { threshold: None };
+        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_apply_integer_rule_is_negative() {
         let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
-        let rule = Rule::IsNegative;
-        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
+        let rule = Rule::IsNegative { threshold: None };
+        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_apply_integer_rule_is_non_positive() {
         let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
-        let rule = Rule::IsNonPositive;
-        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
+        let rule = Rule::IsNonPositive { threshold: None };
+        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_apply_integer_rule_is_non_negative() {
         let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
-        let rule = Rule::IsNonNegative;
-        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
+        let rule = Rule::IsNonNegative { threshold: None };
+        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_apply_integer_rule_is_monotonically_increasing() {
         let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
-        let rule = Rule::IsIncreasing;
-        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
+        let rule = Rule::IsIncreasing { threshold: None };
+        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_apply_integer_rule_is_monotonically_descreasing() {
         let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
-        let rule = Rule::IsDecreasing;
-        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
+        let rule = Rule::IsDecreasing { threshold: None };
+        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
@@ -739,8 +755,8 @@ mod tests {
     #[test]
     fn test_apply_integer_rule_unknown_rule() {
         let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
-        let rule = Rule::IsAlphaNumeric;
-        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
+        let rule = Rule::IsAlphaNumeric { threshold: None };
+        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_err());
         match result.unwrap_err() {
             CliError::UnknownRule {
@@ -760,10 +776,11 @@ mod tests {
     fn test_apply_integer_rule_between_wrong_type_min() {
         let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
         let rule = Rule::Between {
+            threshold: None,
             min: Value::String("not_an_integer".to_string()),
             max: Value::Integer(10),
         };
-        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
+        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_err());
         match result.unwrap_err() {
             CliError::WrongRuleData {
@@ -783,10 +800,11 @@ mod tests {
     fn test_apply_integer_rule_between_wrong_type_max() {
         let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
         let rule = Rule::Between {
+            threshold: None,
             min: Value::Integer(1),
             max: Value::String("not_an_integer".to_string()),
         };
-        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
+        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_err());
     }
 
@@ -794,9 +812,10 @@ mod tests {
     fn test_apply_integer_rule_min_wrong_type() {
         let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
         let rule = Rule::Min {
+            threshold: None,
             min: Value::Float(5.5),
         };
-        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
+        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_err());
     }
 
@@ -804,9 +823,10 @@ mod tests {
     fn test_apply_integer_rule_max_wrong_type() {
         let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
         let rule = Rule::Max {
+            threshold: None,
             max: Value::Float(100.5),
         };
-        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string());
+        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_err());
     }
 
@@ -817,10 +837,11 @@ mod tests {
     fn test_apply_float_rule_between() {
         let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
         let rule = Rule::Between {
+            threshold: None,
             min: Value::Float(1.5),
             max: Value::Float(10.5),
         };
-        let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
+        let result = apply_float_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
@@ -828,9 +849,10 @@ mod tests {
     fn test_apply_float_rule_min() {
         let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
         let rule = Rule::Min {
+            threshold: None,
             min: Value::Float(5.5),
         };
-        let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
+        let result = apply_float_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
@@ -838,57 +860,58 @@ mod tests {
     fn test_apply_float_rule_max() {
         let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
         let rule = Rule::Max {
+            threshold: None,
             max: Value::Float(100.5),
         };
-        let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
+        let result = apply_float_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_apply_float_rule_is_positive() {
         let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
-        let rule = Rule::IsPositive;
-        let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
+        let rule = Rule::IsPositive { threshold: None };
+        let result = apply_float_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_apply_float_rule_is_negative() {
         let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
-        let rule = Rule::IsNegative;
-        let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
+        let rule = Rule::IsNegative { threshold: None };
+        let result = apply_float_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_apply_float_rule_is_non_positive() {
         let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
-        let rule = Rule::IsNonPositive;
-        let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
+        let rule = Rule::IsNonPositive { threshold: None };
+        let result = apply_float_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_apply_float_rule_is_non_negative() {
         let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
-        let rule = Rule::IsNonNegative;
-        let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
+        let rule = Rule::IsNonNegative { threshold: None };
+        let result = apply_float_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_apply_float_rule_is_monotonically_increasing() {
         let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
-        let rule = Rule::IsIncreasing;
-        let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
+        let rule = Rule::IsIncreasing { threshold: None };
+        let result = apply_float_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_apply_float_rule_is_monotonically_descreasing() {
         let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
-        let rule = Rule::IsDecreasing;
-        let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
+        let rule = Rule::IsDecreasing { threshold: None };
+        let result = apply_float_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_ok());
     }
 
@@ -896,8 +919,8 @@ mod tests {
     #[test]
     fn test_apply_float_rule_unknown_rule() {
         let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
-        let rule = Rule::IsAlphaNumeric;
-        let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
+        let rule = Rule::IsAlphaNumeric { threshold: None };
+        let result = apply_float_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_err());
         match result.unwrap_err() {
             CliError::UnknownRule {
@@ -917,10 +940,11 @@ mod tests {
     fn test_apply_float_rule_between_wrong_type_min() {
         let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
         let rule = Rule::Between {
+            threshold: None,
             min: Value::String("not_a_float".to_string()),
             max: Value::Float(10.5),
         };
-        let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
+        let result = apply_float_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_err());
         match result.unwrap_err() {
             CliError::WrongRuleData {
@@ -940,10 +964,11 @@ mod tests {
     fn test_apply_float_rule_between_wrong_type_max() {
         let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
         let rule = Rule::Between {
+            threshold: None,
             min: Value::Float(1.5),
             max: Value::String("not_a_float".to_string()),
         };
-        let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
+        let result = apply_float_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_err());
     }
 
@@ -951,9 +976,10 @@ mod tests {
     fn test_apply_float_rule_min_wrong_type() {
         let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
         let rule = Rule::Min {
+            threshold: None,
             min: Value::Integer(5),
         };
-        let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
+        let result = apply_float_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_err());
     }
 
@@ -961,9 +987,117 @@ mod tests {
     fn test_apply_float_rule_max_wrong_type() {
         let mut builder = NumericColumnBuilder::<f64>::new("test_col".to_string());
         let rule = Rule::Max {
+            threshold: None,
             max: Value::Integer(100),
         };
-        let result = apply_float_rule(&mut builder, rule, "test_col".to_string());
+        let result = apply_float_rule(&mut builder, rule, "test_col".to_string(), 0.0);
         assert!(result.is_err());
+    }
+
+    // ============================================================================
+    // Threshold Propagation Tests
+    // ============================================================================
+
+    #[test]
+    fn test_threshold_propagation_rule_level() {
+        // Test that a rule-level threshold is used
+        let mut builder = StringColumnBuilder::new("test_col".to_string());
+        let rule = Rule::WithMinLength {
+            threshold: Some(5.0), // Rule-level threshold
+            min_length: 3,
+        };
+        let result = apply_string_rule(&mut builder, rule, "test_col".to_string(), 10.0);
+        assert!(result.is_ok());
+
+        // Verify the rule was added with the rule-level threshold (5.0, not 10.0)
+        let rules = builder.rules();
+        assert_eq!(rules.len(), 1);
+        match &rules[0] {
+            dataguard_core::ColumnRule::StringLength { threshold, .. } => {
+                assert_eq!(*threshold, 5.0);
+            }
+            _ => panic!("Expected StringLength rule"),
+        }
+    }
+
+    #[test]
+    fn test_threshold_propagation_fallback_to_default() {
+        // Test that when rule threshold is None, it falls back to the default
+        let mut builder = StringColumnBuilder::new("test_col".to_string());
+        let rule = Rule::WithMinLength {
+            threshold: None, // No rule-level threshold
+            min_length: 3,
+        };
+        let result = apply_string_rule(&mut builder, rule, "test_col".to_string(), 15.0);
+        assert!(result.is_ok());
+
+        // Verify the rule was added with the fallback threshold (15.0)
+        let rules = builder.rules();
+        assert_eq!(rules.len(), 1);
+        match &rules[0] {
+            dataguard_core::ColumnRule::StringLength { threshold, .. } => {
+                assert_eq!(*threshold, 15.0);
+            }
+            _ => panic!("Expected StringLength rule"),
+        }
+    }
+
+    #[test]
+    fn test_threshold_propagation_numeric_rule() {
+        let mut builder = NumericColumnBuilder::<i64>::new("test_col".to_string());
+        let rule = Rule::Between {
+            threshold: Some(8.5),
+            min: Value::Integer(0),
+            max: Value::Integer(100),
+        };
+        let result = apply_integer_rule(&mut builder, rule, "test_col".to_string(), 20.0);
+        assert!(result.is_ok());
+
+        let rules = builder.rules();
+        assert_eq!(rules.len(), 1);
+        match &rules[0] {
+            dataguard_core::ColumnRule::NumericRange { threshold, .. } => {
+                assert_eq!(*threshold, 8.5);
+            }
+            _ => panic!("Expected NumericRange rule"),
+        }
+    }
+
+    #[test]
+    fn test_threshold_propagation_null_check() {
+        let mut builder = StringColumnBuilder::new("test_col".to_string());
+        let rule = Rule::IsNotNull {
+            threshold: Some(2.0),
+        };
+        let result = apply_string_rule(&mut builder, rule, "test_col".to_string(), 10.0);
+        assert!(result.is_ok());
+
+        let rules = builder.rules();
+        assert_eq!(rules.len(), 1);
+        match &rules[0] {
+            dataguard_core::ColumnRule::NullCheck { threshold } => {
+                assert_eq!(*threshold, 2.0);
+            }
+            _ => panic!("Expected NullCheck rule"),
+        }
+    }
+
+    #[test]
+    fn test_threshold_propagation_unicity() {
+        let mut builder = StringColumnBuilder::new("test_col".to_string());
+        let rule = Rule::IsUnique {
+            threshold: Some(3.5),
+        };
+        let result = apply_string_rule(&mut builder, rule, "test_col".to_string(), 10.0);
+        assert!(result.is_ok());
+
+        let rules = builder.rules();
+        assert_eq!(rules.len(), 1);
+        match &rules[0] {
+            dataguard_core::ColumnRule::Unicity { threshold } => {
+                assert_eq!(*threshold, 3.5);
+            }
+            _ => panic!("Expected Unicity rule"),
+        }
     }
 }
