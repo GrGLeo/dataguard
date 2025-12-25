@@ -88,13 +88,11 @@ pub fn read_parquet_parallel(
     let projection = create_projection_mask(builder.parquet_schema(), cols.as_slice());
     let row_group_indices: Vec<usize> = (0..num_row_groups).collect();
 
-    // Process row groups in parallel using rayon
     let batches: Result<Vec<_>, _> = row_group_indices
         .into_par_iter()
         .map(|rg_idx| read_row_group(path, rg_idx, projection.clone()))
         .collect();
 
-    // Flatten and return (fail fast on error)
     Ok(batches?.into_iter().flatten().collect())
 }
 
