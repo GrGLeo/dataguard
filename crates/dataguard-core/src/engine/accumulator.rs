@@ -5,7 +5,10 @@
 use dashmap::DashMap;
 use std::{
     collections::HashMap,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Mutex,
+    },
 };
 
 use crate::{
@@ -19,9 +22,9 @@ use crate::{
 /// After all batches are processed, converts to structured results with percentages.
 pub struct ResultAccumulator {
     // (column_name, rule_name) -> error_count
-    column_results: DashMap<(String, String), AtomicUsize>,
+    column_results: DashMap<(String, String), (AtomicUsize, Mutex<f64>)>,
     // (column_name, rule_name) -> error_count
-    relation_results: DashMap<(String, String), AtomicUsize>,
+    relation_results: DashMap<(String, String), (AtomicUsize, Mutex<f64>)>,
     // column_name -> total_valid_values
     valid_values: DashMap<String, AtomicUsize>,
     total_rows: AtomicUsize,
@@ -67,11 +70,19 @@ impl ResultAccumulator {
     /// Record errors for a specific column and rule.
     ///
     /// Thread-safe - can be called from multiple threads concurrently.
-    pub fn record_column_result(&self, column_name: &str, rule_name: String, error_count: usize) {
+    pub fn record_column_result(
+        &self,
+        column_name: &str,
+        rule_name: String,
+        threshold: f64,
+        error_count: usize,
+    ) {
         self.column_results
             .entry((column_name.to_string(), rule_name))
-            .or_insert_with(|| AtomicUsize::new(0))
-            .fetch_add(error_count, Ordering::Relaxed);
+            .and_modify(|(counter, _)| {
+                counter.fetch_add(error_count, Ordering::Relaxed);
+            })
+            .or_insert_with(|| (AtomicUsize::new(error_count), Mutex::new(threshold)));
     }
 
     /// Record errors for a specific relation and rule.
@@ -81,12 +92,15 @@ impl ResultAccumulator {
         &self,
         relation_name: &str,
         rule_name: String,
+        threshold: f64,
         error_count: usize,
     ) {
         self.relation_results
             .entry((relation_name.to_string(), rule_name))
-            .or_insert_with(|| AtomicUsize::new(0))
-            .fetch_add(error_count, Ordering::Relaxed);
+            .and_modify(|(counter, _)| {
+                counter.fetch_add(error_count, Ordering::Relaxed);
+            })
+            .or_insert_with(|| (AtomicUsize::new(0), Mutex::new(threshold)));
     }
 
     /// Consolidates atomic counters into a final report of validation results.
@@ -124,7 +138,8 @@ impl ResultAccumulator {
                 .unwrap()
                 .value()
                 .load(Ordering::Relaxed);
-            let error_count = entry.value().load(Ordering::Relaxed);
+            let error_count = entry.value().0.load(Ordering::Relaxed);
+            let threshold = entry.value().1.lock().unwrap().to_owned();
             let error_percentage = if total_rows > 0 {
                 (error_count as f64 / total_rows as f64) * 100.
             } else {
@@ -143,8 +158,9 @@ impl ResultAccumulator {
                     rule_name.clone(),
                     error_count,
                     error_percentage,
+                    threshold,
                     error_message,
-                    error_percentage > 0.,
+                    error_percentage <= threshold,
                 ));
         }
 
@@ -153,7 +169,8 @@ impl ResultAccumulator {
 
         for entry in sorted {
             let (relation_name, rule_name) = entry.key();
-            let error_count = entry.value().load(Ordering::Relaxed);
+            let error_count = entry.value().0.load(Ordering::Relaxed);
+            let threshold = entry.value().1.lock().unwrap().to_owned();
             let error_percentage = if total_rows > 0 {
                 (error_count as f64 / total_rows as f64) * 100.
             } else {
@@ -167,8 +184,9 @@ impl ResultAccumulator {
                     rule_name.clone(),
                     error_count,
                     error_percentage,
+                    threshold,
                     None,
-                    error_percentage > 0.,
+                    error_percentage <= threshold,
                 ));
         }
 

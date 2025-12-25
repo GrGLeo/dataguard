@@ -7,7 +7,7 @@ use crate::{utils::hasher::Xxh3Builder, RuleResult};
 
 pub type Batch = arrow::record_batch::RecordBatch;
 pub type Batches = Vec<Batch>;
-pub type UnicityRecord = (AtomicUsize, Arc<Mutex<HashSet<u64, Xxh3Builder>>>);
+pub type UnicityRecord = (AtomicUsize, Arc<Mutex<HashSet<u64, Xxh3Builder>>>, f64);
 
 /// Maps column names to their valid row counts
 pub type ValidValueMap = HashMap<String, usize>;

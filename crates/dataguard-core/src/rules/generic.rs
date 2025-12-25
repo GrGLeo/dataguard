@@ -9,11 +9,13 @@ use xxhash_rust::xxh3::xxh3_64;
 
 use crate::{errors::RuleError, utils::hasher::Xxh3Builder};
 
-pub struct NullCheck {}
+pub struct NullCheck {
+    threshold: f64,
+}
 
 impl NullCheck {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(threshold: f64) -> Self {
+        Self { threshold }
     }
 
     pub fn name(&self) -> String {
@@ -23,26 +25,39 @@ impl NullCheck {
     pub fn validate(&self, array: &dyn Array) -> usize {
         array.null_count()
     }
+
+    pub fn get_threshold(&self) -> f64 {
+        self.threshold
+    }
 }
 
 impl Default for NullCheck {
     fn default() -> Self {
-        Self::new()
+        Self::new(0.)
     }
 }
 
 pub struct TypeCheck {
     column: String,
+    threshold: f64,
     expected: DataType,
 }
 
 impl TypeCheck {
-    pub fn new(column: String, expected: DataType) -> Self {
-        Self { column, expected }
+    pub fn new(column: String, expected: DataType, threshold: f64) -> Self {
+        Self {
+            column,
+            threshold,
+            expected,
+        }
     }
 
     pub fn name(&self) -> String {
         "TypeCheck".to_string()
+    }
+
+    pub fn get_threshold(&self) -> f64 {
+        self.threshold
     }
 
     pub fn validate(&self, array: &dyn Array) -> Result<(usize, Arc<dyn Array>), RuleError> {
@@ -57,17 +72,23 @@ impl TypeCheck {
 }
 
 #[derive(Clone)]
-pub struct UnicityCheck {}
+pub struct UnicityCheck {
+    threshold: f64,
+}
 
 impl Default for UnicityCheck {
     fn default() -> Self {
-        Self::new()
+        Self::new(0.)
     }
 }
 
 impl UnicityCheck {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(threshold: f64) -> Self {
+        Self { threshold }
+    }
+
+    pub fn get_threshold(&self) -> f64 {
+        self.threshold
     }
 
     pub fn name(&self) -> String {
@@ -121,7 +142,7 @@ mod tests {
 
     #[test]
     fn test_unicity_sequential_happy() {
-        let rule = UnicityCheck::new();
+        let rule = UnicityCheck::new(0.0);
         let array = StringArray::from(vec![Some("a"), Some("b"), Some("c")]);
 
         let (null_count, local_set) = rule.validate_str(&array);
@@ -134,7 +155,7 @@ mod tests {
 
     #[test]
     fn test_unicity_parallel_happy() {
-        let rule = UnicityCheck::new();
+        let rule = UnicityCheck::new(0.0);
         let arrays = vec![
             StringArray::from(vec![Some("a"), Some("b"), Some("c")]),
             StringArray::from(vec![Some("d"), Some("e"), Some("f")]),
@@ -165,7 +186,7 @@ mod tests {
 
     #[test]
     fn test_unicity_sequential_with_duplicates() {
-        let rule = UnicityCheck::new();
+        let rule = UnicityCheck::new(0.0);
         let array = StringArray::from(vec![Some("a"), Some("b"), Some("a"), Some("c")]);
 
         let (null_count, local_set) = rule.validate_str(&array);
@@ -178,7 +199,7 @@ mod tests {
 
     #[test]
     fn test_unicity_parallel_with_duplicates() {
-        let rule = UnicityCheck::new();
+        let rule = UnicityCheck::new(0.0);
         let arrays = vec![
             StringArray::from(vec![Some("a"), Some("b"), Some("a")]),
             StringArray::from(vec![Some("c"), Some("b"), Some("d"), Some("c")]),
@@ -207,7 +228,7 @@ mod tests {
 
     #[test]
     fn test_unicity_with_nulls() {
-        let rule = UnicityCheck::new();
+        let rule = UnicityCheck::new(0.0);
         let array = StringArray::from(vec![Some("a"), None, Some("b"), None, Some("a")]);
 
         let (null_count, local_set) = rule.validate_str(&array);

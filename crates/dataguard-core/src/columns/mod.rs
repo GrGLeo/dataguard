@@ -14,6 +14,7 @@ pub trait ColumnBuilder {
     fn name(&self) -> &str;
     fn column_type(&self) -> ColumnType;
     fn rules(&self) -> &[ColumnRule];
+    fn type_threshold(&self) -> f64;
 
     // For now only used for date, could be usefull for thousand separator in numeric or decimal
     // precision etc..
@@ -71,33 +72,40 @@ pub enum ColumnRule {
     // String rules
     StringLength {
         name: String,
+        threshold: f64,
         min: Option<usize>,
         max: Option<usize>,
     },
     StringRegex {
         name: String,
+        threshold: f64,
         pattern: String,
         flags: Option<String>,
     },
     StringMembers {
         name: String,
+        threshold: f64,
         members: Vec<String>,
     },
 
     // Numeric rules (works for both Integer and Float)
     NumericRange {
         name: String,
+        threshold: f64,
         min: Option<f64>,
         max: Option<f64>,
     },
+
     Monotonicity {
         name: String,
+        threshold: f64,
         ascending: bool,
     },
 
     // Date rules (works only for Date32 for now)
     DateBoundary {
         name: String,
+        threshold: f64,
         after: bool,
         year: usize,
         month: Option<usize>,
@@ -106,15 +114,20 @@ pub enum ColumnRule {
 
     WeekDay {
         name: String,
+        threshold: f64,
         is_week: bool,
     },
 
     // Generic rules
-    Unicity,
-    NullCheck,
+    Unicity {
+        threshold: f64,
+    },
+    NullCheck {
+        threshold: f64,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TableConstraint {
-    DateComparaison { op: CompOperator },
+    DateComparaison { op: CompOperator, threshold: f64 },
 }

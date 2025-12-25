@@ -15,6 +15,8 @@ pub struct Config {
 pub struct ConfigTable {
     pub name: String,
     pub path: String,
+    pub type_checking_threshold: Option<f64>,
+    pub rule_threshold: Option<f64>,
     pub relations: Option<Vec<TableRelation>>,
     pub column: Vec<Column>,
 }
@@ -24,6 +26,8 @@ pub struct Column {
     pub name: String,
     pub datatype: String,
     pub format: Option<String>,
+    pub type_checking_threshold: Option<f64>,
+    pub rule_threshold: Option<f64>,
     pub rule: Vec<Rule>,
 }
 
@@ -31,88 +35,143 @@ pub struct Column {
 pub struct TableRelation {
     pub column_one: String,
     pub column_two: String,
+    pub rule_threshold: Option<f64>,
     pub rule: Vec<Relation>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "name", rename_all = "snake_case")]
 pub enum Relation {
-    DateComparaison { operator: String },
+    DateComparaison {
+        threshold: Option<f64>,
+        operator: String,
+    },
 }
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "name", rename_all = "snake_case")]
 pub enum Rule {
     // Generic rules
-    IsUnique,
-    IsNotNull,
+    IsUnique {
+        threshold: Option<f64>,
+    },
+    IsNotNull {
+        threshold: Option<f64>,
+    },
 
     //String rules
     WithLengthBetween {
+        threshold: Option<f64>,
         min_length: usize,
         max_length: usize,
     },
     WithMinLength {
+        threshold: Option<f64>,
         min_length: usize,
     },
     WithMaxLength {
+        threshold: Option<f64>,
         max_length: usize,
     },
     IsExactLength {
+        threshold: Option<f64>,
         length: usize,
     },
     IsIn {
+        threshold: Option<f64>,
         members: Vec<String>,
     },
     WithRegex {
+        threshold: Option<f64>,
         pattern: String,
         flag: Option<String>,
     },
-    IsNumeric,
-    IsAlpha,
+    IsNumeric {
+        threshold: Option<f64>,
+    },
+    IsAlpha {
+        threshold: Option<f64>,
+    },
     #[serde(rename = "is_alphanumeric")]
-    IsAlphaNumeric,
+    IsAlphaNumeric {
+        threshold: Option<f64>,
+    },
     #[serde(rename = "is_uppercase")]
-    IsUpperCase,
+    IsUpperCase {
+        threshold: Option<f64>,
+    },
     #[serde(rename = "is_lowercase")]
-    IsLowerCase,
-    IsUrl,
-    IsEmail,
-    IsUuid,
+    IsLowerCase {
+        threshold: Option<f64>,
+    },
+    IsUrl {
+        threshold: Option<f64>,
+    },
+    IsEmail {
+        threshold: Option<f64>,
+    },
+    IsUuid {
+        threshold: Option<f64>,
+    },
 
     // Numeric Rule
     Between {
+        threshold: Option<f64>,
         min: Value,
         max: Value,
     },
     Min {
+        threshold: Option<f64>,
         min: Value,
     },
     Max {
+        threshold: Option<f64>,
         max: Value,
     },
-    IsPositive,
-    IsNonPositive,
-    IsNegative,
-    IsNonNegative,
-    IsIncreasing,
-    IsDecreasing,
+    IsPositive {
+        threshold: Option<f64>,
+    },
+    IsNonPositive {
+        threshold: Option<f64>,
+    },
+    IsNegative {
+        threshold: Option<f64>,
+    },
+    IsNonNegative {
+        threshold: Option<f64>,
+    },
+    IsIncreasing {
+        threshold: Option<f64>,
+    },
+    IsDecreasing {
+        threshold: Option<f64>,
+    },
 
     // Date Rule
     IsAfter {
+        threshold: Option<f64>,
         year: usize,
         month: Option<usize>,
         day: Option<usize>,
     },
     IsBefore {
+        threshold: Option<f64>,
         year: usize,
         month: Option<usize>,
         day: Option<usize>,
     },
-    IsNotFutur,
-    IsNotPast,
-    IsWeekday,
-    IsWeekend,
+    IsNotFutur {
+        threshold: Option<f64>,
+    },
+    IsNotPast {
+        threshold: Option<f64>,
+    },
+    IsWeekday {
+        threshold: Option<f64>,
+    },
+    IsWeekend {
+        threshold: Option<f64>,
+    },
 }
 
 impl std::fmt::Display for Relation {
@@ -126,37 +185,37 @@ impl std::fmt::Display for Relation {
 impl std::fmt::Display for Rule {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Rule::IsNotNull => write!(f, "is_not_null"),
-            Rule::IsUnique => write!(f, "is_unique"),
+            Rule::IsNotNull { .. } => write!(f, "is_not_null"),
+            Rule::IsUnique { .. } => write!(f, "is_unique"),
             Rule::WithLengthBetween { .. } => write!(f, "with_length_between"),
             Rule::WithMinLength { .. } => write!(f, "with_min_length"),
             Rule::WithMaxLength { .. } => write!(f, "with_max_length"),
             Rule::IsExactLength { .. } => write!(f, "is_exact_length"),
             Rule::IsIn { .. } => write!(f, "is_in"),
             Rule::WithRegex { .. } => write!(f, "with_regex"),
-            Rule::IsNumeric => write!(f, "is_numeric"),
-            Rule::IsAlpha => write!(f, "is_alpha"),
-            Rule::IsAlphaNumeric => write!(f, "is_alphanumeric"),
-            Rule::IsUpperCase => write!(f, "is_uppercase"),
-            Rule::IsLowerCase => write!(f, "is_lowercase"),
-            Rule::IsUrl => write!(f, "is_url"),
-            Rule::IsEmail => write!(f, "is_email"),
-            Rule::IsUuid => write!(f, "is_uuid"),
+            Rule::IsNumeric { .. } => write!(f, "is_numeric"),
+            Rule::IsAlpha { .. } => write!(f, "is_alpha"),
+            Rule::IsAlphaNumeric { .. } => write!(f, "is_alphanumeric"),
+            Rule::IsUpperCase { .. } => write!(f, "is_uppercase"),
+            Rule::IsLowerCase { .. } => write!(f, "is_lowercase"),
+            Rule::IsUrl { .. } => write!(f, "is_url"),
+            Rule::IsEmail { .. } => write!(f, "is_email"),
+            Rule::IsUuid { .. } => write!(f, "is_uuid"),
             Rule::Between { .. } => write!(f, "between"),
             Rule::Min { .. } => write!(f, "min"),
             Rule::Max { .. } => write!(f, "max"),
-            Rule::IsPositive => write!(f, "is_positive"),
-            Rule::IsNonPositive => write!(f, "is_non_positive"),
-            Rule::IsNegative => write!(f, "is_negative"),
-            Rule::IsNonNegative => write!(f, "is_non_negative"),
-            Rule::IsIncreasing => write!(f, "is_increasing"),
-            Rule::IsDecreasing => write!(f, "is_decreasing"),
+            Rule::IsPositive { .. } => write!(f, "is_positive"),
+            Rule::IsNonPositive { .. } => write!(f, "is_non_positive"),
+            Rule::IsNegative { .. } => write!(f, "is_negative"),
+            Rule::IsNonNegative { .. } => write!(f, "is_non_negative"),
+            Rule::IsIncreasing { .. } => write!(f, "is_increasing"),
+            Rule::IsDecreasing { .. } => write!(f, "is_decreasing"),
             Rule::IsAfter { .. } => write!(f, "is_after"),
             Rule::IsBefore { .. } => write!(f, "is_before"),
-            Rule::IsNotFutur => write!(f, "is_not_futur"),
-            Rule::IsNotPast => write!(f, "is_not_past"),
-            Rule::IsWeekday => write!(f, "is_weekday"),
-            Rule::IsWeekend => write!(f, "is_weekend"),
+            Rule::IsNotFutur { .. } => write!(f, "is_not_futur"),
+            Rule::IsNotPast { .. } => write!(f, "is_not_past"),
+            Rule::IsWeekday { .. } => write!(f, "is_weekday"),
+            Rule::IsWeekend { .. } => write!(f, "is_weekend"),
         }
     }
 }
@@ -218,6 +277,7 @@ fn validate_column(col: &Column) -> Result<(), ConfigError> {
             Rule::WithLengthBetween {
                 min_length,
                 max_length,
+                ..
             } => {
                 if min_length > max_length {
                     return Err(ConfigError::RuleError {
@@ -240,7 +300,7 @@ fn validate_column(col: &Column) -> Result<(), ConfigError> {
                     });
                 }
             }
-            Rule::Between { min, max } => match (&min, &max) {
+            Rule::Between { min, max, .. } => match (&min, &max) {
                 (Value::Float(min_f), Value::Float(max_f)) => {
                     if min_f > max_f {
                         return Err(ConfigError::RuleError {
@@ -307,6 +367,8 @@ mod test {
 
     fn create_column(name: &str, rules: Vec<Rule>) -> Column {
         Column {
+            type_checking_threshold: None,
+            rule_threshold: None,
             name: name.to_string(),
             datatype: "string".to_string(),
             format: None,
@@ -317,6 +379,7 @@ mod test {
     #[test]
     fn test_validate_column_min_max_length_valid() {
         let rule = Rule::WithLengthBetween {
+            threshold: None,
             min_length: 3,
             max_length: 10,
         };
@@ -329,6 +392,7 @@ mod test {
     #[test]
     fn test_validate_column_min_greater_than_max_length() {
         let rule = Rule::WithLengthBetween {
+            threshold: None,
             min_length: 10,
             max_length: 3,
         };
@@ -348,6 +412,7 @@ mod test {
     #[test]
     fn test_validate_column_min_equal_max_length() {
         let rule = Rule::WithLengthBetween {
+            threshold: None,
             min_length: 5,
             max_length: 5,
         };
@@ -368,6 +433,7 @@ mod test {
     #[test]
     fn test_validate_column_integer_min_max_valid() {
         let rule = Rule::Between {
+            threshold: None,
             min: Value::Integer(1),
             max: Value::Integer(10),
         };
@@ -380,6 +446,7 @@ mod test {
     #[test]
     fn test_validate_column_integer_min_greater_than_max() {
         let rule = Rule::Between {
+            threshold: None,
             min: Value::Integer(10),
             max: Value::Integer(1),
         };
@@ -400,6 +467,7 @@ mod test {
     #[test]
     fn test_validate_column_integer_min_equal_max() {
         let rule = Rule::Between {
+            threshold: None,
             min: Value::Integer(5),
             max: Value::Integer(5),
         };
@@ -420,6 +488,7 @@ mod test {
     #[test]
     fn test_validate_column_integer_negative_values() {
         let rule = Rule::Between {
+            threshold: None,
             min: Value::Integer(-10),
             max: Value::Integer(-1),
         };
@@ -432,6 +501,7 @@ mod test {
     #[test]
     fn test_validate_column_float_min_max_valid() {
         let rule = Rule::Between {
+            threshold: None,
             min: Value::Float(1.5),
             max: Value::Float(10.5),
         };
@@ -444,6 +514,7 @@ mod test {
     #[test]
     fn test_validate_column_float_min_greater_than_max() {
         let rule = Rule::Between {
+            threshold: None,
             min: Value::Float(10.5),
             max: Value::Float(1.5),
         };
@@ -464,6 +535,7 @@ mod test {
     #[test]
     fn test_validate_column_float_min_equal_max() {
         let rule = Rule::Between {
+            threshold: None,
             min: Value::Float(5.5),
             max: Value::Float(5.5),
         };
@@ -484,6 +556,7 @@ mod test {
     #[test]
     fn test_validate_column_float_negative_values() {
         let rule = Rule::Between {
+            threshold: None,
             min: Value::Float(-10.5),
             max: Value::Float(-1.5),
         };
@@ -496,6 +569,7 @@ mod test {
     #[test]
     fn test_validate_column_type_mismatch_int_float() {
         let rule = Rule::Between {
+            threshold: None,
             min: Value::Integer(1),
             max: Value::Float(10.0),
         };
@@ -516,6 +590,7 @@ mod test {
     #[test]
     fn test_validate_column_type_mismatch_float_int() {
         let rule = Rule::Between {
+            threshold: None,
             min: Value::Float(1.0),
             max: Value::Integer(10),
         };
@@ -536,6 +611,7 @@ mod test {
     #[test]
     fn test_validate_column_unsupported_type_string() {
         let rule = Rule::Between {
+            threshold: None,
             min: Value::String("1".to_string()),
             max: Value::String("10".to_string()),
         };
@@ -556,6 +632,7 @@ mod test {
     #[test]
     fn test_validate_column_unsupported_type_boolean() {
         let rule = Rule::Between {
+            threshold: None,
             min: Value::Boolean(true),
             max: Value::Boolean(false),
         };
@@ -576,16 +653,19 @@ mod test {
     #[test]
     fn test_validate_column_multiple_rules_all_valid() {
         let rule1 = Rule::WithLengthBetween {
+            threshold: None,
             min_length: 3,
             max_length: 10,
         };
 
         let rule2 = Rule::Between {
+            threshold: None,
             min: Value::Integer(1),
             max: Value::Integer(100),
         };
 
         let rule3 = Rule::Between {
+            threshold: None,
             min: Value::Float(0.5),
             max: Value::Float(99.5),
         };
@@ -599,16 +679,19 @@ mod test {
     #[test]
     fn test_validate_column_multiple_rules_one_invalid() {
         let rule1 = Rule::WithLengthBetween {
+            threshold: None,
             min_length: 3,
             max_length: 10,
         };
 
         let rule2 = Rule::Between {
+            threshold: None,
             min: Value::Integer(100),
             max: Value::Integer(1), // Invalid: min > max
         };
 
         let rule3 = Rule::Between {
+            threshold: None,
             min: Value::Float(0.5),
             max: Value::Float(99.5),
         };
@@ -636,10 +719,138 @@ mod test {
 
     #[test]
     fn test_validate_column_no_constraints() {
-        let rule = Rule::IsUnique;
+        let rule = Rule::IsUnique { threshold: None };
         let column = create_column("test_col", vec![rule]);
 
         let result = validate_column(&column);
         assert!(result.is_ok());
+    }
+
+    // ============================================================================
+    // Threshold Parsing Tests
+    // ============================================================================
+
+    #[test]
+    fn test_rule_threshold_explicit() {
+        let rule = Rule::IsNotNull {
+            threshold: Some(5.0),
+        };
+
+        match rule {
+            Rule::IsNotNull { threshold } => {
+                assert_eq!(threshold, Some(5.0));
+            }
+            _ => panic!("Expected IsNotNull rule"),
+        }
+    }
+
+    #[test]
+    fn test_rule_threshold_none() {
+        let rule = Rule::IsNotNull { threshold: None };
+
+        match rule {
+            Rule::IsNotNull { threshold } => {
+                assert!(threshold.is_none());
+            }
+            _ => panic!("Expected IsNotNull rule"),
+        }
+    }
+
+    #[test]
+    fn test_column_type_threshold_explicit() {
+        let column = Column {
+            name: "test".to_string(),
+            datatype: "string".to_string(),
+            format: None,
+            type_checking_threshold: Some(10.0),
+            rule_threshold: None,
+            rule: vec![],
+        };
+
+        assert_eq!(column.type_checking_threshold, Some(10.0));
+    }
+
+    #[test]
+    fn test_column_rule_threshold_explicit() {
+        let column = Column {
+            name: "test".to_string(),
+            datatype: "string".to_string(),
+            format: None,
+            type_checking_threshold: None,
+            rule_threshold: Some(15.0),
+            rule: vec![],
+        };
+
+        assert_eq!(column.rule_threshold, Some(15.0));
+    }
+
+    #[test]
+    fn test_table_thresholds() {
+        let table = ConfigTable {
+            name: "test_table".to_string(),
+            path: "test.csv".to_string(),
+            type_checking_threshold: Some(5.0),
+            rule_threshold: Some(10.0),
+            relations: None,
+            column: vec![],
+        };
+
+        assert_eq!(table.type_checking_threshold, Some(5.0));
+        assert_eq!(table.rule_threshold, Some(10.0));
+    }
+
+    #[test]
+    fn test_string_rule_with_threshold() {
+        let rule = Rule::WithMinLength {
+            threshold: Some(7.5),
+            min_length: 5,
+        };
+
+        match rule {
+            Rule::WithMinLength {
+                threshold,
+                min_length,
+            } => {
+                assert_eq!(threshold, Some(7.5));
+                assert_eq!(min_length, 5);
+            }
+            _ => panic!("Expected WithMinLength rule"),
+        }
+    }
+
+    #[test]
+    fn test_numeric_rule_with_threshold() {
+        let rule = Rule::Between {
+            threshold: Some(3.0),
+            min: Value::Integer(0),
+            max: Value::Integer(100),
+        };
+
+        match rule {
+            Rule::Between { threshold, .. } => {
+                assert_eq!(threshold, Some(3.0));
+            }
+            _ => panic!("Expected Between rule"),
+        }
+    }
+
+    #[test]
+    fn test_date_rule_with_threshold() {
+        let rule = Rule::IsAfter {
+            threshold: Some(2.5),
+            year: 2020,
+            month: Some(1),
+            day: Some(1),
+        };
+
+        match rule {
+            Rule::IsAfter {
+                threshold, year, ..
+            } => {
+                assert_eq!(threshold, Some(2.5));
+                assert_eq!(year, 2020);
+            }
+            _ => panic!("Expected IsAfter rule"),
+        }
     }
 }

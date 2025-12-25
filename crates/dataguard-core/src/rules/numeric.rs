@@ -9,12 +9,15 @@ use crate::errors::RuleError;
 pub trait NumericRule<T: ArrowNumericType>: Send + Sync {
     /// Returns the name of the rule.
     fn name(&self) -> String;
+    /// Returns the rule threshold
+    fn get_threshold(&self) -> f64;
     /// Validates an Arrow `Array`.
     fn validate(&self, array: &PrimitiveArray<T>, column: String) -> Result<usize, RuleError>;
 }
 
 pub struct Range<N: Num + PartialOrd + Copy + Debug> {
     name: String,
+    threshold: f64,
     min: Option<N>,
     max: Option<N>,
 }
@@ -23,8 +26,13 @@ impl<N> Range<N>
 where
     N: Num + PartialOrd + Copy + Debug,
 {
-    pub fn new(name: String, min: Option<N>, max: Option<N>) -> Self {
-        Self { name, min, max }
+    pub fn new(name: String, threshold: f64, min: Option<N>, max: Option<N>) -> Self {
+        Self {
+            name,
+            threshold,
+            min,
+            max,
+        }
     }
 }
 
@@ -35,6 +43,10 @@ where
 {
     fn name(&self) -> String {
         self.name.clone()
+    }
+
+    fn get_threshold(&self) -> f64 {
+        self.threshold
     }
 
     fn validate(&self, array: &PrimitiveArray<T>, _column: String) -> Result<usize, RuleError> {
@@ -62,14 +74,16 @@ where
 
 pub struct Monotonicity<N> {
     name: String,
+    threshold: f64,
     asc: bool,
     _phantom: PhantomData<N>, // To tie N to the struct
 }
 
 impl<N: PartialOrd> Monotonicity<N> {
-    pub fn new(name: String, asc: bool) -> Self {
+    pub fn new(name: String, threshold: f64, asc: bool) -> Self {
         Self {
             name,
+            threshold,
             asc,
             _phantom: PhantomData,
         }
@@ -80,6 +94,7 @@ impl<N: PartialOrd> Default for Monotonicity<N> {
     fn default() -> Self {
         Self {
             name: "IsIngreasing".to_string(),
+            threshold: 0.,
             asc: true,
             _phantom: PhantomData,
         }
@@ -93,6 +108,10 @@ where
 {
     fn name(&self) -> String {
         self.name.clone()
+    }
+
+    fn get_threshold(&self) -> f64 {
+        self.threshold
     }
 
     fn validate(&self, array: &PrimitiveArray<T>, _column: String) -> Result<usize, RuleError> {
@@ -127,7 +146,7 @@ mod tests {
 
     #[test]
     fn test_min_range_integer_with_null() {
-        let rule = Range::new("range_test".to_string(), Some(5i64), None);
+        let rule = Range::new("range_test".to_string(), 0.0, Some(5i64), None);
         let array = Int64Array::from(vec![Some(1), Some(6), Some(3), Some(2), None]);
         // We expect 4 errors here index 0, 2, 3
         assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 3);
@@ -135,7 +154,7 @@ mod tests {
 
     #[test]
     fn test_min_range_integer() {
-        let rule = Range::new("range_test".to_string(), Some(5i64), None);
+        let rule = Range::new("range_test".to_string(), 0.0, Some(5i64), None);
         let array = Int64Array::from(vec![Some(7), Some(6), Some(5), Some(2), Some(4)]);
         // We expect 2 errors here index 3, 4
         assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
@@ -143,7 +162,7 @@ mod tests {
 
     #[test]
     fn test_max_range_integer_with_null() {
-        let rule = Range::new("range_test".to_string(), None, Some(5i64));
+        let rule = Range::new("range_test".to_string(), 0.0, None, Some(5i64));
         let array = Int64Array::from(vec![Some(1), Some(6), Some(3), Some(2), None]);
         // We expect 1 errors here index 1
         assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 1);
@@ -151,7 +170,7 @@ mod tests {
 
     #[test]
     fn test_max_range_integer() {
-        let rule = Range::new("range_test".to_string(), None, Some(5i64));
+        let rule = Range::new("range_test".to_string(), 0.0, None, Some(5i64));
         let array = Int64Array::from(vec![Some(7), Some(6), Some(5), Some(2), Some(4)]);
         // We expect 2 errors here index 0, 1
         assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
@@ -159,7 +178,7 @@ mod tests {
 
     #[test]
     fn test_range_between_integer_with_null() {
-        let rule = Range::new("range_test".to_string(), Some(2i64), Some(4i64));
+        let rule = Range::new("range_test".to_string(), 0.0, Some(2i64), Some(4i64));
         let array = Int64Array::from(vec![Some(1), Some(4), Some(6), Some(3), Some(2), None]);
         // We expect 2 errors here: 0, 2
         assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
@@ -167,7 +186,7 @@ mod tests {
 
     #[test]
     fn test_range_between_integer() {
-        let rule = Range::new("range_test".to_string(), Some(2i64), Some(4i64));
+        let rule = Range::new("range_test".to_string(), 0.0, Some(2i64), Some(4i64));
         let array = Int64Array::from(vec![Some(7), Some(6), Some(5), Some(2), Some(4)]);
         // We expect 2 errors here index 0, 1, 2
         assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 3);
@@ -189,7 +208,7 @@ mod tests {
 
     #[test]
     fn test_monotonicity_desc_valid() {
-        let rule = Monotonicity::<i64>::new("monotonicity_test".to_string(), false);
+        let rule = Monotonicity::<i64>::new("monotonicity_test".to_string(), 0.0, false);
         //
         //
         let array = Int64Array::from(vec![10, 5, 5, 1]);
@@ -198,14 +217,14 @@ mod tests {
 
     #[test]
     fn test_monotonicity_desc_violation() {
-        let rule = Monotonicity::<i64>::new("monotonicity_test".to_string(), false);
+        let rule = Monotonicity::<i64>::new("monotonicity_test".to_string(), 0.0, false);
         let array = Int64Array::from(vec![10, 3, 4, 5, 1]);
         assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
     }
 
     #[test]
     fn test_is_positive() {
-        let rule = Range::new("range_test".to_string(), Some(1i64), None);
+        let rule = Range::new("range_test".to_string(), 0.0, Some(1i64), None);
         let array = Int64Array::from(vec![Some(1), Some(0), Some(5), Some(-2), None]);
         // 0, -2 should be violations
         assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
@@ -213,7 +232,7 @@ mod tests {
 
     #[test]
     fn test_is_negative() {
-        let rule = Range::new("range_test".to_string(), None, Some(-1i64));
+        let rule = Range::new("range_test".to_string(), 0.0, None, Some(-1i64));
         let array = Int64Array::from(vec![Some(-1), Some(0), Some(-5), Some(2), None]);
         // 0, 2 should be violations
         assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 2);
@@ -221,7 +240,7 @@ mod tests {
 
     #[test]
     fn test_is_non_positive() {
-        let rule = Range::new("range_test".to_string(), None, Some(0i64));
+        let rule = Range::new("range_test".to_string(), 0.0, None, Some(0i64));
         let array = Int64Array::from(vec![Some(-1), Some(0), Some(5), Some(-2), None]);
         // 5 should be violations
         assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 1);
@@ -229,7 +248,7 @@ mod tests {
 
     #[test]
     fn test_is_non_negative() {
-        let rule = Range::new("range_test".to_string(), Some(0i64), None);
+        let rule = Range::new("range_test".to_string(), 0.0, Some(0i64), None);
         let array = Int64Array::from(vec![Some(1), Some(0), Some(5), Some(-2), None]);
         // -2 should be violations
         assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 1);

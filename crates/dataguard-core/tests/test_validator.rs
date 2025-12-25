@@ -54,10 +54,10 @@ fn test_validator_validate_existing_table() {
     writeln!(file, "bob,30").unwrap();
 
     let mut name_col = StringColumnBuilder::new("name".to_string());
-    name_col.with_min_length(3);
+    name_col.with_min_length(3, 0.0);
 
     let mut age_col = NumericColumnBuilder::<i64>::new("age".to_string());
-    age_col.is_positive();
+    age_col.is_positive(0.0);
 
     let file_path_str = file_path.into_os_string().into_string().unwrap();
     let mut table = CsvTable::new(file_path_str, "stdout".to_string()).unwrap();
