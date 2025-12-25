@@ -40,12 +40,15 @@ impl DateTypeCheck {
 pub trait DateRule: Send + Sync {
     /// Returns the name of the rule.
     fn name(&self) -> String;
+    /// Returns the rule threshold
+    fn get_threshold(&self) -> f64;
     /// Validates an Arrow `Array`.
     fn validate(&self, array: &Date32Array, column: String) -> Result<usize, RuleError>;
 }
 
 pub struct DateBoundaryCheck {
     name: String,
+    threshold: f64,
     days: i32,
     after: bool,
 }
@@ -53,6 +56,7 @@ pub struct DateBoundaryCheck {
 impl DateBoundaryCheck {
     pub fn new(
         name: String,
+        threshold: f64,
         after: bool,
         year: usize,
         month: Option<usize>,
@@ -66,7 +70,7 @@ impl DateBoundaryCheck {
                 // Here we can unwrap date is correct
                 let unix = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
                 let days = date.signed_duration_since(unix).num_days() as i32;
-                Ok(Self { name, after, days })
+                Ok(Self { name, threshold, after, days })
             }
             None => Err(RuleError::IncorrectDateError(year, m, d)),
         }
@@ -76,6 +80,10 @@ impl DateBoundaryCheck {
 impl DateRule for DateBoundaryCheck {
     fn name(&self) -> String {
         self.name.clone()
+    }
+    
+    fn get_threshold(&self) -> f64 {
+        self.threshold
     }
 
     fn validate(&self, array: &Date32Array, _column: String) -> Result<usize, RuleError> {
@@ -95,24 +103,29 @@ impl DateRule for DateBoundaryCheck {
 
 pub struct WeekDayCheck {
     name: String,
+    threshold: f64,
     is_week: bool,
 }
 
 impl WeekDayCheck {
-    pub fn new(name: String, is_week: bool) -> Self {
-        Self { name, is_week }
+    pub fn new(name: String, threshold: f64, is_week: bool) -> Self {
+        Self { name, threshold, is_week }
     }
 }
 
 impl Default for WeekDayCheck {
     fn default() -> Self {
-        Self::new("IsWeekday".to_string(), true)
+        Self::new("IsWeekday".to_string(), 0., true)
     }
 }
 
 impl DateRule for WeekDayCheck {
     fn name(&self) -> String {
         self.name.clone()
+    }
+    
+    fn get_threshold(&self) -> f64 {
+        self.threshold
     }
 
     fn validate(&self, array: &Date32Array, _column: String) -> Result<usize, RuleError> {

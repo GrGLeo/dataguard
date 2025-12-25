@@ -14,6 +14,7 @@ use crate::{errors::RuleError, utils::hasher::Xxh3Builder};
 pub trait StringRule: Send + Sync {
     /// Returns the name of the rule.
     fn name(&self) -> String;
+    fn get_treshold(&self) -> f64;
     /// Validates an Arrow `Array`.
     fn validate(&self, array: &StringArray, column: String) -> Result<usize, RuleError>;
 }
@@ -21,19 +22,29 @@ pub trait StringRule: Send + Sync {
 /// A rule to check the length of strings in a `StringArray`.
 pub struct StringLengthCheck {
     name: String,
+    threshold: f64,
     min: Option<usize>,
     max: Option<usize>,
 }
 
 impl StringLengthCheck {
-    pub fn new(name: String, min: Option<usize>, max: Option<usize>) -> Self {
-        Self { name, min, max }
+    pub fn new(name: String, threshold: f64, min: Option<usize>, max: Option<usize>) -> Self {
+        Self {
+            name,
+            threshold,
+            min,
+            max,
+        }
     }
 }
 
 impl StringRule for StringLengthCheck {
     fn name(&self) -> String {
         self.name.clone()
+    }
+
+    fn get_treshold(&self) -> f64 {
+        self.threshold
     }
 
     fn validate(&self, array: &StringArray, column: String) -> Result<usize, RuleError> {
@@ -73,14 +84,16 @@ impl StringRule for StringLengthCheck {
 /// A rule to check if strings in a `StringArray` match a regex pattern.
 pub struct RegexMatch {
     name: String,
+    threshold: f64,
     pattern: String,
     flag: Option<String>,
 }
 
 impl RegexMatch {
-    pub fn new(name: String, pattern: String, flag: Option<String>) -> Self {
+    pub fn new(name: String, threshold: f64, pattern: String, flag: Option<String>) -> Self {
         Self {
             name,
+            threshold,
             pattern,
             flag,
         }
@@ -90,6 +103,10 @@ impl RegexMatch {
 impl StringRule for RegexMatch {
     fn name(&self) -> String {
         self.name.clone()
+    }
+
+    fn get_treshold(&self) -> f64 {
+        self.threshold
     }
 
     fn validate(&self, array: &StringArray, column: String) -> Result<usize, RuleError> {
@@ -109,11 +126,12 @@ impl StringRule for RegexMatch {
 
 pub struct IsInCheck {
     name: String,
+    threshold: f64,
     members: HashSet<u64, Xxh3Builder>,
 }
 
 impl IsInCheck {
-    pub fn new(name: String, members: Vec<String>) -> Self {
+    pub fn new(name: String, threshold:f64, members: Vec<String>) -> Self {
         let mut hashset = HashSet::with_hasher(Xxh3Builder);
         members.into_iter().for_each(|m| {
             let hash = xxh3_64(m.as_bytes());
@@ -121,6 +139,7 @@ impl IsInCheck {
         });
         Self {
             name,
+            threshold,
             members: hashset,
         }
     }
@@ -129,6 +148,10 @@ impl IsInCheck {
 impl StringRule for IsInCheck {
     fn name(&self) -> String {
         self.name.clone()
+    }
+
+    fn get_treshold(&self) -> f64 {
+        self.threshold
     }
 
     fn validate(&self, array: &StringArray, _column: String) -> Result<usize, RuleError> {

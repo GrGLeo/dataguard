@@ -168,9 +168,10 @@ impl<'a> ValidationEngine<'a> {
         // We need to calculate the unicity errors now
         // We unwrap all lock should have been clearer from the earlier loop
         let unicity_errors = unicity_accumulators.finalize(total_rows);
+        // TODO: for now we use a temp data 0. while making string work
         for (column_name, unicity_error) in unicity_errors {
             error_counter.fetch_add(unicity_error, Ordering::Relaxed);
-            report.record_column_result(&column_name, "Unicity".to_string(), unicity_error);
+            report.record_column_result(&column_name, "Unicity".to_string(), 0., unicity_error);
         }
 
         // We create the validation result for report formatting
@@ -193,7 +194,12 @@ fn validate_null_check(
 ) {
     if let Some(null_rule) = null_check {
         let null_count = null_rule.validate(array);
-        report.record_column_result(column_name, null_rule.name(), null_count);
+        report.record_column_result(
+            column_name,
+            null_rule.name(),
+            null_rule.get_threshold(),
+            null_count,
+        );
     }
 }
 
@@ -203,14 +209,15 @@ fn record_validation_result(
     rule_name: String,
     error_count_value: usize,
     error_counter: &AtomicUsize,
+    threshold: f64,
     report: &ResultAccumulator,
     is_col: bool,
 ) {
     error_counter.fetch_add(error_count_value, Ordering::Relaxed);
     if is_col {
-        report.record_column_result(column_name, rule_name, error_count_value);
+        report.record_column_result(column_name, rule_name, threshold, error_count_value);
     } else {
-        report.record_relation_result(column_name, rule_name, error_count_value);
+        report.record_relation_result(column_name, rule_name, threshold, error_count_value);
     }
 }
 
@@ -219,11 +226,12 @@ fn record_type_check_error(
     array_len: usize,
     column_name: &str,
     type_check_name: String,
+    threshold: f64,
     error_counter: &AtomicUsize,
     report: &ResultAccumulator,
 ) {
     error_counter.fetch_add(array_len, Ordering::Relaxed);
-    report.record_column_result(column_name, type_check_name, array_len);
+    report.record_column_result(column_name, type_check_name, threshold, array_len);
 }
 
 fn validate_string_column(
@@ -251,6 +259,7 @@ fn validate_string_column(
                     type_rule.name(),
                     errors,
                     error_counter,
+                    0.,
                     report,
                     true,
                 );
@@ -269,6 +278,7 @@ fn validate_string_column(
                             rule.name(),
                             count,
                             error_counter,
+                            rule.get_treshold(),
                             report,
                             true,
                         );
@@ -282,7 +292,14 @@ fn validate_string_column(
                 return Ok(());
             }
             Err(e) => {
-                record_type_check_error(array.len(), name, type_rule.name(), error_counter, report);
+                record_type_check_error(
+                    array.len(),
+                    name,
+                    type_rule.name(),
+                    0.,
+                    error_counter,
+                    report,
+                );
                 return Err(e);
             }
         }
@@ -320,6 +337,7 @@ fn validate_numeric_column<T: ArrowNumericType>(
                     type_rule.name(),
                     errors,
                     error_counter,
+                    0.,
                     report,
                     true,
                 );
@@ -341,6 +359,7 @@ fn validate_numeric_column<T: ArrowNumericType>(
                             rule.name(),
                             count,
                             error_counter,
+                            rule.get_threshold(),
                             report,
                             true,
                         );
@@ -354,7 +373,14 @@ fn validate_numeric_column<T: ArrowNumericType>(
                 return Ok(());
             }
             Err(e) => {
-                record_type_check_error(array.len(), name, type_rule.name(), error_counter, report);
+                record_type_check_error(
+                    array.len(),
+                    name,
+                    type_rule.name(),
+                    0.,
+                    error_counter,
+                    report,
+                );
                 return Err(e);
             }
         }
@@ -391,6 +417,7 @@ pub fn validate_date_column(
                     type_rule.name(),
                     errors,
                     error_counter,
+                    0.,
                     report,
                     true,
                 );
@@ -407,6 +434,7 @@ pub fn validate_date_column(
                             rule.name(),
                             count,
                             error_counter,
+                            rule.get_threshold(),
                             report,
                             true,
                         );
@@ -420,7 +448,14 @@ pub fn validate_date_column(
                 return Ok(Arc::new(date_array));
             }
             Err(_) => {
-                record_type_check_error(array.len(), name, type_rule.name(), error_counter, report);
+                record_type_check_error(
+                    array.len(),
+                    name,
+                    type_rule.name(),
+                    0.,
+                    error_counter,
+                    report,
+                );
                 return Err(RuleError::TypeCastError(
                     name.to_string(),
                     "Date32Array".to_string(),
@@ -453,6 +488,7 @@ fn validate_relation(
                 rule.name(),
                 count,
                 error_counter,
+                rule.get_threshold(),
                 report,
                 false,
             );

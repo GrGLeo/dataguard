@@ -49,28 +49,48 @@ fn compile_string_rules(
 
     for rule in rules {
         match rule {
-            ColumnRule::StringLength { name, min, max } => {
-                executable_rules.push(Box::new(StringLengthCheck::new(name.clone(), *min, *max)));
+            ColumnRule::StringLength {
+                name,
+                threshold,
+                min,
+                max,
+            } => {
+                executable_rules.push(Box::new(StringLengthCheck::new(
+                    name.clone(),
+                    *threshold,
+                    *min,
+                    *max,
+                )));
             }
             ColumnRule::StringRegex {
                 name,
+                threshold,
                 pattern,
                 flags,
             } => {
                 executable_rules.push(Box::new(RegexMatch::new(
                     name.clone(),
+                    *threshold,
                     pattern.clone(),
                     flags.clone(),
                 )));
             }
-            ColumnRule::StringMembers { name, members } => {
-                executable_rules.push(Box::new(IsInCheck::new(name.clone(), members.to_vec())));
+            ColumnRule::StringMembers {
+                name,
+                threshold,
+                members,
+            } => {
+                executable_rules.push(Box::new(IsInCheck::new(
+                    name.clone(),
+                    *threshold,
+                    members.to_vec(),
+                )));
             }
-            ColumnRule::Unicity => {
-                unicity_check = Some(UnicityCheck::new());
+            ColumnRule::Unicity { threshold } => {
+                unicity_check = Some(UnicityCheck::new(*threshold));
             }
-            ColumnRule::NullCheck => {
-                null_check = Some(NullCheck::new());
+            ColumnRule::NullCheck { threshold } => {
+                null_check = Some(NullCheck::new(*threshold));
             }
             _ => {
                 return Err(RuleError::ValidationError(format!(
@@ -101,24 +121,30 @@ fn compile_date_rules(
 
     for rule in rules {
         match rule {
-            ColumnRule::Unicity => {
-                unicity_check = Some(UnicityCheck::new());
+            ColumnRule::Unicity { threshold } => {
+                unicity_check = Some(UnicityCheck::new(*threshold));
             }
-            ColumnRule::NullCheck => {
-                null_check = Some(NullCheck::new());
+            ColumnRule::NullCheck { threshold } => {
+                null_check = Some(NullCheck::new(*threshold));
             }
             ColumnRule::DateBoundary {
                 name,
+                threshold,
                 after,
                 year,
                 month,
                 day,
             } => {
-                let rule = DateBoundaryCheck::new(name.clone(), *after, *year, *month, *day)?;
+                let rule =
+                    DateBoundaryCheck::new(name.clone(), *threshold, *after, *year, *month, *day)?;
                 executable_rules.push(Box::new(rule));
             }
-            ColumnRule::WeekDay { name, is_week } => {
-                let rule = WeekDayCheck::new(name.clone(), *is_week);
+            ColumnRule::WeekDay {
+                name,
+                threshold,
+                is_week,
+            } => {
+                let rule = WeekDayCheck::new(name.clone(), *threshold, *is_week);
                 executable_rules.push(Box::new(rule));
             }
             _ => {
@@ -159,17 +185,30 @@ where
     let mut executable_rules: Vec<Box<dyn NumericRule<A>>> = Vec::new();
     for rule in rules {
         match rule {
-            ColumnRule::NumericRange { name, min, max } => {
+            ColumnRule::NumericRange {
+                name,
+                threshold,
+                min,
+                max,
+            } => {
                 let min_conv = min.and_then(|v| N::from(v));
                 let max_conv = max.and_then(|v| N::from(v));
-                executable_rules.push(Box::new(Range::<N>::new(name.clone(), min_conv, max_conv)));
+                executable_rules.push(Box::new(Range::<N>::new(name.clone(), *threshold, min_conv, max_conv)));
             }
-            ColumnRule::Monotonicity { name, ascending } => {
-                executable_rules.push(Box::new(Monotonicity::<N>::new(name.clone(), *ascending)));
+            ColumnRule::Monotonicity {
+                name,
+                ascending,
+                threshold: treshold,
+            } => {
+                executable_rules.push(Box::new(Monotonicity::<N>::new(
+                    name.clone(),
+                    *treshold,
+                    *ascending,
+                )));
             }
-            ColumnRule::NullCheck => null_rule = Some(NullCheck::new()),
-            ColumnRule::Unicity => {
-                unicity = Some(UnicityCheck::new());
+            ColumnRule::NullCheck { threshold } => null_rule = Some(NullCheck::new(*threshold)),
+            ColumnRule::Unicity { threshold } => {
+                unicity = Some(UnicityCheck::new(*threshold));
             }
             _ => {
                 return Err(RuleError::ValidationError(format!(

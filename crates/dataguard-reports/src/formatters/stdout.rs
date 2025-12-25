@@ -61,13 +61,14 @@ impl StdOutFormatter {
             for rule in rule_results {
                 let dots = ".".repeat(MAX_LEN - rule.rule_name.len());
                 let count_str = format_numbers(rule.error_count);
+                let pass_msg = if rule.pass { "PASSED" } else { "FAILED" };
                 if rule.error_message.is_some() {
                     let msg = rule.error_message.as_ref().unwrap();
                     println!("      {}", msg);
                 } else {
                     println!(
-                        "      {} {} {:>6} ({:.2}%)",
-                        rule.rule_name, dots, count_str, rule.error_percentage
+                        "      {} {} {:>6} ({:.2}%) {}",
+                        rule.rule_name, dots, count_str, rule.error_percentage, pass_msg
                     );
                 }
             }

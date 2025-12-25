@@ -14,73 +14,101 @@ fn apply_string_rule(
     builder: &mut StringColumnBuilder,
     rule: Rule,
     column_name: String,
+    rule_threshold: f64,
 ) -> Result<(), CliError> {
     match rule {
-        Rule::IsNotNull => {
-            builder.is_not_null();
+        Rule::IsNotNull { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_not_null(t);
             Ok(())
         }
-        Rule::IsUnique => {
-            builder.is_unique();
+        Rule::IsUnique { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_unique(t);
             Ok(())
         }
         Rule::WithLengthBetween {
+            threshold,
             min_length,
             max_length,
         } => {
-            builder.with_length_between(min_length, max_length);
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.with_length_between(min_length, max_length, t);
             Ok(())
         }
-        Rule::WithMinLength { min_length } => {
-            builder.with_min_length(min_length);
+        Rule::WithMinLength {
+            threshold,
+            min_length,
+        } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.with_min_length(min_length, t);
             Ok(())
         }
-        Rule::WithMaxLength { max_length } => {
-            builder.with_max_length(max_length);
+        Rule::WithMaxLength {
+            threshold,
+            max_length,
+        } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.with_max_length(max_length, t);
             Ok(())
         }
-        Rule::IsExactLength { length } => {
-            builder.is_exact_length(length);
+        Rule::IsExactLength { threshold, length } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_exact_length(length, t);
             Ok(())
         }
-        Rule::IsIn { members } => {
-            builder.is_in(members);
+        Rule::IsIn { threshold, members } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_in(members, t);
             Ok(())
         }
-        Rule::WithRegex { pattern, flag } => {
-            builder.with_regex(pattern.to_owned(), flag)?;
+        Rule::WithRegex {
+            threshold,
+            pattern,
+            flag,
+        } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.with_regex(pattern.to_owned(), flag, t)?;
             Ok(())
         }
-        Rule::IsNumeric => {
-            builder.is_numeric()?;
+        Rule::IsNumeric { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_numeric(t)?;
             Ok(())
         }
-        Rule::IsAlpha => {
-            builder.is_alpha()?;
+        Rule::IsAlpha { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_alpha(t)?;
             Ok(())
         }
-        Rule::IsAlphaNumeric => {
-            builder.is_alphanumeric()?;
+        Rule::IsAlphaNumeric { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_alphanumeric(t)?;
             Ok(())
         }
-        Rule::IsUpperCase => {
-            builder.is_uppercase()?;
+        Rule::IsUpperCase { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_uppercase(t)?;
             Ok(())
         }
-        Rule::IsLowerCase => {
-            builder.is_lowercase()?;
+        Rule::IsLowerCase { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_lowercase(t)?;
             Ok(())
         }
-        Rule::IsUrl => {
-            builder.is_url()?;
+        Rule::IsUrl { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_url(t)?;
             Ok(())
         }
-        Rule::IsEmail => {
-            builder.is_email()?;
+        Rule::IsEmail { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_email(t)?;
             Ok(())
         }
-        Rule::IsUuid => {
-            builder.is_uuid()?;
+        Rule::IsUuid { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_uuid(t)?;
             Ok(())
         }
         _ => Err(CliError::UnknownRule {
@@ -123,54 +151,70 @@ fn apply_integer_rule(
     builder: &mut NumericColumnBuilder<i64>,
     rule: Rule,
     column_name: String,
+    rule_threshold: f64,
 ) -> Result<(), CliError> {
     match rule {
-        Rule::IsNotNull => {
-            builder.is_not_null();
+        Rule::IsNotNull { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_not_null(t);
             Ok(())
         }
-        Rule::IsUnique => {
-            builder.is_unique();
+        Rule::IsUnique { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_unique(t);
             Ok(())
         }
-        Rule::Between { ref min, ref max } => {
+        Rule::Between {
+            threshold,
+            ref min,
+            ref max,
+        } => {
             let i_min = extract_integer(min, rule.to_string(), column_name.clone())?;
             let i_max = extract_integer(max, rule.to_string(), column_name.clone())?;
-            builder.between(i_min, i_max);
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.between(i_min, i_max,t);
             Ok(())
         }
-        Rule::Min { ref min } => {
+        Rule::Min { threshold, ref min } => {
             let i_min = extract_integer(min, rule.to_string(), column_name.clone())?;
-            builder.min(i_min);
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.min(i_min, t);
             Ok(())
         }
-        Rule::Max { ref max } => {
+        Rule::Max { threshold, ref max } => {
             let i_max = extract_integer(max, rule.to_string(), column_name.clone())?;
-            builder.max(i_max);
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.max(i_max, t);
             Ok(())
         }
-        Rule::IsPositive => {
-            builder.is_positive();
+        Rule::IsPositive { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_positive(t);
             Ok(())
         }
-        Rule::IsNegative => {
-            builder.is_negative();
+        Rule::IsNegative { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_negative(t);
             Ok(())
         }
-        Rule::IsNonPositive => {
-            builder.is_non_positive();
+        Rule::IsNonPositive { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_non_positive(t);
             Ok(())
         }
-        Rule::IsNonNegative => {
-            builder.is_non_negative();
+        Rule::IsNonNegative { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_non_negative(t);
             Ok(())
         }
-        Rule::IsIncreasing => {
-            builder.is_monotonically_increasing();
+        Rule::IsIncreasing { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_monotonically_increasing(t);
             Ok(())
         }
-        Rule::IsDecreasing => {
-            builder.is_monotonically_decreasing();
+        Rule::IsDecreasing { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_monotonically_decreasing(t);
             Ok(())
         }
         _ => Err(CliError::UnknownRule {
@@ -185,50 +229,70 @@ fn apply_float_rule(
     builder: &mut NumericColumnBuilder<f64>,
     rule: Rule,
     column_name: String,
+    rule_threshold: f64,
 ) -> Result<(), CliError> {
     match rule {
-        Rule::IsUnique => {
-            builder.is_unique();
+        Rule::IsNotNull { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_not_null(t);
             Ok(())
         }
-        Rule::Between { ref min, ref max } => {
+        Rule::IsUnique { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_unique(t);
+            Ok(())
+        }
+        Rule::Between {
+            threshold,
+            ref min,
+            ref max,
+        } => {
             let f_min = extract_float(min, rule.to_string(), column_name.clone())?;
             let f_max = extract_float(max, rule.to_string(), column_name.clone())?;
-            builder.between(f_min, f_max);
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.between(f_min, f_max, t);
             Ok(())
         }
-        Rule::Min { ref min } => {
+        Rule::Min { threshold, ref min } => {
             let f_min = extract_float(min, rule.to_string(), column_name.clone())?;
-            builder.min(f_min);
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.min(f_min, t);
             Ok(())
         }
-        Rule::Max { ref max } => {
+        Rule::Max { threshold, ref max } => {
             let f_max = extract_float(max, rule.to_string(), column_name.clone())?;
-            builder.max(f_max);
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.max(f_max, t);
             Ok(())
         }
-        Rule::IsPositive => {
-            builder.is_positive();
+        Rule::IsPositive { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_positive(t);
             Ok(())
         }
-        Rule::IsNegative => {
-            builder.is_negative();
+        Rule::IsNegative { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_negative(t);
             Ok(())
         }
-        Rule::IsNonPositive => {
-            builder.is_non_positive();
+        Rule::IsNonPositive { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_non_positive(t);
             Ok(())
         }
-        Rule::IsNonNegative => {
-            builder.is_non_negative();
+        Rule::IsNonNegative { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_non_negative(t);
             Ok(())
         }
-        Rule::IsIncreasing => {
-            builder.is_monotonically_increasing();
+        Rule::IsIncreasing { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_monotonically_increasing(t);
             Ok(())
         }
-        Rule::IsDecreasing => {
-            builder.is_monotonically_decreasing();
+        Rule::IsDecreasing { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_monotonically_decreasing(t);
             Ok(())
         }
         _ => Err(CliError::UnknownRule {
@@ -243,38 +307,57 @@ fn apply_date_rule(
     builder: &mut DateColumnBuilder,
     rule: Rule,
     column_name: String,
+    rule_threshold: f64,
 ) -> Result<(), CliError> {
     match rule {
-        Rule::IsNotNull => {
-            builder.is_not_null();
+        Rule::IsNotNull { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_not_null(t);
             Ok(())
         }
-        Rule::IsUnique => {
-            builder.is_unique();
+        Rule::IsUnique { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_unique(t);
             Ok(())
         }
-        Rule::IsAfter { year, month, day } => {
-            builder.is_after(year, month, day);
+        Rule::IsAfter {
+            threshold,
+            year,
+            month,
+            day,
+        } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_after(year, month, day, t);
             Ok(())
         }
-        Rule::IsBefore { year, month, day } => {
-            builder.is_before(year, month, day);
+        Rule::IsBefore {
+            threshold,
+            year,
+            month,
+            day,
+        } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_before(year, month, day, t);
             Ok(())
         }
-        Rule::IsNotFutur => {
-            builder.is_not_futur();
+        Rule::IsNotFutur { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_not_futur(t);
             Ok(())
         }
-        Rule::IsNotPast => {
-            builder.is_not_past();
+        Rule::IsNotPast { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_not_past(t);
             Ok(())
         }
-        Rule::IsWeekday => {
-            builder.is_weekday();
+        Rule::IsWeekday { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_weekday(t);
             Ok(())
         }
-        Rule::IsWeekend => {
-            builder.is_weekend();
+        Rule::IsWeekend { threshold } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.is_weekend(t);
             Ok(())
         }
         _ => Err(CliError::UnknownRule {
@@ -287,7 +370,10 @@ fn apply_date_rule(
 
 fn apply_relation_rule(builder: &mut RelationBuilder, rule: Relation) -> Result<(), CliError> {
     match rule {
-        Relation::DateComparaison { operator } => {
+        Relation::DateComparaison {
+            threshold,
+            operator,
+        } => {
             let op = CompOperator::try_from(operator.as_str())?;
             builder.date_comparaison(op);
             Ok(())
@@ -297,36 +383,56 @@ fn apply_relation_rule(builder: &mut RelationBuilder, rule: Relation) -> Result<
 
 pub fn construct_csv_table(table: &ConfigTable) -> Result<CsvTable> {
     let path = &table.path;
+    let global_type_threshold = &table.type_checking_threshold.unwrap_or(0.);
+    let global_rule_threshold = &table.rule_threshold.unwrap_or(0.);
     let mut all_column_builder: Vec<Box<dyn ColumnBuilder>> = Vec::new();
     let mut all_relation_builder: Vec<RelationBuilder> = Vec::new();
     for column in &table.column {
+        let column_type_threshold = column
+            .type_checking_threshold
+            .unwrap_or(*global_type_threshold);
+        let column_rule_threshold = column.rule_threshold.unwrap_or(*global_rule_threshold);
         match column.datatype.as_str() {
             "float" => {
                 let mut builder = NumericColumnBuilder::<f64>::new(column.name.clone());
                 for rule in &column.rule {
-                    apply_float_rule(&mut builder, rule.clone(), column.name.clone()).with_context(
-                        || format!("Failed to apply rule to column '{}'", column.name.clone()),
-                    )?
+                    apply_float_rule(
+                        &mut builder,
+                        rule.clone(),
+                        column.name.clone(),
+                        column_rule_threshold,
+                    )
+                    .with_context(|| {
+                        format!("Failed to apply rule to column '{}'", column.name.clone())
+                    })?
                 }
                 all_column_builder.push(Box::new(builder));
             }
             "integer" => {
                 let mut builder = NumericColumnBuilder::<i64>::new(column.name.clone());
                 for rule in &column.rule {
-                    apply_integer_rule(&mut builder, rule.clone(), column.name.clone())
-                        .with_context(|| {
-                            format!("Failed to apply rule to column '{}'", column.name.clone())
-                        })?
+                    apply_integer_rule(
+                        &mut builder,
+                        rule.clone(),
+                        column.name.clone(),
+                        column_rule_threshold,
+                    )
+                    .with_context(|| {
+                        format!("Failed to apply rule to column '{}'", column.name.clone())
+                    })?
                 }
                 all_column_builder.push(Box::new(builder));
             }
             "string" => {
                 let mut builder = StringColumnBuilder::new(column.name.clone());
                 for rule in &column.rule {
-                    apply_string_rule(&mut builder, rule.clone(), column.name.clone())
-                        .with_context(|| {
-                            format!("Failed to apply rule to column '{}'", column.name)
-                        })?
+                    apply_string_rule(
+                        &mut builder,
+                        rule.clone(),
+                        column.name.clone(),
+                        column_rule_threshold,
+                    )
+                    .with_context(|| format!("Failed to apply rule to column '{}'", column.name))?
                 }
                 all_column_builder.push(Box::new(builder));
             }
@@ -334,9 +440,13 @@ pub fn construct_csv_table(table: &ConfigTable) -> Result<CsvTable> {
                 let mut builder =
                     DateColumnBuilder::new(column.name.clone(), column.format.clone().unwrap());
                 for rule in &column.rule {
-                    apply_date_rule(&mut builder, rule.clone(), column.name.clone()).with_context(
-                        || format!("Failed to apply rule to column '{}'", column.name),
-                    )?
+                    apply_date_rule(
+                        &mut builder,
+                        rule.clone(),
+                        column.name.clone(),
+                        column_rule_threshold,
+                    )
+                    .with_context(|| format!("Failed to apply rule to column '{}'", column.name))?
                 }
                 all_column_builder.push(Box::new(builder));
             }

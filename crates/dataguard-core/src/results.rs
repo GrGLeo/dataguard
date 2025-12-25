@@ -75,7 +75,7 @@ impl ValidationResult {
         let passed = self
             .column_results
             .values()
-            .flat_map(|rules| rules.iter().map(|rule| rule.status as u8))
+            .flat_map(|rules| rules.iter().map(|rule| rule.pass as u8))
             .collect::<Vec<u8>>();
 
         (passed.iter().sum(), passed.len() as u8)
@@ -87,8 +87,9 @@ pub struct RuleResult {
     pub rule_name: String,
     pub error_count: usize,
     pub error_percentage: f64,
+    pub threshold: f64,
     pub error_message: Option<String>,
-    pub status: bool,
+    pub pass: bool,
 }
 
 impl RuleResult {
@@ -96,15 +97,17 @@ impl RuleResult {
         rule_name: String,
         error_count: usize,
         error_percentage: f64,
+        threshold: f64,
         error_message: Option<String>,
-        status: bool,
+        pass: bool,
     ) -> Self {
         Self {
             rule_name,
             error_count,
             error_percentage,
+            threshold,
             error_message,
-            status,
+            pass,
         }
     }
 

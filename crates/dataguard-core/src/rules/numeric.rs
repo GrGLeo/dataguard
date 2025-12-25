@@ -9,12 +9,15 @@ use crate::errors::RuleError;
 pub trait NumericRule<T: ArrowNumericType>: Send + Sync {
     /// Returns the name of the rule.
     fn name(&self) -> String;
+    /// Returns the rule threshold
+    fn get_threshold(&self) -> f64;
     /// Validates an Arrow `Array`.
     fn validate(&self, array: &PrimitiveArray<T>, column: String) -> Result<usize, RuleError>;
 }
 
 pub struct Range<N: Num + PartialOrd + Copy + Debug> {
     name: String,
+    threshold: f64,
     min: Option<N>,
     max: Option<N>,
 }
@@ -23,8 +26,13 @@ impl<N> Range<N>
 where
     N: Num + PartialOrd + Copy + Debug,
 {
-    pub fn new(name: String, min: Option<N>, max: Option<N>) -> Self {
-        Self { name, min, max }
+    pub fn new(name: String, threshold: f64, min: Option<N>, max: Option<N>) -> Self {
+        Self {
+            name,
+            threshold,
+            min,
+            max,
+        }
     }
 }
 
@@ -35,6 +43,10 @@ where
 {
     fn name(&self) -> String {
         self.name.clone()
+    }
+
+    fn get_threshold(&self) -> f64 {
+        self.threshold
     }
 
     fn validate(&self, array: &PrimitiveArray<T>, _column: String) -> Result<usize, RuleError> {
@@ -62,14 +74,16 @@ where
 
 pub struct Monotonicity<N> {
     name: String,
+    threshold: f64,
     asc: bool,
     _phantom: PhantomData<N>, // To tie N to the struct
 }
 
 impl<N: PartialOrd> Monotonicity<N> {
-    pub fn new(name: String, asc: bool) -> Self {
+    pub fn new(name: String, threshold: f64, asc: bool) -> Self {
         Self {
             name,
+            threshold,
             asc,
             _phantom: PhantomData,
         }
@@ -80,6 +94,7 @@ impl<N: PartialOrd> Default for Monotonicity<N> {
     fn default() -> Self {
         Self {
             name: "IsIngreasing".to_string(),
+            threshold: 0.,
             asc: true,
             _phantom: PhantomData,
         }
@@ -93,6 +108,10 @@ where
 {
     fn name(&self) -> String {
         self.name.clone()
+    }
+
+    fn get_threshold(&self) -> f64 {
+        self.threshold
     }
 
     fn validate(&self, array: &PrimitiveArray<T>, _column: String) -> Result<usize, RuleError> {

@@ -9,11 +9,13 @@ use xxhash_rust::xxh3::xxh3_64;
 
 use crate::{errors::RuleError, utils::hasher::Xxh3Builder};
 
-pub struct NullCheck {}
+pub struct NullCheck {
+    threshold: f64,
+}
 
 impl NullCheck {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(threshold: f64) -> Self {
+        Self { threshold }
     }
 
     pub fn name(&self) -> String {
@@ -23,11 +25,15 @@ impl NullCheck {
     pub fn validate(&self, array: &dyn Array) -> usize {
         array.null_count()
     }
+
+    pub fn get_threshold(&self) -> f64 {
+        self.threshold
+    }
 }
 
 impl Default for NullCheck {
     fn default() -> Self {
-        Self::new()
+        Self::new(0.)
     }
 }
 
@@ -57,17 +63,23 @@ impl TypeCheck {
 }
 
 #[derive(Clone)]
-pub struct UnicityCheck {}
+pub struct UnicityCheck {
+    threshold: f64,
+}
 
 impl Default for UnicityCheck {
     fn default() -> Self {
-        Self::new()
+        Self::new(0.)
     }
 }
 
 impl UnicityCheck {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(threshold: f64) -> Self {
+        Self { threshold }
+    }
+    
+    fn get_threshold(&self) -> f64 {
+        self.threshold
     }
 
     pub fn name(&self) -> String {

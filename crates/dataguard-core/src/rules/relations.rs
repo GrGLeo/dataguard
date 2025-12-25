@@ -6,6 +6,7 @@ use crate::{utils::operator::CompOperator, RuleError};
 
 pub trait RelationRule: Send + Sync {
     fn name(&self) -> String;
+    fn get_threshold(&self) -> f64;
     fn validate(
         &self,
         lhs: &Arc<dyn Array>,
@@ -27,6 +28,10 @@ impl DateCompareCheck {
 impl RelationRule for DateCompareCheck {
     fn name(&self) -> String {
         format!("DateCompare{}", self.op)
+    }
+
+    fn get_threshold(&self) -> f64 {
+        0.
     }
 
     fn validate(

@@ -15,6 +15,8 @@ pub struct Config {
 pub struct ConfigTable {
     pub name: String,
     pub path: String,
+    pub type_checking_threshold: Option<f64>,
+    pub rule_threshold: Option<f64>,
     pub relations: Option<Vec<TableRelation>>,
     pub column: Vec<Column>,
 }
@@ -24,6 +26,8 @@ pub struct Column {
     pub name: String,
     pub datatype: String,
     pub format: Option<String>,
+    pub type_checking_threshold: Option<f64>,
+    pub rule_threshold: Option<f64>,
     pub rule: Vec<Rule>,
 }
 
@@ -37,82 +41,136 @@ pub struct TableRelation {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "name", rename_all = "snake_case")]
 pub enum Relation {
-    DateComparaison { operator: String },
+    DateComparaison {
+        threshold: Option<f64>,
+        operator: String,
+    },
 }
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "name", rename_all = "snake_case")]
 pub enum Rule {
     // Generic rules
-    IsUnique,
-    IsNotNull,
+    IsUnique {
+        threshold: Option<f64>,
+    },
+    IsNotNull {
+        threshold: Option<f64>,
+    },
 
     //String rules
     WithLengthBetween {
+        threshold: Option<f64>,
         min_length: usize,
         max_length: usize,
     },
     WithMinLength {
+        threshold: Option<f64>,
         min_length: usize,
     },
     WithMaxLength {
+        threshold: Option<f64>,
         max_length: usize,
     },
     IsExactLength {
+        threshold: Option<f64>,
         length: usize,
     },
     IsIn {
+        threshold: Option<f64>,
         members: Vec<String>,
     },
     WithRegex {
+        threshold: Option<f64>,
         pattern: String,
         flag: Option<String>,
     },
-    IsNumeric,
-    IsAlpha,
+    IsNumeric {
+        threshold: Option<f64>,
+    },
+    IsAlpha {
+        threshold: Option<f64>,
+    },
     #[serde(rename = "is_alphanumeric")]
-    IsAlphaNumeric,
+    IsAlphaNumeric {
+        threshold: Option<f64>,
+    },
     #[serde(rename = "is_uppercase")]
-    IsUpperCase,
+    IsUpperCase {
+        threshold: Option<f64>,
+    },
     #[serde(rename = "is_lowercase")]
-    IsLowerCase,
-    IsUrl,
-    IsEmail,
-    IsUuid,
+    IsLowerCase {
+        threshold: Option<f64>,
+    },
+    IsUrl {
+        threshold: Option<f64>,
+    },
+    IsEmail {
+        threshold: Option<f64>,
+    },
+    IsUuid {
+        threshold: Option<f64>,
+    },
 
     // Numeric Rule
     Between {
+        threshold: Option<f64>,
         min: Value,
         max: Value,
     },
     Min {
+        threshold: Option<f64>,
         min: Value,
     },
     Max {
+        threshold: Option<f64>,
         max: Value,
     },
-    IsPositive,
-    IsNonPositive,
-    IsNegative,
-    IsNonNegative,
-    IsIncreasing,
-    IsDecreasing,
+    IsPositive {
+        threshold: Option<f64>,
+    },
+    IsNonPositive {
+        threshold: Option<f64>,
+    },
+    IsNegative {
+        threshold: Option<f64>,
+    },
+    IsNonNegative {
+        threshold: Option<f64>,
+    },
+    IsIncreasing {
+        threshold: Option<f64>,
+    },
+    IsDecreasing {
+        threshold: Option<f64>,
+    },
 
     // Date Rule
     IsAfter {
+        threshold: Option<f64>,
         year: usize,
         month: Option<usize>,
         day: Option<usize>,
     },
     IsBefore {
+        threshold: Option<f64>,
         year: usize,
         month: Option<usize>,
         day: Option<usize>,
     },
-    IsNotFutur,
-    IsNotPast,
-    IsWeekday,
-    IsWeekend,
+    IsNotFutur {
+        threshold: Option<f64>,
+    },
+    IsNotPast {
+        threshold: Option<f64>,
+    },
+    IsWeekday {
+        threshold: Option<f64>,
+    },
+    IsWeekend {
+        threshold: Option<f64>,
+    },
 }
 
 impl std::fmt::Display for Relation {
@@ -126,37 +184,37 @@ impl std::fmt::Display for Relation {
 impl std::fmt::Display for Rule {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Rule::IsNotNull => write!(f, "is_not_null"),
-            Rule::IsUnique => write!(f, "is_unique"),
+            Rule::IsNotNull { .. } => write!(f, "is_not_null"),
+            Rule::IsUnique { .. } => write!(f, "is_unique"),
             Rule::WithLengthBetween { .. } => write!(f, "with_length_between"),
             Rule::WithMinLength { .. } => write!(f, "with_min_length"),
             Rule::WithMaxLength { .. } => write!(f, "with_max_length"),
             Rule::IsExactLength { .. } => write!(f, "is_exact_length"),
             Rule::IsIn { .. } => write!(f, "is_in"),
             Rule::WithRegex { .. } => write!(f, "with_regex"),
-            Rule::IsNumeric => write!(f, "is_numeric"),
-            Rule::IsAlpha => write!(f, "is_alpha"),
-            Rule::IsAlphaNumeric => write!(f, "is_alphanumeric"),
-            Rule::IsUpperCase => write!(f, "is_uppercase"),
-            Rule::IsLowerCase => write!(f, "is_lowercase"),
-            Rule::IsUrl => write!(f, "is_url"),
-            Rule::IsEmail => write!(f, "is_email"),
-            Rule::IsUuid => write!(f, "is_uuid"),
+            Rule::IsNumeric { .. } => write!(f, "is_numeric"),
+            Rule::IsAlpha { .. } => write!(f, "is_alpha"),
+            Rule::IsAlphaNumeric { .. } => write!(f, "is_alphanumeric"),
+            Rule::IsUpperCase { .. } => write!(f, "is_uppercase"),
+            Rule::IsLowerCase { .. } => write!(f, "is_lowercase"),
+            Rule::IsUrl { .. } => write!(f, "is_url"),
+            Rule::IsEmail { .. } => write!(f, "is_email"),
+            Rule::IsUuid { .. } => write!(f, "is_uuid"),
             Rule::Between { .. } => write!(f, "between"),
             Rule::Min { .. } => write!(f, "min"),
             Rule::Max { .. } => write!(f, "max"),
-            Rule::IsPositive => write!(f, "is_positive"),
-            Rule::IsNonPositive => write!(f, "is_non_positive"),
-            Rule::IsNegative => write!(f, "is_negative"),
-            Rule::IsNonNegative => write!(f, "is_non_negative"),
-            Rule::IsIncreasing => write!(f, "is_increasing"),
-            Rule::IsDecreasing => write!(f, "is_decreasing"),
+            Rule::IsPositive { .. } => write!(f, "is_positive"),
+            Rule::IsNonPositive { .. } => write!(f, "is_non_positive"),
+            Rule::IsNegative { .. } => write!(f, "is_negative"),
+            Rule::IsNonNegative { .. } => write!(f, "is_non_negative"),
+            Rule::IsIncreasing { .. } => write!(f, "is_increasing"),
+            Rule::IsDecreasing { .. } => write!(f, "is_decreasing"),
             Rule::IsAfter { .. } => write!(f, "is_after"),
             Rule::IsBefore { .. } => write!(f, "is_before"),
-            Rule::IsNotFutur => write!(f, "is_not_futur"),
-            Rule::IsNotPast => write!(f, "is_not_past"),
-            Rule::IsWeekday => write!(f, "is_weekday"),
-            Rule::IsWeekend => write!(f, "is_weekend"),
+            Rule::IsNotFutur { .. } => write!(f, "is_not_futur"),
+            Rule::IsNotPast { .. } => write!(f, "is_not_past"),
+            Rule::IsWeekday { .. } => write!(f, "is_weekday"),
+            Rule::IsWeekend { .. } => write!(f, "is_weekend"),
         }
     }
 }
@@ -218,6 +276,7 @@ fn validate_column(col: &Column) -> Result<(), ConfigError> {
             Rule::WithLengthBetween {
                 min_length,
                 max_length,
+                ..
             } => {
                 if min_length > max_length {
                     return Err(ConfigError::RuleError {
@@ -240,7 +299,7 @@ fn validate_column(col: &Column) -> Result<(), ConfigError> {
                     });
                 }
             }
-            Rule::Between { min, max } => match (&min, &max) {
+            Rule::Between { min, max, .. } => match (&min, &max) {
                 (Value::Float(min_f), Value::Float(max_f)) => {
                     if min_f > max_f {
                         return Err(ConfigError::RuleError {
