@@ -28,8 +28,9 @@ impl UnicityAccumulator {
                     capacity,
                     Xxh3Builder,
                 )));
+                let threshold = column.get_unicity_threshold();
                 let null_counter = AtomicUsize::new(0);
-                accumulators.insert(column.get_name(), (null_counter, map));
+                accumulators.insert(column.get_name(), (null_counter, map, threshold));
             }
         }
 
@@ -49,25 +50,25 @@ impl UnicityAccumulator {
         hashes: HashSet<u64, Xxh3Builder>,
     ) {
         // SAFETY: since we instanciate the hashmap with all projected columns we can unwrap
-        let (counter, map) = self.accumulators.get(column_name).unwrap();
+        let (counter, map, _) = self.accumulators.get(column_name).unwrap();
         counter.fetch_add(null_count, Ordering::Relaxed);
         map.lock().unwrap().extend(hashes)
     }
 
     /// Calculate error counts for all columns.
     /// Returns: HashMap<column_name, error_count>
-    pub fn finalize(&self, total_rows: usize) -> HashMap<String, usize> {
+    pub fn finalize(&self, total_rows: usize) -> HashMap<String, (usize, f64)> {
         self.accumulators
             .iter()
-            .map(|(name, (c, h))| {
+            .map(|(name, (c, h, t))| {
                 let u = h.lock().unwrap().len();
                 let n = c.load(Ordering::Relaxed);
                 // We get the total number of rows
                 // We substract the null count, to get the total valid row
                 // Than we compare both len to get the not unique value
                 let r = total_rows - n - u;
-                (name.to_owned(), r)
+                (name.to_owned(), (r, t.to_owned()))
             })
-            .collect::<HashMap<String, usize>>()
+            .collect::<HashMap<String, (usize, f64)>>()
     }
 }

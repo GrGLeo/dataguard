@@ -35,6 +35,7 @@ pub struct Column {
 pub struct TableRelation {
     pub column_one: String,
     pub column_two: String,
+    pub rule_threshold: Option<f64>,
     pub rule: Vec<Relation>,
 }
 

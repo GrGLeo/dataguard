@@ -151,7 +151,12 @@ impl ResultAccumulator {
                 ));
             }
 
-            println!("{}: {}/ {}",column_name.clone(), error_percentage, threshold);
+            println!(
+                "{}: {}/ {}",
+                column_name.clone(),
+                error_percentage,
+                threshold
+            );
             column_results
                 .entry(column_name.clone())
                 .or_default()

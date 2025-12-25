@@ -105,6 +105,29 @@ impl ExecutableColumn {
             ExecutableColumn::Date { unicity_check, .. } => unicity_check.is_some(),
         }
     }
+    /// Get the unicity threshold if this column has a uniqueness constraint.
+    ///
+    /// Returns the configured threshold, or 0.0 as default if no unicity check exists.
+    pub fn get_unicity_threshold(&self) -> f64 {
+        match self {
+            ExecutableColumn::String { unicity_check, .. } => unicity_check
+                .as_ref()
+                .map(|u| u.get_threshold())
+                .unwrap_or(0.0),
+            ExecutableColumn::Integer { unicity_check, .. } => unicity_check
+                .as_ref()
+                .map(|u| u.get_threshold())
+                .unwrap_or(0.0),
+            ExecutableColumn::Float { unicity_check, .. } => unicity_check
+                .as_ref()
+                .map(|u| u.get_threshold())
+                .unwrap_or(0.0),
+            ExecutableColumn::Date { unicity_check, .. } => unicity_check
+                .as_ref()
+                .map(|u| u.get_threshold())
+                .unwrap_or(0.0),
+        }
+    }
 }
 
 pub struct ExecutableRelation {

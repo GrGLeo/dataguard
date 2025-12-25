@@ -193,7 +193,12 @@ where
             } => {
                 let min_conv = min.and_then(|v| N::from(v));
                 let max_conv = max.and_then(|v| N::from(v));
-                executable_rules.push(Box::new(Range::<N>::new(name.clone(), *threshold, min_conv, max_conv)));
+                executable_rules.push(Box::new(Range::<N>::new(
+                    name.clone(),
+                    *threshold,
+                    min_conv,
+                    max_conv,
+                )));
             }
             ColumnRule::Monotonicity {
                 name,
@@ -316,8 +321,8 @@ pub fn compile_relations(builder: RelationBuilder) -> Result<ExecutableRelation,
     let mut executable_relations: Vec<Box<dyn RelationRule>> = Vec::new();
     for rule in rules {
         match rule {
-            TableConstraint::DateComparaison { op } => {
-                executable_relations.push(Box::new(DateCompareCheck::new(op)));
+            TableConstraint::DateComparaison { op, threshold } => {
+                executable_relations.push(Box::new(DateCompareCheck::new(op, threshold)));
             }
         }
     }

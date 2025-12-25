@@ -128,5 +128,5 @@ pub enum ColumnRule {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TableConstraint {
-    DateComparaison { op: CompOperator },
+    DateComparaison { op: CompOperator, threshold: f64 },
 }

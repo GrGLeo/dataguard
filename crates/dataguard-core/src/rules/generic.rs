@@ -77,8 +77,8 @@ impl UnicityCheck {
     pub fn new(threshold: f64) -> Self {
         Self { threshold }
     }
-    
-    fn get_threshold(&self) -> f64 {
+
+    pub fn get_threshold(&self) -> f64 {
         self.threshold
     }
 

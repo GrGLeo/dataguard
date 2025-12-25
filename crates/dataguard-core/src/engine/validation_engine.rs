@@ -169,9 +169,14 @@ impl<'a> ValidationEngine<'a> {
         // We unwrap all lock should have been clearer from the earlier loop
         let unicity_errors = unicity_accumulators.finalize(total_rows);
         // TODO: for now we use a temp data 0. while making string work
-        for (column_name, unicity_error) in unicity_errors {
+        for (column_name, (unicity_error, threshold)) in unicity_errors {
             error_counter.fetch_add(unicity_error, Ordering::Relaxed);
-            report.record_column_result(&column_name, "Unicity".to_string(), 0., unicity_error);
+            report.record_column_result(
+                &column_name,
+                "Unicity".to_string(),
+                threshold,
+                unicity_error,
+            );
         }
 
         // We create the validation result for report formatting

@@ -70,7 +70,12 @@ impl DateBoundaryCheck {
                 // Here we can unwrap date is correct
                 let unix = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
                 let days = date.signed_duration_since(unix).num_days() as i32;
-                Ok(Self { name, threshold, after, days })
+                Ok(Self {
+                    name,
+                    threshold,
+                    after,
+                    days,
+                })
             }
             None => Err(RuleError::IncorrectDateError(year, m, d)),
         }
@@ -81,7 +86,7 @@ impl DateRule for DateBoundaryCheck {
     fn name(&self) -> String {
         self.name.clone()
     }
-    
+
     fn get_threshold(&self) -> f64 {
         self.threshold
     }
@@ -109,7 +114,11 @@ pub struct WeekDayCheck {
 
 impl WeekDayCheck {
     pub fn new(name: String, threshold: f64, is_week: bool) -> Self {
-        Self { name, threshold, is_week }
+        Self {
+            name,
+            threshold,
+            is_week,
+        }
     }
 }
 
@@ -123,7 +132,7 @@ impl DateRule for WeekDayCheck {
     fn name(&self) -> String {
         self.name.clone()
     }
-    
+
     fn get_threshold(&self) -> f64 {
         self.threshold
     }

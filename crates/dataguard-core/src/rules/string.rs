@@ -131,7 +131,7 @@ pub struct IsInCheck {
 }
 
 impl IsInCheck {
-    pub fn new(name: String, threshold:f64, members: Vec<String>) -> Self {
+    pub fn new(name: String, threshold: f64, members: Vec<String>) -> Self {
         let mut hashset = HashSet::with_hasher(Xxh3Builder);
         members.into_iter().for_each(|m| {
             let hash = xxh3_64(m.as_bytes());

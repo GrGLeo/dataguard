@@ -72,7 +72,13 @@ impl DateColumnBuilder {
     }
 
     /// Set a limit, the date should be after the given date
-    pub fn is_after(&mut self, year: usize, month: Option<usize>, day: Option<usize>, threshold: f64) -> &mut Self {
+    pub fn is_after(
+        &mut self,
+        year: usize,
+        month: Option<usize>,
+        day: Option<usize>,
+        threshold: f64,
+    ) -> &mut Self {
         self.rules.push(ColumnRule::DateBoundary {
             name: "IsAfter".to_string(),
             threshold,

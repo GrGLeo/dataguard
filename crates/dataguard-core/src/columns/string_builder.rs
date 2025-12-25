@@ -144,12 +144,22 @@ impl StringColumnBuilder {
 
     /// Check if string contains only numeric characters
     pub fn is_numeric(&mut self, threshold: f64) -> Result<&mut Self, RuleError> {
-        self.with_defined_regex("IsNumeric".to_string(), r"^\d+$".to_string(), None, threshold)
+        self.with_defined_regex(
+            "IsNumeric".to_string(),
+            r"^\d+$".to_string(),
+            None,
+            threshold,
+        )
     }
 
     /// Check if string contains only alphabetic characters
     pub fn is_alpha(&mut self, threshold: f64) -> Result<&mut Self, RuleError> {
-        self.with_defined_regex("IsAlpha".to_string(), r"^[a-zA-Z]+$".to_string(), None, threshold)
+        self.with_defined_regex(
+            "IsAlpha".to_string(),
+            r"^[a-zA-Z]+$".to_string(),
+            None,
+            threshold,
+        )
     }
 
     /// Check if string contains only alphanumeric characters

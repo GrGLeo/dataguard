@@ -172,7 +172,7 @@ fn apply_integer_rule(
             let i_min = extract_integer(min, rule.to_string(), column_name.clone())?;
             let i_max = extract_integer(max, rule.to_string(), column_name.clone())?;
             let t = threshold.unwrap_or(rule_threshold);
-            builder.between(i_min, i_max,t);
+            builder.between(i_min, i_max, t);
             Ok(())
         }
         Rule::Min { threshold, ref min } => {
@@ -368,14 +368,19 @@ fn apply_date_rule(
     }
 }
 
-fn apply_relation_rule(builder: &mut RelationBuilder, rule: Relation) -> Result<(), CliError> {
+fn apply_relation_rule(
+    builder: &mut RelationBuilder,
+    rule: Relation,
+    relation_threshold: f64,
+) -> Result<(), CliError> {
     match rule {
         Relation::DateComparaison {
             threshold,
             operator,
         } => {
             let op = CompOperator::try_from(operator.as_str())?;
-            builder.date_comparaison(op);
+            let t = threshold.unwrap_or(relation_threshold);
+            builder.date_comparaison(op, t);
             Ok(())
         }
     }
@@ -388,7 +393,7 @@ pub fn construct_csv_table(table: &ConfigTable) -> Result<CsvTable> {
     let mut all_column_builder: Vec<Box<dyn ColumnBuilder>> = Vec::new();
     let mut all_relation_builder: Vec<RelationBuilder> = Vec::new();
     for column in &table.column {
-        let column_type_threshold = column
+        let _column_type_threshold = column
             .type_checking_threshold
             .unwrap_or(*global_type_threshold);
         let column_rule_threshold = column.rule_threshold.unwrap_or(*global_rule_threshold);
@@ -462,16 +467,18 @@ pub fn construct_csv_table(table: &ConfigTable) -> Result<CsvTable> {
 
     if let Some(relations) = &table.relations {
         for relation in relations {
+            let relation_rule_threshold = relation.rule_threshold.unwrap_or(*global_rule_threshold);
             let mut builder =
                 RelationBuilder::new([relation.column_one.clone(), relation.column_two.clone()]);
             for rule in &relation.rule {
-                apply_relation_rule(&mut builder, rule.clone()).with_context(|| {
-                    format!(
-                        "Failed to apply rule to relation '{}' '{}'",
-                        relation.column_one.clone(),
-                        relation.column_two.clone()
-                    )
-                })?
+                apply_relation_rule(&mut builder, rule.clone(), relation_rule_threshold)
+                    .with_context(|| {
+                        format!(
+                            "Failed to apply rule to relation '{}' '{}'",
+                            relation.column_one.clone(),
+                            relation.column_two.clone()
+                        )
+                    })?
             }
             all_relation_builder.push(builder);
         }

@@ -17,11 +17,12 @@ pub trait RelationRule: Send + Sync {
 
 pub struct DateCompareCheck {
     op: CompOperator,
+    threshold: f64,
 }
 
 impl DateCompareCheck {
-    pub fn new(op: CompOperator) -> Self {
-        Self { op }
+    pub fn new(op: CompOperator, threshold: f64) -> Self {
+        Self { op, threshold }
     }
 }
 
@@ -31,7 +32,7 @@ impl RelationRule for DateCompareCheck {
     }
 
     fn get_threshold(&self) -> f64 {
-        0.
+        self.threshold
     }
 
     fn validate(

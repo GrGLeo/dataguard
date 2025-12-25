@@ -21,8 +21,9 @@ impl RelationBuilder {
         [self.names[0].clone(), self.names[1].clone()]
     }
 
-    pub fn date_comparaison(&mut self, op: CompOperator) -> &mut Self {
-        self.rules.push(TableConstraint::DateComparaison { op });
+    pub fn date_comparaison(&mut self, op: CompOperator, threshold: f64) -> &mut Self {
+        self.rules
+            .push(TableConstraint::DateComparaison { op, threshold });
         self
     }
 }
