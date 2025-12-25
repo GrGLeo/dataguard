@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::columns::{relation_builder::RelationBuilder, ColumnBuilder};
 use crate::errors::RuleError;
-use crate::reader::read_csv_parallel;
+use crate::readers::csv_reader::read_csv_parallel;
 use crate::tables::Table;
 use crate::validator::{ExecutableColumn, ExecutableRelation};
 use crate::{compiler, engine, ValidationResult};
