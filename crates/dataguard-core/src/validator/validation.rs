@@ -11,7 +11,7 @@ use crate::rules::numeric::NumericRule;
 use crate::rules::relations::RelationRule;
 use crate::rules::string::StringRule;
 use crate::rules::NullCheck;
-use crate::{CsvTable, Table, ValidationResult};
+use crate::{Table, ValidationResult};
 use arrow::datatypes::{Float64Type, Int64Type};
 use std::collections::HashMap;
 
@@ -153,7 +153,7 @@ impl ExecutableRelation {
 /// - Validation can be performed on individual tables or all tables at once
 /// - Thread-safe: tables can be validated in parallel
 pub struct Validator {
-    tables: HashMap<String, CsvTable>,
+    tables: HashMap<String, Box<dyn Table>>,
 }
 
 impl Default for Validator {
@@ -181,7 +181,7 @@ impl Validator {
     ///
     /// * `name` - Identifier for the table (used in `validate_table()`)
     /// * `table` - Configured table instance
-    pub fn add_table(&mut self, name: String, table: CsvTable) {
+    pub fn add_table(&mut self, name: String, table: Box<dyn Table>) {
         let _ = self.tables.insert(name, table);
     }
 

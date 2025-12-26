@@ -21,6 +21,10 @@ pub enum CliError {
         datatype: String,
         column_name: String,
     },
+    #[error("File format '{format}' is not recognized")]
+    UnknownFormat { format: String },
+    #[error("Path format '{path}' is not valid")]
+    UnknownFilePath { path: String },
     // Validation errors from core
     #[error("Validation error")]
     ValidationError(#[from] RuleError),
@@ -28,7 +32,7 @@ pub enum CliError {
 
 #[derive(Error, Debug)]
 pub enum ConfigError {
-    #[error("Error: csv file not found: '{table_path}'")]
+    #[error("File not found: '{table_path}'")]
     FileNotFound { table_path: String },
     #[error("Column format error: '{column_name}' with type '{type_name}' - {message}")]
     ColumnError {

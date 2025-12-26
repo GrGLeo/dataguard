@@ -1,0 +1,2 @@
+# Parquet files are binary
+*.parquet binary
