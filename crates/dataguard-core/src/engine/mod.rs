@@ -1,4 +1,5 @@
 mod accumulator;
+mod stats_accumulator;
 mod unicity_accumulator;
 mod validation_engine;
 
