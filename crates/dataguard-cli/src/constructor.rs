@@ -390,7 +390,6 @@ pub fn construct_csv_table(table: &ConfigTable) -> Result<Box<dyn Table>> {
     let path = &table.path;
     let global_type_threshold = &table.type_checking_threshold.unwrap_or(0.);
     let global_rule_threshold = &table.rule_threshold.unwrap_or(0.);
-    println!("t: {}", global_rule_threshold);
     let mut all_column_builder: Vec<Box<dyn ColumnBuilder>> = Vec::new();
     let mut all_relation_builder: Vec<RelationBuilder> = Vec::new();
     for column in &table.column {

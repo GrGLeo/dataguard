@@ -5,13 +5,15 @@ DataGuard is a high-performance data validation CLI tool written in Rust. It pro
 ## Features
 
 - **TOML-based Configuration**: Define validation rules in a simple, declarative format
-- **Multiple Data Types**: Support for string, integer, and float columns
+- **Supported Data Types**:  string(Utf8), integer(Int32), float(Float64), and date(Date32) columns
 - **Comprehensive Validation Rules**:
   - String: length checks, regex matching, enumeration (isin)
   - Numeric: range validation (min/max)
   - Generic: type checking, uniqueness, null checks
+  - Relation: date comparaison
 - **Flexible Output**: Human-readable table reports or JSON format
 - **Watch Mode**: Automatic re-validation on file changes
+- **Threshold**: Set per rule validation threshold
 - **Performance**: Built with parallel processing and optimized validation logic
 
 ## Installation
@@ -19,7 +21,7 @@ DataGuard is a high-performance data validation CLI tool written in Rust. It pro
 ### From Source
 
 ```bash
-git clone https://codeberg.org/Deretz/dataguard.git
+git clone https://github.com/GrGLeo/dataguard.git
 cd dataguard
 cargo build --release -p dataguard-cli
 ```
@@ -96,17 +98,25 @@ Loading data...
 
 Validating...
 
-products_large (20.0M rows) - FAILED
-  Name:
-    StringLengthCheck .......... 249.2K (1.25%)
-    TypeCheck ..................      0 (0.00%)
-    UnicityCheck ...............  19.1M (95.48%)
-  Error: Too much errors found
+products_large (20.0M rows) -
+FAILED: 2/3 rules valid
+  Column results:
+    Name:
+      StringLengthCheck .......... 249.2K (01.25%) PASS
+      TypeCheck ..................      0 (00.00%) PASS
+      UnicityCheck ...............  19.1M (95.48%) FAIL
 
-customers_medium (2.0M rows) - PASSED
-  Index:
-    NumericRange ...............      0 (0.00%)
-    TypeCheck ..................      0 (0.00%)
+  Relation results:
+    Shipped-date | Received-date:
+      LessThan....................      0 (00.00%) PASS
+
+
+customers_medium (2.0M rows) -
+PASSED: 2/2 rules valid
+  Column results:
+    Index:
+      NumericRange ...............      0 (00.00%) PASS
+      TypeCheck ..................      0 (00.00%) PASS
 
 ===================================
 Result: 1 failed, 1 passed
@@ -152,9 +162,6 @@ Options:
 ```bash
 # Run all tests
 cargo test
-
-# Run specific parquet reader tests
-cargo test -p dataguard-core test_parquet
 ```
 
 **Note**: Parquet reader tests automatically generate test data (512,000-row parquet file at `/tmp/test_ecommerce_data.parquet`) during test execution.
@@ -164,6 +171,6 @@ cargo test -p dataguard-core test_parquet
 ### Planned Features
 
 - **Statistical Validation Rules**: Z-score outlier detection, IQR-based validation, percentile checks
-- **Error Sampling**: Collect sample values that violate rules for easier debugging
-- **Additional Data Types**: Date/time validation, custom type support
-- **Enhanced Reporting**: More detailed error context and statistics
+- **CSV output**: Adding along side json and stdout a csv output.
+- **Additional Data Types**: Support for more variant of datatype (Int64, LongString...), time validation.
+- **Loading Performance**: Reducing csv loading time, and starting validation of present batch, while loading next batch
