@@ -4,7 +4,7 @@ use arrow_ord::cmp::{gt, lt};
 use num_traits::Num;
 use std::{fmt::Debug, marker::PhantomData};
 
-use crate::errors::RuleError;
+use crate::{columns::NumericType, engine::Stats, errors::RuleError};
 
 pub trait NumericRule<T: ArrowNumericType>: Send + Sync {
     /// Returns the name of the rule.
@@ -13,6 +13,8 @@ pub trait NumericRule<T: ArrowNumericType>: Send + Sync {
     fn get_threshold(&self) -> f64;
     /// Validates an Arrow `Array`.
     fn validate(&self, array: &PrimitiveArray<T>, column: String) -> Result<usize, RuleError>;
+    /// Validates an Arrow `Array`, by statistics
+    fn validate_with_stats(&self, array: &PrimitiveArray<T>, stats: &Stats) -> usize;
 }
 
 pub struct Range<N: Num + PartialOrd + Copy + Debug> {
@@ -69,6 +71,12 @@ where
             }
         }
         Ok(counter)
+    }
+
+    fn validate_with_stats(&self, _array: &PrimitiveArray<T>, _stats: &Stats) -> usize {
+        // We should never call this method on this rule
+        // It it's happen we panic and fix this case
+        unreachable!()
     }
 }
 
@@ -137,12 +145,116 @@ where
         let violation = comparaison.map_err(RuleError::ArrowError)?.true_count();
         Ok(violation)
     }
+
+    fn validate_with_stats(&self, _array: &PrimitiveArray<T>, _stats: &Stats) -> usize {
+        // We should never call this method on this rule
+        // It it's happen we panic and fix this case
+        unreachable!()
+    }
+}
+
+pub struct StdDevCheck {
+    name: String,
+    threshold: f64,
+    max_std_dev: f64,
+}
+
+impl StdDevCheck {
+    pub fn new(name: String, threshold: f64, max_std_dev: f64) -> Self {
+        Self {
+            name,
+            threshold,
+            max_std_dev,
+        }
+    }
+}
+
+impl<T, N> NumericRule<T> for StdDevCheck
+where
+    T: ArrowNumericType<Native = N>,
+    N: NumericType,
+{
+    fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    fn get_threshold(&self) -> f64 {
+        self.threshold
+    }
+
+    fn validate(&self, _array: &PrimitiveArray<T>, _column: String) -> Result<usize, RuleError> {
+        unreachable!()
+    }
+
+    fn validate_with_stats(&self, array: &PrimitiveArray<T>, stats: &Stats) -> usize {
+        let mut counter = 0;
+        let mean = stats.mean();
+        let std_dev = stats.std_dev();
+
+        if std_dev == 0. {
+            return 0;
+        }
+        for v in array.iter().flatten() {
+            let v_f64 = v.to_f64();
+            let z_score = (v_f64 - mean).abs() / std_dev;
+            counter += (z_score >= self.max_std_dev) as usize;
+        }
+        counter
+    }
+}
+
+pub struct MeanVarianceCheck {
+    name: String,
+    threshold: f64,
+    max_variance_percent: f64,
+}
+
+impl MeanVarianceCheck {
+    pub fn new(name: String, threshold: f64, max_variance_percent: f64) -> Self {
+        Self {
+            name,
+            threshold,
+            max_variance_percent,
+        }
+    }
+}
+
+impl<T, N> NumericRule<T> for MeanVarianceCheck
+where
+    T: ArrowNumericType<Native = N>,
+    N: NumericType,
+{
+    fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    fn get_threshold(&self) -> f64 {
+        self.threshold
+    }
+
+    fn validate(&self, _array: &PrimitiveArray<T>, _column: String) -> Result<usize, RuleError> {
+        unreachable!()
+    }
+
+    fn validate_with_stats(&self, array: &PrimitiveArray<T>, stats: &Stats) -> usize {
+        let mut counter = 0;
+        let mean = stats.mean();
+        let bound = mean * (self.max_variance_percent / 100.);
+
+        for v in array.iter().flatten() {
+            let v_f64 = v.to_f64();
+            let diff = (mean - v_f64).abs();
+            counter += (diff > bound) as usize;
+        }
+        counter
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use arrow::array::Int64Array;
+    use arrow_array::Float64Array;
 
     #[test]
     fn test_min_range_integer_with_null() {
@@ -252,5 +364,96 @@ mod tests {
         let array = Int64Array::from(vec![Some(1), Some(0), Some(5), Some(-2), None]);
         // -2 should be violations
         assert_eq!(rule.validate(&array, "test_col".to_string()).unwrap(), 1);
+    }
+
+    #[test]
+    fn test_int_std_dev_check() {
+        let rule = StdDevCheck::new("std_dev_check".to_string(), 0.0, 2.0);
+        let array = Int64Array::from(vec![Some(90), Some(25), Some(15), Some(35), None, Some(-2)]);
+        let stats = Stats::Integer {
+            count: 10,
+            mean: 45.,
+            m2: 1000.,
+            min: 2,
+            max: 2,
+        };
+        // std_dev +/- 10 | fail, pass, fail, pass, _, fail
+        let violations = rule.validate_with_stats(&array, &stats);
+
+        assert_eq!(violations, 3)
+    }
+
+    #[test]
+    fn test_float_std_dev_check() {
+        let rule = StdDevCheck::new("std_dev_check".to_string(), 0.0, 2.0);
+        let array = Float64Array::from(vec![
+            Some(90.),
+            Some(25.),
+            Some(15.),
+            Some(35.),
+            None,
+            Some(-2.),
+        ]);
+        let stats = Stats::Float {
+            mean: 45.,
+            count: 10,
+            m2: 1000.,
+            min: 2.,
+            max: 2.,
+        };
+        // std_dev +/- 10 | fail, pass, fail, pass, _, fail
+        let violations = rule.validate_with_stats(&array, &stats);
+
+        assert_eq!(violations, 3)
+    }
+
+    #[test]
+    fn test_int_mean_var() {
+        let rule = MeanVarianceCheck::new("mean_variance_check".to_string(), 0.0, 20.0);
+        let array = Int64Array::from(vec![
+            Some(90),
+            Some(36),
+            Some(15),
+            Some(35),
+            None,
+            Some(-2),
+            Some(54),
+        ]);
+        let stats = Stats::Integer {
+            count: 10,
+            mean: 45.,
+            m2: 1000.,
+            min: 2,
+            max: 2,
+        };
+        // bound = 9. | fail, pass, fail, fail, _, fail, pass
+        let violations = rule.validate_with_stats(&array, &stats);
+
+        assert_eq!(violations, 4)
+    }
+
+    #[test]
+    fn test_float_mean_var() {
+        let rule = MeanVarianceCheck::new("mean_variance_check".to_string(), 0.0, 20.0);
+        let array = Float64Array::from(vec![
+            Some(90.),
+            Some(36.),
+            Some(15.),
+            Some(35.),
+            None,
+            Some(-2.),
+            Some(54.),
+        ]);
+        let stats = Stats::Float {
+            count: 10,
+            mean: 45.,
+            m2: 1000.,
+            min: 2.,
+            max: 2.,
+        };
+        // bound = 9. | fail, pass, fail, fail, _, fail, pass
+        let violations = rule.validate_with_stats(&array, &stats);
+
+        assert_eq!(violations, 4)
     }
 }
