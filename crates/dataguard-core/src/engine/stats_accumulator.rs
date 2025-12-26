@@ -355,3 +355,103 @@ mod tests {
         acc.update_float("col", &arr2);
     }
 }
+
+/// Merges two [`Stats`] objects into a single combined statistical summary.
+///
+/// This function uses Chan's parallel algorithm to combine the count, mean,
+/// and sum of squares of two independent sets of data in a numerically
+/// stable manner.
+///
+/// # Mathematical Logic
+/// The combined mean and combined are calculated as:
+/// - n_c = n_a + n_b
+/// - mu_c = (n_a * mu_a + n_b * mu_b)/n_c
+/// - M2c = M2a + M2b + (mu_b - mu_a)^2 * (n_a * n_b)/n_c
+///
+/// # Panics
+/// Panics if the variants of `a` and `b` do not match (e.g., trying to merge
+/// `Stats::Integer` with `Stats::Float`).
+pub fn merge_stats(a: Stats, b: Stats) -> Stats {
+    match (a, b) {
+        (
+            Stats::Integer {
+                count: ca,
+                mean: ma,
+                m2: m2a,
+                min: mina,
+                max: maxa,
+            },
+            Stats::Integer {
+                count: cb,
+                mean: mb,
+                m2: m2b,
+                min: minb,
+                max: maxb,
+            },
+        ) => {
+            // Chan's algorithm for merging
+            let count_c = ca + cb;
+            if count_c == 0 {
+                return Stats::Integer {
+                    count: 0,
+                    mean: 0.0,
+                    m2: 0.0,
+                    min: i64::MAX,
+                    max: i64::MIN,
+                };
+            }
+
+            let mean_c = (ca as f64 * ma + cb as f64 * mb) / count_c as f64;
+            let delta = mb - ma;
+            let m2_c = m2a + m2b + delta * delta * (ca * cb) as f64 / count_c as f64;
+
+            Stats::Integer {
+                count: count_c,
+                mean: mean_c,
+                m2: m2_c,
+                min: mina.min(minb),
+                max: maxa.max(maxb),
+            }
+        }
+        (
+            Stats::Float {
+                count: ca,
+                mean: ma,
+                m2: m2a,
+                min: mina,
+                max: maxa,
+            },
+            Stats::Float {
+                count: cb,
+                mean: mb,
+                m2: m2b,
+                min: minb,
+                max: maxb,
+            },
+        ) => {
+            let count_c = ca + cb;
+            if count_c == 0 {
+                return Stats::Float {
+                    count: 0,
+                    mean: 0.0,
+                    m2: 0.0,
+                    min: f64::MAX,
+                    max: f64::MIN,
+                };
+            }
+
+            let mean_c = (ca as f64 * ma + cb as f64 * mb) / count_c as f64;
+            let delta = mb - ma;
+            let m2_c = m2a + m2b + delta * delta * (ca * cb) as f64 / count_c as f64;
+
+            Stats::Float {
+                count: count_c,
+                mean: mean_c,
+                m2: m2_c,
+                min: mina.min(minb),
+                max: maxa.max(maxb),
+            }
+        }
+        _ => panic!("Cannot merge Integer and Float stats"),
+    }
+}

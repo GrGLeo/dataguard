@@ -12,7 +12,11 @@ use arrow_array::{Array, ArrowNumericType, PrimitiveArray, RecordBatch, StringAr
 use rayon::prelude::*;
 
 use crate::{
-    engine::{stats_accumulator::StatsAccumulator, unicity_accumulator::UnicityAccumulator},
+    engine::{
+        stats_accumulator::{merge_stats, StatsAccumulator},
+        unicity_accumulator::UnicityAccumulator,
+        Stats,
+    },
     rules::{
         date::{DateRule, DateTypeCheck},
         NullCheck, NumericRule, StringRule, TypeCheck, UnicityCheck,
@@ -68,49 +72,63 @@ impl<'a> ValidationEngine<'a> {
         &self,
         batches: &[Arc<RecordBatch>],
         columns: &[String],
-        accumulator: &mut StatsAccumulator,
-    ) {
-        for batch in batches {
-            for col in columns {
-                // We know we have an executable columns as we create this String array from the
-                // executable columns
-                let exec_col = self.columns.iter().find(|c| c.get_name() == *col).unwrap();
-                let array = batch.column_by_name(&col).unwrap();
-                match exec_col {
-                    ExecutableColumn::Integer { type_check, .. } => {
-                        // Type check if needed (CSV), or use as-is (Parquet)
-                        let (_, typed_array) = if let Some(tc) = type_check {
-                            tc.validate(array).unwrap() // String → Int64
-                        } else {
-                            (0, array.clone())
-                        };
+    ) -> HashMap<String, Stats> {
+        batches
+            .par_iter()
+            .map(|batch| {
+                let mut local_accumulator = StatsAccumulator::default();
+                for col in columns {
+                    // We know we have an executable columns as we create this String array from the
+                    // executable columns
+                    let exec_col = self.columns.iter().find(|c| c.get_name() == *col).unwrap();
+                    let array = batch.column_by_name(&col).unwrap();
+                    match exec_col {
+                        ExecutableColumn::Integer { type_check, .. } => {
+                            let (_, typed_array) = if let Some(tc) = type_check {
+                                tc.validate(array).unwrap() // String → Int64
+                            } else {
+                                (0, array.clone())
+                            };
 
-                        if let Some(int_array) = typed_array
-                            .as_any()
-                            .downcast_ref::<PrimitiveArray<Int64Type>>()
-                        {
-                            accumulator.update_integer(col, int_array);
+                            if let Some(int_array) = typed_array
+                                .as_any()
+                                .downcast_ref::<PrimitiveArray<Int64Type>>()
+                            {
+                                local_accumulator.update_integer(col, int_array);
+                            }
                         }
-                    }
-                    ExecutableColumn::Float { type_check, .. } => {
-                        // Type check if needed (CSV), or use as-is (Parquet)
-                        let (_, typed_array) = if let Some(tc) = type_check {
-                            tc.validate(array).unwrap() // String → Int64
-                        } else {
-                            (0, array.clone())
-                        };
+                        ExecutableColumn::Float { type_check, .. } => {
+                            let (_, typed_array) = if let Some(tc) = type_check {
+                                tc.validate(array).unwrap()
+                            } else {
+                                (0, array.clone())
+                            };
 
-                        if let Some(float_array) = typed_array
-                            .as_any()
-                            .downcast_ref::<PrimitiveArray<Float64Type>>()
-                        {
-                            accumulator.update_float(col, float_array);
+                            if let Some(float_array) = typed_array
+                                .as_any()
+                                .downcast_ref::<PrimitiveArray<Float64Type>>()
+                            {
+                                local_accumulator.update_float(col, float_array);
+                            }
                         }
+                        _ => {} // Date and String dont have stats
                     }
-                    _ => {} // Date and String dont have stats
                 }
-            }
-        }
+                local_accumulator.columns
+            })
+            .reduce(
+                || HashMap::new(),
+                |mut acc1, acc2| {
+                    for (colname, stats2) in acc2 {
+                        acc1.entry(colname)
+                            .and_modify(|stats1| {
+                                *stats1 = merge_stats(stats1.clone(), stats2.clone());
+                            })
+                            .or_insert(stats2);
+                    }
+                    acc1
+                },
+            )
     }
 
     /// Validate batches and produce a validation result.
@@ -128,9 +146,10 @@ impl<'a> ValidationEngine<'a> {
 
         let unicity_accumulators = UnicityAccumulator::new(self.columns, total_rows);
 
-        let mut stats_accumulators = StatsAccumulator::default();
+        let mut stats_accumulators: HashMap<String, Stats> = HashMap::new();
         if let Some(columns) = self.has_statistical_rules() {
-            self.compute_stats(batches, &columns, &mut stats_accumulators);
+            stats_accumulators = self.compute_stats(batches, &columns);
+            println!("{}", stats_accumulators.get("Price").unwrap().std_dev());
         }
 
         batches.par_iter().for_each(|batch| {
