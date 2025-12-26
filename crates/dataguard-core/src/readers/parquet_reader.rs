@@ -99,11 +99,51 @@ pub fn read_parquet_parallel(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use arrow_array::{Float64Array, Int64Array, StringArray};
+    use parquet::arrow::ArrowWriter;
 
     const TEST_FILE: &str = "/tmp/test_ecommerce_data.parquet";
 
+    /// Helper function to generate test parquet file with 512,000 rows
+    fn generate_test_parquet(path: &str) -> std::io::Result<()> {
+        use std::fs::File;
+
+        // Generate 512,000 rows of test data
+        let n_rows = 512_000;
+
+        let ids: Vec<i64> = (1..=n_rows).collect();
+        let names: Vec<String> = (1..=n_rows).map(|i| format!("User_{}", i)).collect();
+        let values: Vec<f64> = (0..n_rows).map(|i| (i % 100000) as f64 * 0.01).collect();
+
+        let id_array = Arc::new(Int64Array::from(ids));
+        let name_array = Arc::new(StringArray::from(names));
+        let value_array = Arc::new(Float64Array::from(values));
+
+        let batch = RecordBatch::try_from_iter(vec![
+            ("id", id_array as Arc<dyn arrow_array::Array>),
+            ("name", name_array as Arc<dyn arrow_array::Array>),
+            ("value", value_array as Arc<dyn arrow_array::Array>),
+        ])
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+
+        let file = File::create(path)?;
+        let mut writer = ArrowWriter::try_new(file, batch.schema(), None)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+
+        writer
+            .write(&batch)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+
+        writer
+            .close()
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+
+        Ok(())
+    }
+
     #[test]
     fn test_parquet_sequential_all_columns() {
+        generate_test_parquet(TEST_FILE).unwrap();
         let batches = read_parquet_sequential(TEST_FILE, vec![String::from("")]).unwrap();
 
         assert!(!batches.is_empty(), "Should have at least one batch");
@@ -117,6 +157,7 @@ mod tests {
 
     #[test]
     fn test_parquet_sequential_specific_columns() {
+        generate_test_parquet(TEST_FILE).unwrap();
         let batches =
             read_parquet_sequential(TEST_FILE, vec![String::from("id"), String::from("value")])
                 .unwrap();
@@ -136,6 +177,7 @@ mod tests {
 
     #[test]
     fn test_parquet_sequential_single_column() {
+        generate_test_parquet(TEST_FILE).unwrap();
         let batches = read_parquet_sequential(TEST_FILE, vec![String::from("name")]).unwrap();
 
         assert!(!batches.is_empty());
@@ -150,6 +192,7 @@ mod tests {
 
     #[test]
     fn test_parquet_parallel_all_columns() {
+        generate_test_parquet(TEST_FILE).unwrap();
         let batches = read_parquet_parallel(TEST_FILE, vec![String::from("")]).unwrap();
 
         assert!(!batches.is_empty());
@@ -162,6 +205,7 @@ mod tests {
 
     #[test]
     fn test_parquet_parallel_with_projection() {
+        generate_test_parquet(TEST_FILE).unwrap();
         let batches =
             read_parquet_parallel(TEST_FILE, vec![String::from("name"), String::from("value")])
                 .unwrap();
@@ -179,6 +223,7 @@ mod tests {
 
     #[test]
     fn test_parquet_parallel_vs_sequential() {
+        generate_test_parquet(TEST_FILE).unwrap();
         let sequential =
             read_parquet_sequential(TEST_FILE, vec![String::from("id"), String::from("value")])
                 .unwrap();

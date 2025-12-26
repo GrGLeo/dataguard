@@ -149,12 +149,7 @@ Options:
 
 ### Running Tests
 
-The parquet reader tests require test data to be generated before running:
-
 ```bash
-# Generate test data (required for parquet reader tests)
-python scripts/generate_test_data.py
-
 # Run all tests
 cargo test
 
@@ -162,13 +157,7 @@ cargo test
 cargo test -p dataguard-core test_parquet
 ```
 
-**Note**: The test data generation script requires Python 3 with `pandas` and `pyarrow` installed:
-
-```bash
-pip install pandas pyarrow
-```
-
-The script generates a 512,000-row parquet file at `/tmp/test_ecommerce_data.parquet` with 3 columns (id, name, value) for testing purposes.
+**Note**: Parquet reader tests automatically generate test data (512,000-row parquet file at `/tmp/test_ecommerce_data.parquet`) during test execution.
 
 ## Roadmap
 
