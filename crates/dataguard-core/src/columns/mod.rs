@@ -29,7 +29,7 @@ pub enum ColumnType {
     DateType,
 }
 
-pub trait NumericType: Copy {
+pub trait NumericType: Copy + Send + Sync {
     fn column_type() -> ColumnType;
     fn to_f64(self) -> f64;
     fn positive_threshold() -> f64;
@@ -100,6 +100,18 @@ pub enum ColumnRule {
         name: String,
         threshold: f64,
         ascending: bool,
+    },
+
+    // Statistical rules (require stats computation)
+    StdDevCheck {
+        name: String,
+        threshold: f64,
+        max_std_dev: f64,
+    },
+    MeanVariance {
+        name: String,
+        threshold: f64,
+        max_variance_percent: f64,
     },
 
     // Date rules (works only for Date32 for now)

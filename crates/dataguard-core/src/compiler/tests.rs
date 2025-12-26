@@ -93,9 +93,11 @@ fn test_compile_integer_column_basic() {
 
     let executable = result.unwrap();
     match executable {
-        ExecutableColumn::Integer { name, rules, .. } => {
+        ExecutableColumn::Integer {
+            name, domain_rules, ..
+        } => {
             assert_eq!(name, "age");
-            assert_eq!(rules.len(), 1); // Range rule
+            assert_eq!(domain_rules.len(), 1); // Range rule
         }
         _ => panic!("Expected Integer column"),
     }
@@ -111,8 +113,8 @@ fn test_compile_integer_column_with_monotonicity() {
 
     let executable = result.unwrap();
     match executable {
-        ExecutableColumn::Integer { rules, .. } => {
-            assert_eq!(rules.len(), 1); // Monotonicity rule
+        ExecutableColumn::Integer { domain_rules, .. } => {
+            assert_eq!(domain_rules.len(), 1); // Monotonicity rule
         }
         _ => panic!("Expected Integer column"),
     }
@@ -128,8 +130,8 @@ fn test_compile_integer_column_positive() {
 
     let executable = result.unwrap();
     match executable {
-        ExecutableColumn::Integer { rules, .. } => {
-            assert_eq!(rules.len(), 1); // Range rule (min: 1)
+        ExecutableColumn::Integer { domain_rules, .. } => {
+            assert_eq!(domain_rules.len(), 1); // Range rule (min: 1)
         }
         _ => panic!("Expected Integer column"),
     }
@@ -145,7 +147,11 @@ fn test_compile_float_column_basic() {
 
     let executable = result.unwrap();
     match executable {
-        ExecutableColumn::Float { name, rules, .. } => {
+        ExecutableColumn::Float {
+            name,
+            domain_rules: rules,
+            ..
+        } => {
             assert_eq!(name, "price");
             assert_eq!(rules.len(), 1); // Range rule
         }
@@ -163,7 +169,10 @@ fn test_compile_float_column_non_negative() {
 
     let executable = result.unwrap();
     match executable {
-        ExecutableColumn::Float { rules, .. } => {
+        ExecutableColumn::Float {
+            domain_rules: rules,
+            ..
+        } => {
             assert_eq!(rules.len(), 1); // Range rule (min: 0.0)
         }
         _ => panic!("Expected Float column"),
@@ -214,12 +223,12 @@ fn test_compile_integer_with_unicity_and_null() {
         ExecutableColumn::Integer {
             unicity_check,
             null_check,
-            rules,
+            domain_rules,
             ..
         } => {
             assert!(unicity_check.is_some());
             assert!(null_check.is_some());
-            assert_eq!(rules.len(), 0); // No domain rules
+            assert_eq!(domain_rules.len(), 0); // No domain rules
         }
         _ => panic!("Expected Integer column"),
     }
@@ -235,9 +244,9 @@ fn test_compile_numeric_column_multiple_ranges() {
 
     let executable = result.unwrap();
     match executable {
-        ExecutableColumn::Integer { rules, .. } => {
+        ExecutableColumn::Integer { domain_rules, .. } => {
             // Two separate Range rules (one for min, one for max)
-            assert_eq!(rules.len(), 2);
+            assert_eq!(domain_rules.len(), 2);
         }
         _ => panic!("Expected Integer column"),
     }

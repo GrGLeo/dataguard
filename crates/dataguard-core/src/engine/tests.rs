@@ -67,6 +67,20 @@ fn create_int_column_with_range(name: &str, min: i64, max: i64) -> ExecutableCol
     compiler::compile_column(Box::new(builder), true).unwrap()
 }
 
+/// Create an ExecutableColumn for an integer column with stats.
+fn create_int_column_with_stats(name: &str, min: i64, max: i64) -> ExecutableColumn {
+    let mut builder = NumericColumnBuilder::<i64>::new(name.to_string());
+    builder.std_dev_check(0., 0.);
+    compiler::compile_column(Box::new(builder), true).unwrap()
+}
+
+/// Create an ExecutableColumn for an integer column with stats.
+fn create_float_column_with_stats(name: &str, min: i64, max: i64) -> ExecutableColumn {
+    let mut builder = NumericColumnBuilder::<f64>::new(name.to_string());
+    builder.std_dev_check(0., 0.);
+    compiler::compile_column(Box::new(builder), true).unwrap()
+}
+
 /// Create an ExecutableColumn for a string column with null check.
 fn create_string_column_with_null_check(name: &str) -> ExecutableColumn {
     let mut builder = StringColumnBuilder::new(name.to_string());
@@ -464,6 +478,22 @@ mod unicity_accumulator_tests {
         let results = accumulator.finalize(100);
         assert_eq!(results.len(), 0);
     }
+}
+
+// ============================================================================
+// Statistical rules Tests
+// ============================================================================
+
+#[test]
+fn test_has_statistical_rules() {
+    let col = create_string_column_with_length("name", 3, 50);
+    let col_stats = create_int_column_with_stats("name", 3, 50);
+    let col_f_stats = create_float_column_with_stats("name", 3, 50);
+    let columns = vec![col, col_stats, col_f_stats].into_boxed_slice();
+    let relations = None;
+    let engine = ValidationEngine::new(&columns, &relations);
+    let columns = engine.has_statistical_rules();
+    assert!(columns.is_some())
 }
 
 // ============================================================================

@@ -75,14 +75,22 @@ impl Table for ParquetTable {
                     rule_names.extend(rules.iter().map(|r| r.name().to_string()));
                     result.insert(name.clone(), rule_names);
                 }
-                ExecutableColumn::Integer { name, rules, .. } => {
+                ExecutableColumn::Integer {
+                    name, domain_rules, ..
+                } => {
                     let mut rule_names = vec!["TypeCheck".to_string()];
-                    rule_names.extend(rules.iter().map(|r| r.name().to_string()));
+                    rule_names.extend(domain_rules.iter().map(|r| r.name().to_string()));
                     result.insert(name.clone(), rule_names);
                 }
-                ExecutableColumn::Float { name, rules, .. } => {
+                ExecutableColumn::Float {
+                    name,
+                    domain_rules: rules,
+                    statistical_rules,
+                    ..
+                } => {
                     let mut rule_names = vec!["TypeCheck".to_string()];
                     rule_names.extend(rules.iter().map(|r| r.name().to_string()));
+                    rule_names.extend(statistical_rules.iter().map(|r| r.name().to_string()));
                     result.insert(name.clone(), rule_names);
                 }
                 ExecutableColumn::Date { name, rules, .. } => {

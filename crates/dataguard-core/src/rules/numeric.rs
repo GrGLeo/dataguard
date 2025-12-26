@@ -153,23 +153,25 @@ where
     }
 }
 
-pub struct StdDevCheck {
+pub struct StdDevCheck<N: NumericType> {
     name: String,
     threshold: f64,
     max_std_dev: f64,
+    _phantom: PhantomData<N>,
 }
 
-impl StdDevCheck {
+impl<N: NumericType> StdDevCheck<N> {
     pub fn new(name: String, threshold: f64, max_std_dev: f64) -> Self {
         Self {
             name,
             threshold,
             max_std_dev,
+            _phantom: PhantomData,
         }
     }
 }
 
-impl<T, N> NumericRule<T> for StdDevCheck
+impl<T, N> NumericRule<T> for StdDevCheck<N>
 where
     T: ArrowNumericType<Native = N>,
     N: NumericType,
@@ -203,23 +205,25 @@ where
     }
 }
 
-pub struct MeanVarianceCheck {
+pub struct MeanVarianceCheck<N: NumericType> {
     name: String,
     threshold: f64,
     max_variance_percent: f64,
+    _phantom: PhantomData<N>,
 }
 
-impl MeanVarianceCheck {
+impl<N: NumericType> MeanVarianceCheck<N> {
     pub fn new(name: String, threshold: f64, max_variance_percent: f64) -> Self {
         Self {
             name,
             threshold,
             max_variance_percent,
+            _phantom: PhantomData,
         }
     }
 }
 
-impl<T, N> NumericRule<T> for MeanVarianceCheck
+impl<T, N> NumericRule<T> for MeanVarianceCheck<N>
 where
     T: ArrowNumericType<Native = N>,
     N: NumericType,

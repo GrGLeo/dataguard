@@ -12,7 +12,7 @@ use arrow_array::{Array, ArrowNumericType, PrimitiveArray, RecordBatch, StringAr
 use rayon::prelude::*;
 
 use crate::{
-    engine::unicity_accumulator::UnicityAccumulator,
+    engine::{stats_accumulator::StatsAccumulator, unicity_accumulator::UnicityAccumulator},
     rules::{
         date::{DateRule, DateTypeCheck},
         NullCheck, NumericRule, StringRule, TypeCheck, UnicityCheck,
@@ -37,6 +37,31 @@ impl<'a> ValidationEngine<'a> {
         relations: &'a Option<Box<[ExecutableRelation]>>,
     ) -> Self {
         Self { columns, relations }
+    }
+
+    pub(super) fn has_statistical_rules(&self) -> Option<Vec<String>> {
+        let columns: Vec<String> = self
+            .columns
+            .iter()
+            .filter_map(|col| match col {
+                ExecutableColumn::Integer {
+                    name,
+                    statistical_rules,
+                    ..
+                } if !statistical_rules.is_empty() => Some(name.clone()),
+                ExecutableColumn::Float {
+                    name,
+                    statistical_rules,
+                    ..
+                } if !statistical_rules.is_empty() => Some(name.clone()),
+                _ => None,
+            })
+            .collect();
+        if columns.is_empty() {
+            None
+        } else {
+            Some(columns)
+        }
     }
 
     /// Validate batches and produce a validation result.
@@ -83,7 +108,8 @@ impl<'a> ValidationEngine<'a> {
                     }
                     ExecutableColumn::Integer {
                         name,
-                        rules,
+                        domain_rules,
+                        statistical_rules,
                         type_check,
                         unicity_check,
                         null_check,
@@ -92,7 +118,7 @@ impl<'a> ValidationEngine<'a> {
                             let array = batch.column(col_index);
                             let _ = validate_numeric_column::<Int64Type>(
                                 name,
-                                rules,
+                                domain_rules,
                                 type_check,
                                 unicity_check,
                                 null_check,
@@ -105,7 +131,8 @@ impl<'a> ValidationEngine<'a> {
                     }
                     ExecutableColumn::Float {
                         name,
-                        rules,
+                        domain_rules,
+                        statistical_rules,
                         type_check,
                         unicity_check,
                         null_check,
@@ -114,7 +141,7 @@ impl<'a> ValidationEngine<'a> {
                             let array = batch.column(col_index);
                             let _ = validate_numeric_column::<Float64Type>(
                                 name,
-                                rules,
+                                domain_rules,
                                 type_check,
                                 unicity_check,
                                 null_check,
