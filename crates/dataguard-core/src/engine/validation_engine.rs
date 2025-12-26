@@ -64,6 +64,55 @@ impl<'a> ValidationEngine<'a> {
         }
     }
 
+    fn compute_stats(
+        &self,
+        batches: &[Arc<RecordBatch>],
+        columns: &[String],
+        accumulator: &mut StatsAccumulator,
+    ) {
+        for batch in batches {
+            for col in columns {
+                // We know we have an executable columns as we create this String array from the
+                // executable columns
+                let exec_col = self.columns.iter().find(|c| c.get_name() == *col).unwrap();
+                let array = batch.column_by_name(&col).unwrap();
+                match exec_col {
+                    ExecutableColumn::Integer { type_check, .. } => {
+                        // Type check if needed (CSV), or use as-is (Parquet)
+                        let (_, typed_array) = if let Some(tc) = type_check {
+                            tc.validate(array).unwrap() // String → Int64
+                        } else {
+                            (0, array.clone())
+                        };
+
+                        if let Some(int_array) = typed_array
+                            .as_any()
+                            .downcast_ref::<PrimitiveArray<Int64Type>>()
+                        {
+                            accumulator.update_integer(col, int_array);
+                        }
+                    }
+                    ExecutableColumn::Float { type_check, .. } => {
+                        // Type check if needed (CSV), or use as-is (Parquet)
+                        let (_, typed_array) = if let Some(tc) = type_check {
+                            tc.validate(array).unwrap() // String → Int64
+                        } else {
+                            (0, array.clone())
+                        };
+
+                        if let Some(float_array) = typed_array
+                            .as_any()
+                            .downcast_ref::<PrimitiveArray<Float64Type>>()
+                        {
+                            accumulator.update_float(col, float_array);
+                        }
+                    }
+                    _ => {} // Date and String dont have stats
+                }
+            }
+        }
+    }
+
     /// Validate batches and produce a validation result.
     /// Returns aggregated results suitable for reporting.
     pub fn validate_batches(
@@ -78,6 +127,11 @@ impl<'a> ValidationEngine<'a> {
         report.set_total_rows(total_rows);
 
         let unicity_accumulators = UnicityAccumulator::new(self.columns, total_rows);
+
+        let mut stats_accumulators = StatsAccumulator::default();
+        if let Some(columns) = self.has_statistical_rules() {
+            self.compute_stats(batches, &columns, &mut stats_accumulators);
+        }
 
         batches.par_iter().for_each(|batch| {
             // We keep in memory a reference to the casted array
