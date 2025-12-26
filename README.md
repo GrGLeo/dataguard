@@ -164,7 +164,8 @@ Options:
 cargo test
 ```
 
-**Note**: Parquet reader tests automatically generate test data (512,000-row parquet file at `/tmp/test_ecommerce_data.parquet`) during test execution.
+**Note**: A generated parquet with columns: id: 1..512000 name: User_1, User_2.... and value: 0.0, .. 999.99, 0.0.. is used for testing and stored
+in `crates/dataguard-core/tests/fixtures`
 
 ## Roadmap
 
