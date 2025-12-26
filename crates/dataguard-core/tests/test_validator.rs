@@ -8,7 +8,7 @@ fn test_validator_add_single_table() {
     let mut validator = Validator::new();
     let table = CsvTable::new("path/to/file.csv".to_string(), "stdout".to_string()).unwrap();
 
-    validator.add_table("users".to_string(), table);
+    validator.add_table("users".to_string(), Box::new(table));
 
     // No direct way to check, but validation should not panic
     // This is a basic smoke test
@@ -22,9 +22,9 @@ fn test_validator_add_multiple_tables() {
     let table2 = CsvTable::new("path/to/orders.csv".to_string(), "json".to_string()).unwrap();
     let table3 = CsvTable::new("path/to/products.csv".to_string(), "csv".to_string()).unwrap();
 
-    validator.add_table("users".to_string(), table1);
-    validator.add_table("orders".to_string(), table2);
-    validator.add_table("products".to_string(), table3);
+    validator.add_table("users".to_string(), Box::new(table1));
+    validator.add_table("orders".to_string(), Box::new(table2));
+    validator.add_table("products".to_string(), Box::new(table3));
 
     // HashMap should contain all three tables
 }
@@ -66,7 +66,7 @@ fn test_validator_validate_existing_table() {
         .unwrap();
 
     let mut validator = Validator::new();
-    validator.add_table("users".to_string(), table);
+    validator.add_table("users".to_string(), Box::new(table));
 
     // Validate the existing table
     let result = validator.validate_table("users".to_string());
@@ -82,10 +82,10 @@ fn test_validator_replace_table() {
     let table2 = CsvTable::new("path/to/file2.csv".to_string(), "json".to_string()).unwrap();
 
     // Add first table
-    validator.add_table("data".to_string(), table1);
+    validator.add_table("data".to_string(), Box::new(table1));
 
     // Replace with second table (same name)
-    validator.add_table("data".to_string(), table2);
+    validator.add_table("data".to_string(), Box::new(table2));
 
     // The second table should have replaced the first
     // This is implicitly tested by the HashMap behavior
