@@ -12,7 +12,11 @@ use arrow_array::{Array, ArrowNumericType, PrimitiveArray, RecordBatch, StringAr
 use rayon::prelude::*;
 
 use crate::{
-    engine::unicity_accumulator::UnicityAccumulator,
+    engine::{
+        stats_accumulator::{merge_stats, StatsAccumulator},
+        unicity_accumulator::UnicityAccumulator,
+        Stats,
+    },
     rules::{
         date::{DateRule, DateTypeCheck},
         NullCheck, NumericRule, StringRule, TypeCheck, UnicityCheck,
@@ -39,6 +43,100 @@ impl<'a> ValidationEngine<'a> {
         Self { columns, relations }
     }
 
+    pub(super) fn get_cols_with_stats(&self) -> Option<Vec<&ExecutableColumn>> {
+        let columns: Vec<&ExecutableColumn> = self
+            .columns
+            .iter()
+            .filter(|col| match col {
+                ExecutableColumn::Integer {
+                    statistical_rules, ..
+                } => !statistical_rules.is_empty(),
+                ExecutableColumn::Float {
+                    statistical_rules, ..
+                } => !statistical_rules.is_empty(),
+                _ => false,
+            })
+            .collect();
+        if columns.is_empty() {
+            None
+        } else {
+            Some(columns)
+        }
+    }
+
+    fn compute_stats(
+        &self,
+        batches: &[Arc<RecordBatch>],
+        columns: &[&ExecutableColumn],
+    ) -> HashMap<String, Stats> {
+        let index: Vec<usize> = columns
+            .iter()
+            .filter_map(|col| batches[0].schema().index_of(&col.get_name()).ok())
+            .collect();
+        batches
+            .par_iter()
+            .map(|batch| {
+                let mut local_accumulator = StatsAccumulator::default();
+                for (idx, exec_col) in index.iter().zip(columns.iter()) {
+                    let array = batch.column(*idx);
+                    match exec_col {
+                        ExecutableColumn::Integer { type_check, .. } => {
+                            let (_, typed_array) = if let Some(tc) = type_check {
+                                if let Ok((res, typed_array)) = tc.validate(array) {
+                                    (res, typed_array)
+                                } else {
+                                    // There was an error processing this batch
+                                    // we can not safely compute any stats
+                                    continue;
+                                }
+                            } else {
+                                (0, array.clone())
+                            };
+
+                            if let Some(int_array) = typed_array
+                                .as_any()
+                                .downcast_ref::<PrimitiveArray<Int64Type>>()
+                            {
+                                local_accumulator.update_integer(&exec_col.get_name(), int_array);
+                            }
+                        }
+                        ExecutableColumn::Float { type_check, .. } => {
+                            let (_, typed_array) = if let Some(tc) = type_check {
+                                if let Ok((res, typed_array)) = tc.validate(array) {
+                                    (res, typed_array)
+                                } else {
+                                    // There was an error processing this batch
+                                    // we can not safely compute any stats
+                                    continue;
+                                }
+                            } else {
+                                (0, array.clone())
+                            };
+
+                            if let Some(float_array) = typed_array
+                                .as_any()
+                                .downcast_ref::<PrimitiveArray<Float64Type>>()
+                            {
+                                local_accumulator.update_float(&exec_col.get_name(), float_array);
+                            }
+                        }
+                        _ => {} // Date and String dont have stats rules yet
+                    }
+                }
+                local_accumulator.columns
+            })
+            .reduce(HashMap::new, |mut acc1, acc2| {
+                for (colname, stats2) in acc2 {
+                    acc1.entry(colname)
+                        .and_modify(|stats1| {
+                            *stats1 = merge_stats(stats1.clone(), stats2.clone());
+                        })
+                        .or_insert(stats2);
+                }
+                acc1
+            })
+    }
+
     /// Validate batches and produce a validation result.
     /// Returns aggregated results suitable for reporting.
     pub fn validate_batches(
@@ -53,7 +151,10 @@ impl<'a> ValidationEngine<'a> {
         report.set_total_rows(total_rows);
 
         let unicity_accumulators = UnicityAccumulator::new(self.columns, total_rows);
-
+        let mut columns_stats: HashMap<String, Stats> = HashMap::new();
+        if let Some(columns) = self.get_cols_with_stats() {
+            columns_stats = self.compute_stats(batches, &columns);
+        }
         batches.par_iter().for_each(|batch| {
             // We keep in memory a reference to the casted array
             let mut array_ref: HashMap<String, Arc<dyn Array>> = HashMap::new();
@@ -83,16 +184,20 @@ impl<'a> ValidationEngine<'a> {
                     }
                     ExecutableColumn::Integer {
                         name,
-                        rules,
+                        domain_rules,
+                        statistical_rules,
                         type_check,
                         unicity_check,
                         null_check,
                     } => {
                         if let Ok(col_index) = batch.schema().index_of(name) {
                             let array = batch.column(col_index);
+                            let stats = columns_stats.get(name);
                             let _ = validate_numeric_column::<Int64Type>(
                                 name,
-                                rules,
+                                domain_rules,
+                                statistical_rules,
+                                stats,
                                 type_check,
                                 unicity_check,
                                 null_check,
@@ -105,16 +210,20 @@ impl<'a> ValidationEngine<'a> {
                     }
                     ExecutableColumn::Float {
                         name,
-                        rules,
+                        domain_rules,
+                        statistical_rules,
                         type_check,
                         unicity_check,
                         null_check,
                     } => {
                         if let Ok(col_index) = batch.schema().index_of(name) {
                             let array = batch.column(col_index);
+                            let stats = columns_stats.get(name);
                             let _ = validate_numeric_column::<Float64Type>(
                                 name,
-                                rules,
+                                domain_rules,
+                                statistical_rules,
+                                stats,
                                 type_check,
                                 unicity_check,
                                 null_check,
@@ -168,7 +277,6 @@ impl<'a> ValidationEngine<'a> {
         // We need to calculate the unicity errors now
         // We unwrap all lock should have been clearer from the earlier loop
         let unicity_errors = unicity_accumulators.finalize(total_rows);
-        // TODO: for now we use a temp data 0. while making string work
         for (column_name, (unicity_error, threshold)) in unicity_errors {
             error_counter.fetch_add(unicity_error, Ordering::Relaxed);
             report.record_column_result(
@@ -356,6 +464,8 @@ fn validate_string_column(
 fn validate_numeric_column<T: ArrowNumericType>(
     name: &str,
     rules: &[Box<dyn NumericRule<T>>],
+    statistical_rules: &[Box<dyn NumericRule<T>>],
+    stats: Option<&Stats>,
     type_check: &Option<TypeCheck>,
     unicity_check: &Option<UnicityCheck>,
     null_check: &Option<NullCheck>,
@@ -405,6 +515,20 @@ fn validate_numeric_column<T: ArrowNumericType>(
                             true,
                         );
                     }
+                }
+                for rule in statistical_rules {
+                    // Safety: the only way we do not have a Stats is that the complete type cast
+                    // failed, but in this case this code will not run.
+                    let count = rule.validate_with_stats(numeric_array, stats.unwrap());
+                    record_validation_result(
+                        name,
+                        rule.name(),
+                        count,
+                        error_counter,
+                        rule.get_threshold(),
+                        report,
+                        true,
+                    );
                 }
                 // If we have a unicity rule in place, update the global hashset
                 if let Some(unicity_rule) = unicity_check {

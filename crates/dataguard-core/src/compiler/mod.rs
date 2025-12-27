@@ -16,9 +16,10 @@ use num_traits::{Num, NumCast};
 mod tests;
 
 use crate::{
-    columns::{relation_builder::RelationBuilder, ColumnBuilder, TableConstraint},
+    columns::{relation_builder::RelationBuilder, ColumnBuilder, NumericType, TableConstraint},
     rules::{
         date::{DateBoundaryCheck, DateRule, DateTypeCheck},
+        numeric::{MeanVarianceCheck, StdDevCheck},
         relations::{DateCompareCheck, RelationRule},
         IsInCheck, Monotonicity, NullCheck, NumericRule, Range, RegexMatch, StringLengthCheck,
         StringRule, TypeCheck, UnicityCheck, WeekDayCheck,
@@ -170,19 +171,21 @@ fn compile_numeric_rules<N, A>(
     column_name: &str,
 ) -> Result<
     (
-        Vec<Box<dyn NumericRule<A>>>,
+        Vec<Box<dyn NumericRule<A>>>, // domain_rules
+        Vec<Box<dyn NumericRule<A>>>, // stats_rules
         Option<UnicityCheck>,
         Option<NullCheck>,
     ),
     RuleError,
 >
 where
-    N: Num + PartialOrd + Copy + Debug + Send + Sync + NumCast + 'static,
+    N: NumericType + Num + PartialOrd + Copy + Debug + Send + Sync + NumCast + 'static,
     A: ArrowNumericType<Native = N>,
 {
     let mut unicity = None;
-    let mut null_rule = None;
-    let mut executable_rules: Vec<Box<dyn NumericRule<A>>> = Vec::new();
+    let mut null_rule: Option<NullCheck> = None;
+    let mut domain_rules: Vec<Box<dyn NumericRule<A>>> = Vec::new();
+    let mut stats_rules: Vec<Box<dyn NumericRule<A>>> = Vec::new();
     for rule in rules {
         match rule {
             ColumnRule::NumericRange {
@@ -193,7 +196,7 @@ where
             } => {
                 let min_conv = min.and_then(|v| N::from(v));
                 let max_conv = max.and_then(|v| N::from(v));
-                executable_rules.push(Box::new(Range::<N>::new(
+                domain_rules.push(Box::new(Range::<N>::new(
                     name.clone(),
                     *threshold,
                     min_conv,
@@ -205,10 +208,32 @@ where
                 ascending,
                 threshold: treshold,
             } => {
-                executable_rules.push(Box::new(Monotonicity::<N>::new(
+                domain_rules.push(Box::new(Monotonicity::<N>::new(
                     name.clone(),
                     *treshold,
                     *ascending,
+                )));
+            }
+            ColumnRule::StdDevCheck {
+                name,
+                threshold,
+                max_std_dev,
+            } => {
+                stats_rules.push(Box::new(StdDevCheck::<N>::new(
+                    name.clone(),
+                    *threshold,
+                    *max_std_dev,
+                )));
+            }
+            ColumnRule::MeanVariance {
+                name,
+                threshold,
+                max_variance_percent,
+            } => {
+                stats_rules.push(Box::new(MeanVarianceCheck::<N>::new(
+                    name.clone(),
+                    *threshold,
+                    *max_variance_percent,
                 )));
             }
             ColumnRule::NullCheck { threshold } => null_rule = Some(NullCheck::new(*threshold)),
@@ -223,7 +248,7 @@ where
             }
         }
     }
-    Ok((executable_rules, unicity, null_rule))
+    Ok((domain_rules, stats_rules, unicity, null_rule))
 }
 
 /// Compile a column builder into an executable column.
@@ -265,7 +290,7 @@ pub fn compile_column(
             })
         }
         ColumnType::Integer => {
-            let (executable_rules, unicity_check, null_check) =
+            let (domain_rules, statistical_rules, unicity_check, null_check) =
                 compile_numeric_rules(builder.rules(), builder.name())?;
             let mut type_check = None;
             if need_type_check {
@@ -278,14 +303,15 @@ pub fn compile_column(
             }
             Ok(ExecutableColumn::Integer {
                 name: builder.name().to_string(),
-                rules: executable_rules,
+                domain_rules,
+                statistical_rules,
                 type_check,
                 unicity_check,
                 null_check,
             })
         }
         ColumnType::Float => {
-            let (executable_rules, unicity_check, null_check) =
+            let (executable_rules, statistical_rules, unicity_check, null_check) =
                 compile_numeric_rules(builder.rules(), builder.name())?;
             let mut type_check = None;
             if need_type_check {
@@ -298,7 +324,8 @@ pub fn compile_column(
             }
             Ok(ExecutableColumn::Float {
                 name: builder.name().to_string(),
-                rules: executable_rules,
+                domain_rules: executable_rules,
+                statistical_rules,
                 type_check,
                 unicity_check,
                 null_check,

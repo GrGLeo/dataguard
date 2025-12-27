@@ -217,6 +217,22 @@ fn apply_integer_rule(
             builder.is_monotonically_decreasing(t);
             Ok(())
         }
+        Rule::StdDev {
+            threshold,
+            max_std_dev,
+        } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.std_dev_check(t, max_std_dev);
+            Ok(())
+        }
+        Rule::MeanVariance {
+            threshold,
+            max_variance_percent,
+        } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.mean_variance(t, max_variance_percent);
+            Ok(())
+        }
         _ => Err(CliError::UnknownRule {
             rule_name: rule.to_string(),
             column_type: "integer".to_string(),
@@ -293,6 +309,22 @@ fn apply_float_rule(
         Rule::IsDecreasing { threshold } => {
             let t = threshold.unwrap_or(rule_threshold);
             builder.is_monotonically_decreasing(t);
+            Ok(())
+        }
+        Rule::StdDev {
+            threshold,
+            max_std_dev,
+        } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.std_dev_check(t, max_std_dev);
+            Ok(())
+        }
+        Rule::MeanVariance {
+            threshold,
+            max_variance_percent,
+        } => {
+            let t = threshold.unwrap_or(rule_threshold);
+            builder.mean_variance(t, max_variance_percent);
             Ok(())
         }
         _ => Err(CliError::UnknownRule {

@@ -10,7 +10,8 @@ DataGuard is a high-performance data validation CLI tool written in Rust. It pro
   - String: length checks, regex matching, enumeration (isin)
   - Numeric: range validation (min/max)
   - Generic: type checking, uniqueness, null checks
-  - Relation: date comparaison
+  - Relation: date comparison
+  - Statistical rules: Implemented for Numerics, compute mean, variance, and standard deviation.
 - **Flexible Output**: Human-readable table reports or JSON format
 - **Watch Mode**: Automatic re-validation on file changes
 - **Threshold**: Set per rule validation threshold
@@ -124,7 +125,7 @@ Result: 1 failed, 1 passed
 
 **JSON Output**: Structured validation results with detailed error information
 
-### Available Validation Rules
+### Example of available validation rules
 
 **String Rules**:
 - `with_min_length`: Minimum string length
@@ -164,14 +165,13 @@ Options:
 cargo test
 ```
 
-**Note**: A generated parquet with columns: id: 1..512000 name: User_1, User_2.... and value: 0.0, .. 999.99, 0.0.. is used for testing and stored
-in `crates/dataguard-core/tests/fixtures`
+**Note**: A generated Parquet file with columns: **id** (1..512000), **name** (User_1, User_2, ...), and **value** (0.0..999.99, repeating)
+is used for testing and stored in `crates/dataguard-core/tests/fixtures`
 
 ## Roadmap
 
 ### Planned Features
-
-- **Statistical Validation Rules**: Z-score outlier detection, IQR-based validation, percentile checks
-- **CSV output**: Adding along side json and stdout a csv output.
+- **CSV output**: Adding alongside json and stdout a csv output.
 - **Additional Data Types**: Support for more variant of datatype (Int64, LongString...), time validation.
 - **Loading Performance**: Reducing csv loading time, and starting validation of present batch, while loading next batch
+- **SQL support**: Enabling validation on SQL engine (PostgreSQL and Snowflake)

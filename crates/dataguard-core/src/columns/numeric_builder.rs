@@ -159,4 +159,24 @@ impl<T: NumericType> NumericColumnBuilder<T> {
         });
         self
     }
+
+    /// Check if values are within N standard deviations from the mean (z-score)
+    pub fn std_dev_check(&mut self, threshold: f64, max_std_dev: f64) -> &mut Self {
+        self.rules.push(ColumnRule::StdDevCheck {
+            name: "StdDevCheck".to_string(),
+            threshold,
+            max_std_dev,
+        });
+        self
+    }
+
+    /// Check if values deviate from mean by more than a percentage
+    pub fn mean_variance(&mut self, threshold: f64, max_variance_percent: f64) -> &mut Self {
+        self.rules.push(ColumnRule::MeanVariance {
+            name: "MeanVariance".to_string(),
+            threshold,
+            max_variance_percent,
+        });
+        self
+    }
 }

@@ -146,7 +146,15 @@ pub enum Rule {
     IsDecreasing {
         threshold: Option<f64>,
     },
-
+    // Stats Numeric Rule
+    StdDev {
+        threshold: Option<f64>,
+        max_std_dev: f64,
+    },
+    MeanVariance {
+        threshold: Option<f64>,
+        max_variance_percent: f64,
+    },
     // Date Rule
     IsAfter {
         threshold: Option<f64>,
@@ -216,6 +224,8 @@ impl std::fmt::Display for Rule {
             Rule::IsNotPast { .. } => write!(f, "is_not_past"),
             Rule::IsWeekday { .. } => write!(f, "is_weekday"),
             Rule::IsWeekend { .. } => write!(f, "is_weekend"),
+            Rule::StdDev { .. } => write!(f, "std_dev"),
+            Rule::MeanVariance { .. } => write!(f, "mean_variance"),
         }
     }
 }

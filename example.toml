@@ -64,6 +64,10 @@ datatype = "integer"
     max = 10000
 
     [[table.column.rule]]
+    name = "std_dev"
+    max_std_dev = 1.5
+
+    [[table.column.rule]]
     name = "is_positive"
 
 # Integer column with minimum validation

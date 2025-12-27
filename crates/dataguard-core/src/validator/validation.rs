@@ -43,7 +43,9 @@ pub enum ExecutableColumn {
         /// Column name (must match schema)
         name: String,
         /// Domain-level numeric rules (range, monotonicity)
-        rules: Vec<Box<dyn NumericRule<Int64Type>>>,
+        domain_rules: Vec<Box<dyn NumericRule<Int64Type>>>,
+        /// Statistical-level numeric rules (std-dev, mean-var)
+        statistical_rules: Vec<Box<dyn NumericRule<Int64Type>>>,
         /// Type checking (CSV: string → i64)
         type_check: Option<TypeCheck>,
         /// Optional uniqueness constraint
@@ -56,7 +58,9 @@ pub enum ExecutableColumn {
         /// Column name (must match schema)
         name: String,
         /// Domain-level numeric rules (range, monotonicity)
-        rules: Vec<Box<dyn NumericRule<Float64Type>>>,
+        domain_rules: Vec<Box<dyn NumericRule<Float64Type>>>,
+        /// Statistical-level numeric rules (std-dev, mean-var)
+        statistical_rules: Vec<Box<dyn NumericRule<Float64Type>>>,
         /// Type checking (CSV: string → f64)
         type_check: Option<TypeCheck>,
         /// Optional uniqueness constraint

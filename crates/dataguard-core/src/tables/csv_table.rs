@@ -57,6 +57,13 @@ impl Table for CsvTable {
             .map(|v| v.get_name())
             .collect();
         let batches = read_csv_parallel(self.path.as_str(), needed_cols)?;
+        // What should i do with this!
+        let _existing_cols = self
+            .executable_columns
+            .iter()
+            .filter(|exec| batches[0].schema().index_of(&exec.get_name()).is_ok())
+            .collect::<Vec<&ExecutableColumn>>()
+            .into_boxed_slice();
         let engine =
             engine::ValidationEngine::new(&self.executable_columns, &self.executable_relations);
         engine.validate_batches(self.table_name.clone(), &batches)
@@ -72,12 +79,22 @@ impl Table for CsvTable {
                     rule_names.extend(rules.iter().map(|r| r.name().to_string()));
                     result.insert(name.clone(), rule_names);
                 }
-                ExecutableColumn::Integer { name, rules, .. } => {
+                ExecutableColumn::Integer {
+                    name,
+                    domain_rules: rules,
+                    statistical_rules,
+                    ..
+                } => {
                     let mut rule_names = vec!["TypeCheck".to_string()];
                     rule_names.extend(rules.iter().map(|r| r.name().to_string()));
+                    rule_names.extend(statistical_rules.iter().map(|r| r.name().to_string()));
                     result.insert(name.clone(), rule_names);
                 }
-                ExecutableColumn::Float { name, rules, .. } => {
+                ExecutableColumn::Float {
+                    name,
+                    domain_rules: rules,
+                    ..
+                } => {
                     let mut rule_names = vec!["TypeCheck".to_string()];
                     rule_names.extend(rules.iter().map(|r| r.name().to_string()));
                     result.insert(name.clone(), rule_names);
