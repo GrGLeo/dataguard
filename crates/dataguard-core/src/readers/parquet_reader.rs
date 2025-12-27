@@ -8,15 +8,50 @@ use rayon::prelude::*;
 
 use crate::readers::BATCH_SIZE;
 
-/// Create a projection mask from column names
-/// If cols is empty or contains only empty strings, returns all columns
+/// Create a projection mask from column names.
+///
+/// # Arguments
+///
+/// * `schema` - The Parquet file schema descriptor
+/// * `cols` - Slice of requested column names
+///
+/// # Returns
+///
+/// A `ProjectionMask` for the requested columns. If cols is empty, returns an
+/// empty projection mask (no columns).
+///
+/// # Note
+///
+/// If a requested column is not present in the Parquet schema, it will be silently
+/// dismissed without raising an error. Only columns that exist in the file will be
+/// included in the projection mask. Empty strings are treated as non-existent
+/// column names and will be filtered out.
 fn create_projection_mask(schema: &SchemaDescriptor, cols: &[&str]) -> ProjectionMask {
-    if cols.is_empty() || (cols.len() == 1 && cols[0].is_empty()) {
-        return ProjectionMask::all();
+    let valid_cols: Vec<&str> = cols.iter().filter(|c| !c.is_empty()).copied().collect();
+
+    if valid_cols.is_empty() {
+        return ProjectionMask::roots(schema, vec![]);
     }
-    ProjectionMask::columns(schema, cols.iter().copied())
+    ProjectionMask::columns(schema, valid_cols.iter().copied())
 }
 
+/// Reads a Parquet file sequentially in a single thread.
+///
+/// # Arguments
+///
+/// * `path` - Path to the Parquet file
+/// * `cols` - List of column names to read (empty vec returns no columns)
+///
+/// # Returns
+///
+/// A vector of Arrow RecordBatches containing the requested columns.
+///
+/// # Note
+///
+/// If a requested column is not present in the Parquet file, it will be silently
+/// dismissed without raising an error. Only columns that exist in the file will be
+/// included in the resulting batches. Empty strings in the column list are treated
+/// as non-existent columns and will be filtered out.
 pub fn read_parquet_sequential(
     path: &str,
     cols: Vec<String>,
@@ -43,8 +78,19 @@ pub fn read_parquet_sequential(
     Ok(batches)
 }
 
-/// Read a specific row group from a parquet file
-/// Called by parallel workers
+/// Reads a specific row group from a Parquet file.
+///
+/// Called by parallel workers to process individual row groups concurrently.
+///
+/// # Arguments
+///
+/// * `path` - Path to the Parquet file
+/// * `row_group_idx` - Index of the row group to read
+/// * `projection` - Projection mask specifying which columns to read
+///
+/// # Returns
+///
+/// A vector of Arrow RecordBatches for the specified row group.
 fn read_row_group(
     path: &str,
     row_group_idx: usize,
@@ -72,7 +118,23 @@ fn read_row_group(
     Ok(batches)
 }
 
-/// Read parquet file in parallel by processing row groups concurrently
+/// Reads a Parquet file in parallel by processing row groups concurrently.
+///
+/// # Arguments
+///
+/// * `path` - Path to the Parquet file
+/// * `cols` - List of column names to read (empty vec returns no columns)
+///
+/// # Returns
+///
+/// A vector of Arrow RecordBatches containing the requested columns.
+///
+/// # Note
+///
+/// If a requested column is not present in the Parquet file, it will be silently
+/// dismissed without raising an error. Only columns that exist in the file will be
+/// included in the resulting batches. Empty strings in the column list are treated
+/// as non-existent columns and will be filtered out.
 pub fn read_parquet_parallel(
     path: &str,
     cols: Vec<String>,
@@ -112,8 +174,15 @@ mod tests {
     #[test]
     fn test_parquet_sequential_all_columns() {
         let test_file = get_test_file_path();
-        let batches =
-            read_parquet_sequential(test_file.to_str().unwrap(), vec![String::from("")]).unwrap();
+        let batches = read_parquet_sequential(
+            test_file.to_str().unwrap(),
+            vec![
+                String::from("id"),
+                String::from("name"),
+                String::from("value"),
+            ],
+        )
+        .unwrap();
 
         assert!(!batches.is_empty(), "Should have at least one batch");
 
@@ -166,8 +235,15 @@ mod tests {
     #[test]
     fn test_parquet_parallel_all_columns() {
         let test_file = get_test_file_path();
-        let batches =
-            read_parquet_parallel(test_file.to_str().unwrap(), vec![String::from("")]).unwrap();
+        let batches = read_parquet_parallel(
+            test_file.to_str().unwrap(),
+            vec![
+                String::from("id"),
+                String::from("name"),
+                String::from("value"),
+            ],
+        )
+        .unwrap();
 
         assert!(!batches.is_empty());
 
@@ -224,5 +300,53 @@ mod tests {
             parallel[0].schema(),
             "Should have same schema"
         );
+    }
+
+    #[test]
+    fn test_parquet_empty_projection() {
+        let test_file = get_test_file_path();
+        let batches = read_parquet_sequential(test_file.to_str().unwrap(), vec![]).unwrap();
+
+        // Empty projection should return batches with 0 columns
+        if !batches.is_empty() {
+            assert_eq!(batches[0].num_columns(), 0, "Should have 0 columns");
+        }
+    }
+
+    #[test]
+    fn test_parquet_empty_string_filtered() {
+        let test_file = get_test_file_path();
+        // Empty strings should be filtered out, resulting in empty projection
+        let batches =
+            read_parquet_sequential(test_file.to_str().unwrap(), vec![String::from("")]).unwrap();
+
+        // Should behave same as empty vec - 0 columns
+        if !batches.is_empty() {
+            assert_eq!(batches[0].num_columns(), 0, "Should have 0 columns");
+        }
+    }
+
+    #[test]
+    fn test_parquet_mixed_valid_invalid_columns() {
+        let test_file = get_test_file_path();
+        // Mix of valid columns, invalid columns, and empty strings
+        let batches = read_parquet_sequential(
+            test_file.to_str().unwrap(),
+            vec![
+                String::from("id"),
+                String::from(""),
+                String::from("nonexistent"),
+                String::from("value"),
+            ],
+        )
+        .unwrap();
+
+        assert!(!batches.is_empty());
+        // Should only have "id" and "value" (empty string and nonexistent filtered out)
+        assert_eq!(batches[0].num_columns(), 2, "Should have 2 columns");
+
+        let schema = batches[0].schema();
+        assert!(schema.column_with_name("id").is_some());
+        assert!(schema.column_with_name("value").is_some());
     }
 }
