@@ -76,10 +76,14 @@ impl Table for ParquetTable {
                     result.insert(name.clone(), rule_names);
                 }
                 ExecutableColumn::Integer {
-                    name, domain_rules, ..
+                    name,
+                    domain_rules,
+                    statistical_rules,
+                    ..
                 } => {
                     let mut rule_names = vec!["TypeCheck".to_string()];
                     rule_names.extend(domain_rules.iter().map(|r| r.name().to_string()));
+                    rule_names.extend(statistical_rules.iter().map(|r| r.name().to_string()));
                     result.insert(name.clone(), rule_names);
                 }
                 ExecutableColumn::Float {
