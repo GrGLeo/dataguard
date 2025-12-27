@@ -10,6 +10,22 @@ use crate::readers::BATCH_SIZE;
 
 const MIN_CHUNK_SIZE: u64 = 50 * 1024 * 1024; // 50MB minimum per chunk
 
+/// Reads a CSV file in parallel using multiple threads.
+///
+/// # Arguments
+///
+/// * `path` - Path to the CSV file
+/// * `cols` - List of column names to read
+///
+/// # Returns
+///
+/// A vector of Arrow RecordBatches containing the requested columns.
+///
+/// # Note
+///
+/// If a requested column is not present in the CSV file, it will be silently
+/// dismissed without raising an error. Only columns that exist in the file
+/// will be included in the resulting batches.
 pub fn read_csv_parallel(
     path: &str,
     cols: Vec<String>,
@@ -41,6 +57,17 @@ pub fn read_csv_parallel(
     Ok(batches?.into_iter().flatten().collect())
 }
 
+/// Calculates column indices for projection based on requested column names.
+///
+/// # Arguments
+///
+/// * `schema` - The CSV file schema containing all available columns
+/// * `requested_cols` - Slice of requested column names
+///
+/// # Returns
+///
+/// A vector of column indices that exist in the schema. Requested columns that
+/// are not present in the schema are silently filtered out without error.
 fn calculate_projection(schema: &Schema, requested_cols: &[&str]) -> Vec<usize> {
     requested_cols
         .iter()
@@ -122,6 +149,22 @@ fn parse_chunk(
     Ok(batches)
 }
 
+/// Reads a CSV file sequentially in a single thread.
+///
+/// # Arguments
+///
+/// * `path` - Path to the CSV file
+/// * `cols` - List of column names to read
+///
+/// # Returns
+///
+/// A vector of Arrow RecordBatches containing the requested columns.
+///
+/// # Note
+///
+/// If a requested column is not present in the CSV file, it will be silently
+/// dismissed without raising an error. Only columns that exist in the file
+/// will be included in the resulting batches.
 pub fn read_csv_sequential(
     path: &str,
     cols: Vec<String>,
