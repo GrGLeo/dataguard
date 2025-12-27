@@ -485,14 +485,14 @@ mod unicity_accumulator_tests {
 // ============================================================================
 
 #[test]
-fn test_has_statistical_rules() {
+fn test_cols_with_stats() {
     let col = create_string_column_with_length("name", 3, 50);
     let col_stats = create_int_column_with_stats("name", 3, 50);
     let col_f_stats = create_float_column_with_stats("name", 3, 50);
     let columns = vec![col, col_stats, col_f_stats].into_boxed_slice();
     let relations = None;
     let engine = ValidationEngine::new(&columns, &relations);
-    let columns = engine.has_statistical_rules();
+    let columns = engine.get_cols_with_stats();
     assert!(columns.is_some())
 }
 

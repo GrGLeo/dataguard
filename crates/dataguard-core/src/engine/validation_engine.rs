@@ -44,9 +44,6 @@ impl<'a> ValidationEngine<'a> {
     }
 
     pub(super) fn get_cols_with_stats(&self) -> Option<Vec<&ExecutableColumn>> {
-        // NOTE: does it make sens to return the name, could we return
-        // the &ExecutableColumn, and pass it to the compute_stats
-        // instead of iterate ExecutableColumn -> name -> ExecutableColumn
         let columns: Vec<&ExecutableColumn> = self
             .columns
             .iter()
@@ -154,9 +151,9 @@ impl<'a> ValidationEngine<'a> {
         report.set_total_rows(total_rows);
 
         let unicity_accumulators = UnicityAccumulator::new(self.columns, total_rows);
-        let mut stats_accumulators: HashMap<String, Stats> = HashMap::new();
+        let mut columns_stats: HashMap<String, Stats> = HashMap::new();
         if let Some(columns) = self.get_cols_with_stats() {
-            stats_accumulators = self.compute_stats(batches, &columns);
+            columns_stats = self.compute_stats(batches, &columns);
         }
         batches.par_iter().for_each(|batch| {
             // We keep in memory a reference to the casted array
@@ -195,7 +192,7 @@ impl<'a> ValidationEngine<'a> {
                     } => {
                         if let Ok(col_index) = batch.schema().index_of(name) {
                             let array = batch.column(col_index);
-                            let stats = stats_accumulators.get(name);
+                            let stats = columns_stats.get(name);
                             let _ = validate_numeric_column::<Int64Type>(
                                 name,
                                 domain_rules,
@@ -221,7 +218,7 @@ impl<'a> ValidationEngine<'a> {
                     } => {
                         if let Ok(col_index) = batch.schema().index_of(name) {
                             let array = batch.column(col_index);
-                            let stats = stats_accumulators.get(name);
+                            let stats = columns_stats.get(name);
                             let _ = validate_numeric_column::<Float64Type>(
                                 name,
                                 domain_rules,
@@ -520,6 +517,8 @@ fn validate_numeric_column<T: ArrowNumericType>(
                     }
                 }
                 for rule in statistical_rules {
+                    // Safety: the only way we do not have a Stats is that the complete type cast
+                    // failed, but in this case this code will not run.
                     let count = rule.validate_with_stats(numeric_array, stats.unwrap());
                     record_validation_result(
                         name,
