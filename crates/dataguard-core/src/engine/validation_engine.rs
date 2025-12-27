@@ -43,22 +43,21 @@ impl<'a> ValidationEngine<'a> {
         Self { columns, relations }
     }
 
-    pub(super) fn has_statistical_rules(&self) -> Option<Vec<String>> {
-        let columns: Vec<String> = self
+    pub(super) fn get_cols_with_stats(&self) -> Option<Vec<&ExecutableColumn>> {
+        // NOTE: does it make sens to return the name, could we return
+        // the &ExecutableColumn, and pass it to the compute_stats
+        // instead of iterate ExecutableColumn -> name -> ExecutableColumn
+        let columns: Vec<&ExecutableColumn> = self
             .columns
             .iter()
-            .filter_map(|col| match col {
+            .filter(|col| match col {
                 ExecutableColumn::Integer {
-                    name,
-                    statistical_rules,
-                    ..
-                } if !statistical_rules.is_empty() => Some(name.clone()),
+                    statistical_rules, ..
+                } => !statistical_rules.is_empty(),
                 ExecutableColumn::Float {
-                    name,
-                    statistical_rules,
-                    ..
-                } if !statistical_rules.is_empty() => Some(name.clone()),
-                _ => None,
+                    statistical_rules, ..
+                } => !statistical_rules.is_empty(),
+                _ => false,
             })
             .collect();
         if columns.is_empty() {
@@ -71,31 +70,28 @@ impl<'a> ValidationEngine<'a> {
     fn compute_stats(
         &self,
         batches: &[Arc<RecordBatch>],
-        columns: &[String],
+        columns: &[&ExecutableColumn],
     ) -> HashMap<String, Stats> {
-        let prepared_col: Vec<(usize, &ExecutableColumn)> = columns
+        let index: Vec<usize> = columns
             .iter()
-            .map(|name| {
-                let exec_col = self.columns.iter().find(|c| c.get_name() == *name).unwrap();
-                // Could we have an empty batches at this point?
-                // Since we validate that all column are present in the schema
-                // this is safe to unwrap
-                let index = batches[0].schema().index_of(name).unwrap();
-                (index, exec_col)
-            })
+            .filter_map(|col| batches[0].schema().index_of(&col.get_name()).ok())
             .collect();
         batches
             .par_iter()
             .map(|batch| {
                 let mut local_accumulator = StatsAccumulator::default();
-                for (idx, exec_col) in &prepared_col {
-                    // TODO: use .column by index
+                for (idx, exec_col) in index.iter().zip(columns.iter()) {
                     let array = batch.column(*idx);
                     match exec_col {
                         ExecutableColumn::Integer { type_check, .. } => {
                             let (_, typed_array) = if let Some(tc) = type_check {
-                                // HACK: This is not safe
-                                tc.validate(array).unwrap()
+                                if let Ok((res, typed_array)) = tc.validate(array) {
+                                    (res, typed_array)
+                                } else {
+                                    // There was an error processing this batch
+                                    // we can not safely compute any stats
+                                    continue;
+                                }
                             } else {
                                 (0, array.clone())
                             };
@@ -109,8 +105,13 @@ impl<'a> ValidationEngine<'a> {
                         }
                         ExecutableColumn::Float { type_check, .. } => {
                             let (_, typed_array) = if let Some(tc) = type_check {
-                                // HACK: This is not safe
-                                tc.validate(array).unwrap()
+                                if let Ok((res, typed_array)) = tc.validate(array) {
+                                    (res, typed_array)
+                                } else {
+                                    // There was an error processing this batch
+                                    // we can not safely compute any stats
+                                    continue;
+                                }
                             } else {
                                 (0, array.clone())
                             };
@@ -127,19 +128,16 @@ impl<'a> ValidationEngine<'a> {
                 }
                 local_accumulator.columns
             })
-            .reduce(
-                || HashMap::new(),
-                |mut acc1, acc2| {
-                    for (colname, stats2) in acc2 {
-                        acc1.entry(colname)
-                            .and_modify(|stats1| {
-                                *stats1 = merge_stats(stats1.clone(), stats2.clone());
-                            })
-                            .or_insert(stats2);
-                    }
-                    acc1
-                },
-            )
+            .reduce(HashMap::new, |mut acc1, acc2| {
+                for (colname, stats2) in acc2 {
+                    acc1.entry(colname)
+                        .and_modify(|stats1| {
+                            *stats1 = merge_stats(stats1.clone(), stats2.clone());
+                        })
+                        .or_insert(stats2);
+                }
+                acc1
+            })
     }
 
     /// Validate batches and produce a validation result.
@@ -157,7 +155,7 @@ impl<'a> ValidationEngine<'a> {
 
         let unicity_accumulators = UnicityAccumulator::new(self.columns, total_rows);
         let mut stats_accumulators: HashMap<String, Stats> = HashMap::new();
-        if let Some(columns) = self.has_statistical_rules() {
+        if let Some(columns) = self.get_cols_with_stats() {
             stats_accumulators = self.compute_stats(batches, &columns);
         }
         batches.par_iter().for_each(|batch| {

@@ -57,9 +57,13 @@ impl Table for CsvTable {
             .map(|v| v.get_name())
             .collect();
         let batches = read_csv_parallel(self.path.as_str(), needed_cols)?;
-        let existing_cols = self.executable_columns.iter().filter(|exec| {
-            batches[0].schema().index_of(&exec.get_name()).is_ok()
-        }).collect::<Vec<&ExecutableColumn>>().into_boxed_slice();
+        // What should i do with this!
+        let _existing_cols = self
+            .executable_columns
+            .iter()
+            .filter(|exec| batches[0].schema().index_of(&exec.get_name()).is_ok())
+            .collect::<Vec<&ExecutableColumn>>()
+            .into_boxed_slice();
         let engine =
             engine::ValidationEngine::new(&self.executable_columns, &self.executable_relations);
         engine.validate_batches(self.table_name.clone(), &batches)
