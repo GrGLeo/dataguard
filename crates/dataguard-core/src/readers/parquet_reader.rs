@@ -27,11 +27,9 @@ use crate::readers::BATCH_SIZE;
 /// included in the projection mask. Empty strings are treated as non-existent
 /// column names and will be filtered out.
 fn create_projection_mask(schema: &SchemaDescriptor, cols: &[&str]) -> ProjectionMask {
-    // Filter out empty strings (treat them as non-existent columns)
     let valid_cols: Vec<&str> = cols.iter().filter(|c| !c.is_empty()).copied().collect();
 
     if valid_cols.is_empty() {
-        // Return empty projection (no columns)
         return ProjectionMask::roots(schema, vec![]);
     }
     ProjectionMask::columns(schema, valid_cols.iter().copied())
