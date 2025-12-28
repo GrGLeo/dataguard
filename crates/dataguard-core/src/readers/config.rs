@@ -14,12 +14,36 @@ impl Default for ReaderConfig {
         Self {
             min_chunk_size: 1024 * 1024,
             max_chunk_size: 100 * 1024 * 1024,
-            thread_per_chunk: 4,
+            thread_per_chunk: 5,
             batch_size: 26 * 1024,
             streaming: false,
             streaming_threshold: 500 * 1024 * 1024,
         }
     }
+}
+
+impl ReaderConfig {
+    pub fn should_stream(&self, file_size: u64) -> bool {
+        self.streaming || file_size >= self.streaming_threshold
+    }
+}
+
+pub fn calculate_chunck_size(
+    file_size: u64,
+    header: u64,
+    num_threads: u8,
+    config: &ReaderConfig,
+) -> u64 {
+    let data_size = file_size.saturating_sub(header);
+    println!("{}", data_size);
+    let desired_chunk = num_threads * config.thread_per_chunk;
+    println!("{}", desired_chunk);
+    if desired_chunk == 0 {
+        return config.max_chunk_size;
+    }
+    let chunk_size = data_size / desired_chunk as u64;
+    println!("{}", chunk_size);
+    chunk_size.clamp(config.min_chunk_size, config.max_chunk_size)
 }
 
 pub struct ReaderConfigBuilder {
@@ -94,12 +118,6 @@ impl ReaderConfigBuilder {
     }
 }
 
-impl ReaderConfig {
-    pub fn should_stream(&self, file_size: u64) -> bool {
-        self.streaming || file_size >= self.streaming_threshold
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -109,7 +127,7 @@ mod tests {
         let reader = ReaderConfig::default();
         assert_eq!(reader.min_chunk_size, 1048576);
         assert_eq!(reader.max_chunk_size, 104857600);
-        assert_eq!(reader.thread_per_chunk, 4);
+        assert_eq!(reader.thread_per_chunk, 5);
         assert_eq!(reader.batch_size, 26 * 1024);
         assert_eq!(reader.streaming, false);
         assert_eq!(reader.streaming_threshold, 500 * 1024 * 1024);
@@ -133,5 +151,54 @@ mod tests {
         assert_eq!(reader.batch_size, 128_000);
         assert_eq!(reader.streaming_threshold, 100 * 1024 * 1024);
         assert_eq!(reader.min_chunk_size, 2 * 1024 * 1024);
+    }
+
+    #[test]
+    fn test_chunk_small_file() {
+        let reader = ReaderConfig::default();
+        let file_size = 10 * 1024 * 1024; // 10MB
+        let header = 100;
+        let chunk = calculate_chunck_size(file_size, header, 4, &reader);
+        // chunk clamp by min
+        assert_eq!(chunk, 1048576)
+    }
+
+    #[test]
+    fn test_chunk_medium_file() {
+        let reader = ReaderConfig::default();
+        let file_size = 1024 * 1024 * 1024; // 1GB
+        let header = 100;
+        let chunk = calculate_chunck_size(file_size, header, 4, &reader);
+        assert_eq!(chunk, 53687086)
+    }
+
+    #[test]
+    fn test_chunk_large_file() {
+        let reader = ReaderConfig::default();
+        let file_size = 10 * 1024 * 1024 * 1024; // 10GB
+        let header = 100;
+        let chunk = calculate_chunck_size(file_size, header, 4, &reader);
+        // chunk clamp by max
+        assert_eq!(chunk, 104857600)
+    }
+
+    #[test]
+    fn test_file_min_chunk() {
+        let reader = ReaderConfig::default();
+        let file_size = 5 * 1024; // 5KB
+        let header = 100;
+        let chunk = calculate_chunck_size(file_size, header, 4, &reader);
+        // chunk clamp by min
+        assert_eq!(chunk, 1048576)
+    }
+
+    #[test]
+    fn test_header_greater_than_file() {
+        let reader = ReaderConfig::default();
+        let file_size = 1024; // 5KB
+        let header = 1025;
+        let chunk = calculate_chunck_size(file_size, header, 4, &reader);
+        // chunk clamp by min
+        assert_eq!(chunk, 1048576)
     }
 }
