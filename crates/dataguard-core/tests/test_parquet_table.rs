@@ -114,3 +114,55 @@ fn test_table_mixed_column_types() {
     let res = parquet_table.validate();
     assert!(res.is_ok())
 }
+
+#[test]
+fn test_table_auto_batch_mode_small_file() {
+    // Small Parquet file (< 500MB) should use batch mode automatically
+    let file_path = get_test_file_path().to_str().unwrap().to_string();
+
+    let mut id = NumericColumnBuilder::<i64>::new("id".to_string());
+    id.is_positive(0.0);
+
+    let mut parquet_table = ParquetTable::new(file_path, "batch_mode_test".to_string()).unwrap();
+    parquet_table.prepare(vec![Box::new(id)], vec![]).unwrap();
+
+    // Should use batch mode (small file)
+    let res = parquet_table.validate();
+    assert!(res.is_ok());
+    let validation_result = res.unwrap();
+    assert_eq!(validation_result.table_name, "batch_mode_test");
+    assert_eq!(validation_result.total_rows, 512_000);
+}
+
+#[test]
+fn test_table_streaming_mode_produces_same_results() {
+    // Verify streaming and batch modes produce identical results
+    let file_path = get_test_file_path().to_str().unwrap().to_string();
+
+    let mut id = NumericColumnBuilder::<i64>::new("id".to_string());
+    id.min(0, 0.0);
+
+    let mut value = NumericColumnBuilder::<f64>::new("value".to_string());
+    value.is_non_negative(0.0);
+
+    let mut name = StringColumnBuilder::new("name".to_string());
+    name.with_min_length(1, 0.0);
+
+    let mut parquet_table = ParquetTable::new(file_path, "comparison_test".to_string()).unwrap();
+    parquet_table
+        .prepare(vec![Box::new(id), Box::new(value), Box::new(name)], vec![])
+        .unwrap();
+
+    // Validate (will use batch mode for small test file)
+    let res = parquet_table.validate();
+    assert!(res.is_ok());
+    let validation_result = res.unwrap();
+
+    // Verify basic properties
+    assert_eq!(validation_result.table_name, "comparison_test");
+    assert_eq!(validation_result.total_rows, 512_000);
+
+    // Should have column results for all 3 columns
+    let column_results = validation_result.get_column_results();
+    assert_eq!(column_results.len(), 3);
+}

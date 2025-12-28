@@ -1,9 +1,10 @@
 use std::collections::HashMap;
+use std::fs::File;
 
 use crate::{
     columns::{relation_builder::RelationBuilder, ColumnBuilder},
     compiler, engine,
-    readers::read_parquet_parallel,
+    readers::{read_parallel, read_streaming, FileFormat, ReaderConfig},
     validator::{ExecutableColumn, ExecutableRelation},
     RuleError, Table, ValidationResult,
 };
@@ -59,10 +60,32 @@ impl Table for ParquetTable {
             .iter()
             .map(|v| v.get_name())
             .collect();
-        let batches = read_parquet_parallel(self.path.as_str(), needed_cols)?;
+
+        let config = ReaderConfig::default();
+
+        // Check file size to determine streaming vs batch mode
+        let file = File::open(&self.path)?;
+        let file_size = file.metadata()?.len();
+        drop(file);
+
         let engine =
             engine::ValidationEngine::new(&self.executable_columns, &self.executable_relations);
-        engine.validate_batches(self.table_name.clone(), &batches)
+
+        if config.should_stream(file_size) {
+            // Streaming mode: Process row groups incrementally for large files
+            let receiver =
+                read_streaming(self.path.as_str(), needed_cols, FileFormat::Parquet, config)?;
+            engine.validate_batches_streaming(self.table_name.clone(), receiver)
+        } else {
+            // We first load the file in memory as Arrow batch
+            let batches = read_parallel(
+                self.path.as_str(),
+                needed_cols,
+                FileFormat::Parquet,
+                &config,
+            )?;
+            engine.validate_batches(self.table_name.clone(), &batches)
+        }
     }
 
     /// Get a summary of configured rules

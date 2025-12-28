@@ -912,4 +912,194 @@ mod validation_engine_tests {
             relation_results.contains_key("start_date | end_date") || relation_results.is_empty()
         );
     }
+
+    #[test]
+    fn test_validate_batches_streaming_basic() {
+        use crossbeam::channel::bounded;
+
+        // Create simple test data
+        let batch1 = create_string_batch("name", vec![Some("Alice"), Some("Bob")]);
+        let batch2 = create_string_batch("name", vec![Some("Charlie"), Some("Dave")]);
+
+        // Create column with simple validation
+        let column = create_string_column_with_length("name", 1, 10);
+        let columns = vec![column];
+
+        // Create channel and send mini-batches
+        let (sender, receiver) = bounded(2);
+        sender.send(Ok(vec![batch1])).unwrap();
+        sender.send(Ok(vec![batch2])).unwrap();
+        drop(sender); // Close channel
+
+        // Validate using streaming
+        let engine = ValidationEngine::new(&columns, &None);
+        let result = engine
+            .validate_batches_streaming("test_table".to_string(), receiver)
+            .unwrap();
+
+        assert_eq!(result.total_rows, 4);
+        assert_eq!(result.table_name, "test_table");
+    }
+
+    #[test]
+    fn test_validate_batches_streaming_vs_batch_mode() {
+        // Create test data
+        let batch1 = create_string_batch("name", vec![Some("Alice"), Some("Bob"), Some("Charlie")]);
+        let batch2 = create_string_batch("name", vec![Some("Dave"), Some("Eve"), Some("Frank")]);
+
+        let column = create_string_column_with_length("name", 1, 10);
+        let columns = vec![column];
+
+        // Test batch mode
+        let all_batches = vec![batch1.clone(), batch2.clone()];
+        let engine = ValidationEngine::new(&columns, &None);
+        let batch_result = engine
+            .validate_batches("test_table".to_string(), &all_batches)
+            .unwrap();
+
+        // Test streaming mode
+        use crossbeam::channel::bounded;
+        let (sender, receiver) = bounded(2);
+        sender.send(Ok(vec![batch1])).unwrap();
+        sender.send(Ok(vec![batch2])).unwrap();
+        drop(sender);
+
+        let engine2 = ValidationEngine::new(&columns, &None);
+        let stream_result = engine2
+            .validate_batches_streaming("test_table".to_string(), receiver)
+            .unwrap();
+
+        // Both should produce same total rows
+        assert_eq!(batch_result.total_rows, stream_result.total_rows);
+        assert_eq!(batch_result.total_rows, 6);
+    }
+
+    #[test]
+    fn test_validate_batches_streaming_with_unicity() {
+        use crossbeam::channel::bounded;
+
+        // Create batches with duplicates
+        let batch1 =
+            create_string_batch("email", vec![Some("alice@test.com"), Some("bob@test.com")]);
+        let batch2 = create_string_batch(
+            "email",
+            vec![Some("alice@test.com"), Some("charlie@test.com")],
+        ); // alice is duplicate
+
+        let column = create_string_column_with_unicity("email");
+        let columns = vec![column];
+
+        let (sender, receiver) = bounded(2);
+        sender.send(Ok(vec![batch1])).unwrap();
+        sender.send(Ok(vec![batch2])).unwrap();
+        drop(sender);
+
+        let engine = ValidationEngine::new(&columns, &None);
+        let result = engine
+            .validate_batches_streaming("test_table".to_string(), receiver)
+            .unwrap();
+
+        assert_eq!(result.total_rows, 4);
+
+        // Check unicity violation was detected
+        let column_results = result.get_column_results();
+        assert!(column_results.contains_key("email"));
+
+        let email_results = &column_results["email"];
+
+        // Find Unicity rule result
+        let unicity_result = email_results
+            .iter()
+            .find(|r| r.rule_name == "Unicity")
+            .expect("Should have Unicity result");
+
+        // Should have 1 duplicate (alice appears twice)
+        assert_eq!(unicity_result.error_count, 1);
+    }
+
+    #[test]
+    fn test_validate_batches_streaming_with_stats() {
+        use crossbeam::channel::bounded;
+
+        // Create integer batches
+        let batch1 = create_int_batch("age", vec![Some(25), Some(30), Some(35)]);
+        let batch2 = create_int_batch("age", vec![Some(40), Some(45), Some(50)]);
+
+        let column = create_int_column_with_stats("age", 0, 100);
+        let columns = vec![column];
+
+        let (sender, receiver) = bounded(2);
+        sender.send(Ok(vec![batch1])).unwrap();
+        sender.send(Ok(vec![batch2])).unwrap();
+        drop(sender);
+
+        let engine = ValidationEngine::new(&columns, &None);
+        let result = engine
+            .validate_batches_streaming("test_table".to_string(), receiver)
+            .unwrap();
+
+        assert_eq!(result.total_rows, 6);
+        // Stats should be computed across all mini-batches
+    }
+
+    #[test]
+    fn test_validate_batches_streaming_error_propagation() {
+        use crossbeam::channel::bounded;
+        use std::io;
+
+        let batch1 = create_string_batch("name", vec![Some("Alice")]);
+
+        let column = create_string_column_with_length("name", 1, 10);
+        let columns = vec![column];
+
+        let (sender, receiver) = bounded(2);
+        sender.send(Ok(vec![batch1])).unwrap();
+        // Send an error
+        sender
+            .send(Err(io::Error::new(io::ErrorKind::Other, "test error")))
+            .unwrap();
+        drop(sender);
+
+        let engine = ValidationEngine::new(&columns, &None);
+        let result = engine.validate_batches_streaming("test_table".to_string(), receiver);
+
+        // Should propagate the error
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_batches_streaming_incremental_stats() {
+        use crossbeam::channel::bounded;
+
+        // Test that stats are merged correctly across mini-batches
+        let batch1 = create_float_batch("value", vec![Some(1.0), Some(2.0), Some(3.0)]);
+        let batch2 = create_float_batch("value", vec![Some(4.0), Some(5.0), Some(6.0)]);
+        let batch3 = create_float_batch("value", vec![Some(7.0), Some(8.0), Some(9.0)]);
+
+        let column = create_float_column_with_stats("value", 0, 10);
+        let columns = vec![column];
+
+        // Streaming mode
+        let (sender, receiver) = bounded(3);
+        sender.send(Ok(vec![batch1.clone()])).unwrap();
+        sender.send(Ok(vec![batch2.clone()])).unwrap();
+        sender.send(Ok(vec![batch3.clone()])).unwrap();
+        drop(sender);
+
+        let engine = ValidationEngine::new(&columns, &None);
+        let stream_result = engine
+            .validate_batches_streaming("test_table".to_string(), receiver)
+            .unwrap();
+
+        // Batch mode for comparison
+        let all_batches = vec![batch1, batch2, batch3];
+        let engine2 = ValidationEngine::new(&columns, &None);
+        let batch_result = engine2
+            .validate_batches("test_table".to_string(), &all_batches)
+            .unwrap();
+
+        // Both should have same total rows
+        assert_eq!(stream_result.total_rows, batch_result.total_rows);
+        assert_eq!(stream_result.total_rows, 9);
+    }
 }

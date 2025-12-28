@@ -20,6 +20,7 @@ once_cell = { workspace = true }
 num-traits = { workspace = true }
 xxhash-rust = { workspace = true }
 parquet = "57.1"
+crossbeam = "0.8.4"
 
 [dev-dependencies]
 tempfile = { workspace = true }

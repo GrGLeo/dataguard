@@ -1,5 +1,6 @@
 use super::accumulator::ResultAccumulator;
 use arrow::datatypes::{Date32Type, Float64Type, Int64Type};
+use crossbeam::channel::Receiver;
 use std::{
     collections::HashMap,
     sync::{
@@ -288,6 +289,212 @@ impl<'a> ValidationEngine<'a> {
         }
 
         // We create the validation result for report formatting
+        let (column_values, column_results, relation_result) = report.to_results();
+        let mut results = ValidationResult::new(table_name.clone(), total_rows);
+        results.add_columns_values(column_values);
+        results.add_column_results(column_results);
+        results.add_relation_results(relation_result);
+
+        Ok(results)
+    }
+
+    /// Validate batches from a streaming source.
+    ///
+    /// Processes mini-batches as they arrive from the channel, computing stats
+    /// and validating incrementally.
+    ///
+    /// # Arguments
+    ///
+    /// * `table_name` - Name of the table being validated
+    /// * `receiver` - Channel receiver yielding mini-batches (Vec<Arc<RecordBatch>>)
+    ///
+    /// # Returns
+    ///
+    /// ValidationResult containing aggregated results from all mini-batches
+    ///
+    /// # Note
+    ///
+    /// Unlike `validate_batches`, this method doesn't know total row count upfront,
+    /// so UnicityAccumulator capacity starts at 0 and grows dynamically.
+    pub fn validate_batches_streaming(
+        &self,
+        table_name: String,
+        receiver: Receiver<Result<Vec<Arc<RecordBatch>>, std::io::Error>>,
+    ) -> Result<ValidationResult, RuleError> {
+        let error_counter = AtomicUsize::new(0);
+        let report = ResultAccumulator::new();
+        let mut total_rows = 0;
+
+        // Start with capacity 0 since we don't know total rows yet
+        let unicity_accumulators = UnicityAccumulator::new(self.columns, 0);
+        let mut columns_stats: HashMap<String, Stats> = HashMap::new();
+
+        // Process mini-batches as they arrive
+        for mini_batch_result in receiver {
+            // Handle any errors from the producer
+            let mini_batch = mini_batch_result.map_err(RuleError::IoError)?;
+
+            // Count rows in this mini-batch
+            let mini_batch_rows: usize = mini_batch.iter().map(|b| b.num_rows()).sum();
+            total_rows += mini_batch_rows;
+
+            // Update total rows in report
+            report.set_total_rows(total_rows);
+
+            // Compute stats for this mini-batch and merge with existing
+            if let Some(stat_cols) = self.get_cols_with_stats() {
+                let mini_stats = self.compute_stats(&mini_batch, &stat_cols);
+
+                // Merge stats incrementally
+                for (col_name, new_stats) in mini_stats {
+                    columns_stats
+                        .entry(col_name)
+                        .and_modify(|existing| {
+                            *existing = merge_stats(existing.clone(), new_stats.clone());
+                        })
+                        .or_insert(new_stats);
+                }
+            }
+
+            // Validate this mini-batch in parallel (using rayon)
+            mini_batch.par_iter().for_each(|batch| {
+                let mut array_ref: HashMap<String, Arc<dyn Array>> = HashMap::new();
+
+                for executable_col in self.columns {
+                    match executable_col {
+                        ExecutableColumn::String {
+                            name,
+                            rules,
+                            type_check,
+                            unicity_check,
+                            null_check,
+                        } => {
+                            if let Ok(col_index) = batch.schema().index_of(name) {
+                                let array = batch.column(col_index);
+                                let _ = validate_string_column(
+                                    name,
+                                    rules,
+                                    type_check,
+                                    unicity_check,
+                                    null_check,
+                                    array,
+                                    &error_counter,
+                                    &report,
+                                    &unicity_accumulators,
+                                );
+                            }
+                        }
+                        ExecutableColumn::Integer {
+                            name,
+                            domain_rules,
+                            statistical_rules,
+                            type_check,
+                            unicity_check,
+                            null_check,
+                        } => {
+                            if let Ok(col_index) = batch.schema().index_of(name) {
+                                let array = batch.column(col_index);
+                                let stats = columns_stats.get(name);
+                                let _ = validate_numeric_column::<Int64Type>(
+                                    name,
+                                    domain_rules,
+                                    statistical_rules,
+                                    stats,
+                                    type_check,
+                                    unicity_check,
+                                    null_check,
+                                    array,
+                                    &error_counter,
+                                    &report,
+                                    &unicity_accumulators,
+                                );
+                            }
+                        }
+                        ExecutableColumn::Float {
+                            name,
+                            domain_rules,
+                            statistical_rules,
+                            type_check,
+                            unicity_check,
+                            null_check,
+                        } => {
+                            if let Ok(col_index) = batch.schema().index_of(name) {
+                                let array = batch.column(col_index);
+                                let stats = columns_stats.get(name);
+                                let _ = validate_numeric_column::<Float64Type>(
+                                    name,
+                                    domain_rules,
+                                    statistical_rules,
+                                    stats,
+                                    type_check,
+                                    unicity_check,
+                                    null_check,
+                                    array,
+                                    &error_counter,
+                                    &report,
+                                    &unicity_accumulators,
+                                );
+                            }
+                        }
+                        ExecutableColumn::Date {
+                            name,
+                            rules,
+                            type_check,
+                            unicity_check,
+                            null_check,
+                        } => {
+                            let Ok(col_index) = batch.schema().index_of(name) else {
+                                continue;
+                            };
+                            let array = batch.column(col_index);
+                            if let Ok(casted_array) = validate_date_column(
+                                name,
+                                rules,
+                                type_check,
+                                unicity_check,
+                                null_check,
+                                array,
+                                &error_counter,
+                                &report,
+                                &unicity_accumulators,
+                            ) {
+                                array_ref.insert(name.clone(), casted_array);
+                            }
+                        }
+                    }
+                }
+
+                // Validate relations
+                if let Some(relations) = self.relations {
+                    for executable_relation in relations {
+                        if array_ref.contains_key(&executable_relation.names[0])
+                            && array_ref.contains_key(&executable_relation.names[1])
+                        {
+                            validate_relation(
+                                executable_relation,
+                                &array_ref,
+                                &error_counter,
+                                &report,
+                            );
+                        }
+                    }
+                }
+            });
+        }
+
+        // Finalize unicity checks with the now-known total rows
+        let unicity_errors = unicity_accumulators.finalize(total_rows);
+        for (column_name, (unicity_error, threshold)) in unicity_errors {
+            error_counter.fetch_add(unicity_error, Ordering::Relaxed);
+            report.record_column_result(
+                &column_name,
+                "Unicity".to_string(),
+                threshold,
+                unicity_error,
+            );
+        }
+
+        // Create validation result
         let (column_values, column_results, relation_result) = report.to_results();
         let mut results = ValidationResult::new(table_name.clone(), total_rows);
         results.add_columns_values(column_values);

@@ -16,7 +16,7 @@ impl Default for ReaderConfig {
             chunks_per_thread: 5,
             batch_size: 128 * 1024,
             streaming: false,
-            streaming_threshold: 500 * 1024 * 1024,
+            streaming_threshold: 5 * 1024 * 1024 * 1024,
         }
     }
 }
@@ -126,14 +126,19 @@ mod tests {
         assert_eq!(reader.chunks_per_thread, 5);
         assert_eq!(reader.batch_size, 128 * 1024);
         assert_eq!(reader.streaming, false);
-        assert_eq!(reader.streaming_threshold, 500 * 1024 * 1024);
+        assert_eq!(reader.streaming_threshold, 5 * 1024 * 1024 * 1024);
     }
 
     #[test]
     fn test_reader_streaming() {
         let reader = ReaderConfig::default();
-        let st = reader.should_stream(1 * 1024 * 1024 * 1024); // 1G should stream
-        assert!(st)
+        // With 5GB threshold, 6GB should stream
+        let st = reader.should_stream(6 * 1024 * 1024 * 1024);
+        assert!(st);
+
+        // But 4GB should not
+        let st = reader.should_stream(4 * 1024 * 1024 * 1024);
+        assert!(!st);
     }
 
     #[test]
