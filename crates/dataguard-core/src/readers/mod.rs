@@ -1,9 +1,8 @@
-mod config;
-pub mod csv_reader;
-pub mod parquet_reader;
+pub mod config;
+pub mod reader;
 
 pub use config::ReaderConfig;
-pub use parquet_reader::read_parquet_parallel;
-pub use parquet_reader::read_parquet_sequential;
-
-const BATCH_SIZE: usize = 256_000;
+pub use reader::{
+    read_parallel, read_parallel_auto, read_sequential, read_sequential_auto, read_streaming,
+    read_streaming_auto, FileFormat,
+};

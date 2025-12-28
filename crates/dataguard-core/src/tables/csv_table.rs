@@ -1,9 +1,9 @@
 use std::collections::HashMap;
+use std::fs::File;
 
 use crate::columns::{relation_builder::RelationBuilder, ColumnBuilder};
 use crate::errors::RuleError;
-use crate::readers::csv_reader::read_csv_parallel_with_config;
-use crate::readers::ReaderConfig;
+use crate::readers::{read_parallel, read_streaming, FileFormat, ReaderConfig};
 use crate::tables::Table;
 use crate::validator::{ExecutableColumn, ExecutableRelation};
 use crate::{compiler, engine, ValidationResult};
@@ -57,19 +57,27 @@ impl Table for CsvTable {
             .iter()
             .map(|v| v.get_name())
             .collect();
+
         let config = ReaderConfig::default();
-        let batches = read_csv_parallel_with_config(self.path.as_str(), needed_cols, &config)?;
-        //let batches = read_csv_parallel(self.path.as_str(), needed_cols)?;
-        // What should i do with this!
-        let _existing_cols = self
-            .executable_columns
-            .iter()
-            .filter(|exec| batches[0].schema().index_of(&exec.get_name()).is_ok())
-            .collect::<Vec<&ExecutableColumn>>()
-            .into_boxed_slice();
+
+        // Check file size to determine streaming vs batch mode
+        let file = File::open(&self.path)?;
+        let file_size = file.metadata()?.len();
+        drop(file);
+
         let engine =
             engine::ValidationEngine::new(&self.executable_columns, &self.executable_relations);
-        engine.validate_batches(self.table_name.clone(), &batches)
+
+        if config.should_stream(file_size) {
+            let receiver =
+                read_streaming(self.path.as_str(), needed_cols, FileFormat::Csv, config)?;
+            // We validate batch by batch
+            engine.validate_batches_streaming(self.table_name.clone(), receiver)
+        } else {
+            // We first load the file in memory as Arrow batches
+            let batches = read_parallel(self.path.as_str(), needed_cols, FileFormat::Csv, &config)?;
+            engine.validate_batches(self.table_name.clone(), &batches)
+        }
     }
 
     /// Get a summary of configured rules

@@ -1,0 +1,388 @@
+use arrow::record_batch::RecordBatch;
+use crossbeam::channel::{bounded, Receiver, Sender};
+use std::io;
+use std::sync::Arc;
+use std::thread;
+
+use crate::readers::config::ReaderConfig;
+
+/// Number of batches to collect before sending as a mini-batch
+const MINI_BATCH_SIZE: usize = 4;
+
+/// Channel capacity (2× mini-batch size for buffering)
+const CHANNEL_CAPACITY: usize = 8;
+
+/// File format for reading
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FileFormat {
+    Csv,
+    Parquet,
+}
+
+impl FileFormat {
+    /// Detect format from file extension
+    pub fn from_path(path: &str) -> Option<Self> {
+        let path_lower = path.to_lowercase();
+        if path_lower.ends_with(".csv") {
+            Some(FileFormat::Csv)
+        } else if path_lower.ends_with(".parquet") {
+            Some(FileFormat::Parquet)
+        } else {
+            None
+        }
+    }
+}
+
+/// Trait for format-specific sequential reading
+trait SequentialReader {
+    fn read_sequential(
+        &self,
+        path: &str,
+        cols: &[String],
+    ) -> Result<Vec<Arc<RecordBatch>>, io::Error>;
+}
+
+/// Trait for format-specific parallel reading
+trait ParallelReader {
+    fn read_parallel(
+        &self,
+        path: &str,
+        cols: &[String],
+        config: &ReaderConfig,
+    ) -> Result<Vec<Arc<RecordBatch>>, io::Error>;
+}
+
+/// Trait for format-specific streaming
+trait StreamingReader {
+    fn read_streaming(
+        &self,
+        path: &str,
+        cols: &[String],
+        config: &ReaderConfig,
+        sender: &Sender<Result<Vec<Arc<RecordBatch>>, io::Error>>,
+    ) -> Result<(), io::Error>;
+}
+
+/// CSV sequential reader implementation
+struct CsvSequentialReader;
+
+impl SequentialReader for CsvSequentialReader {
+    fn read_sequential(
+        &self,
+        path: &str,
+        cols: &[String],
+    ) -> Result<Vec<Arc<RecordBatch>>, io::Error> {
+        use crate::readers::csv_reader::read_csv_sequential;
+        read_csv_sequential(path, cols.to_vec())
+    }
+}
+
+/// CSV parallel reader implementation
+struct CsvParallelReader;
+
+impl ParallelReader for CsvParallelReader {
+    fn read_parallel(
+        &self,
+        path: &str,
+        cols: &[String],
+        config: &ReaderConfig,
+    ) -> Result<Vec<Arc<RecordBatch>>, io::Error> {
+        use crate::readers::csv_reader::read_csv_parallel_with_config;
+        read_csv_parallel_with_config(path, cols.to_vec(), config)
+    }
+}
+
+/// CSV streaming reader implementation
+struct CsvStreamingReader;
+
+impl StreamingReader for CsvStreamingReader {
+    fn read_streaming(
+        &self,
+        path: &str,
+        cols: &[String],
+        config: &ReaderConfig,
+        sender: &Sender<Result<Vec<Arc<RecordBatch>>, io::Error>>,
+    ) -> Result<(), io::Error> {
+        use crate::readers::csv_reader::{
+            calculate_projection, create_chunks, generate_utf_schema, parse_chunk,
+        };
+        use crate::readers::BATCH_SIZE;
+        use std::fs::File;
+
+        let file = File::open(path)?;
+        let file_size = file.metadata()?.len();
+        let schema = Arc::new(generate_utf_schema(path)?);
+
+        let cols_refs: Vec<&str> = cols.iter().map(|s| s.as_str()).collect();
+        let projection = calculate_projection(&schema, &cols_refs);
+
+        let mut header_reader = std::io::BufReader::new(File::open(path)?);
+        let mut header = String::new();
+        std::io::BufRead::read_line(&mut header_reader, &mut header)?;
+        let header_len = header.len() as u64;
+
+        let num_threads = rayon::current_num_threads();
+        let chunk_size = crate::readers::config::calculate_chunk_size(
+            file_size,
+            header_len,
+            num_threads,
+            config,
+        );
+
+        let chunks = create_chunks(path, header_len, file_size, chunk_size)?;
+        let mut mini_batch: Vec<Arc<RecordBatch>> = Vec::with_capacity(MINI_BATCH_SIZE);
+
+        for (start, end) in chunks {
+            let chunk_batches =
+                parse_chunk(path, &schema, &projection, BATCH_SIZE, &header, start, end)?;
+
+            for batch in chunk_batches {
+                mini_batch.push(batch);
+
+                if mini_batch.len() >= MINI_BATCH_SIZE {
+                    if sender.send(Ok(mini_batch.clone())).is_err() {
+                        return Ok(());
+                    }
+                    mini_batch.clear();
+                }
+            }
+        }
+
+        if !mini_batch.is_empty() {
+            let _ = sender.send(Ok(mini_batch));
+        }
+
+        Ok(())
+    }
+}
+
+/// Parquet sequential reader implementation
+struct ParquetSequentialReader;
+
+impl SequentialReader for ParquetSequentialReader {
+    fn read_sequential(
+        &self,
+        path: &str,
+        cols: &[String],
+    ) -> Result<Vec<Arc<RecordBatch>>, io::Error> {
+        use crate::readers::parquet_reader::read_parquet_sequential;
+        read_parquet_sequential(path, cols.to_vec())
+    }
+}
+
+/// Parquet parallel reader implementation
+struct ParquetParallelReader;
+
+impl ParallelReader for ParquetParallelReader {
+    fn read_parallel(
+        &self,
+        path: &str,
+        cols: &[String],
+        _config: &ReaderConfig,
+    ) -> Result<Vec<Arc<RecordBatch>>, io::Error> {
+        use crate::readers::parquet_reader::read_parquet_parallel;
+        read_parquet_parallel(path, cols.to_vec())
+    }
+}
+
+/// Parquet streaming reader implementation
+struct ParquetStreamingReader;
+
+impl StreamingReader for ParquetStreamingReader {
+    fn read_streaming(
+        &self,
+        path: &str,
+        cols: &[String],
+        _config: &ReaderConfig,
+        sender: &Sender<Result<Vec<Arc<RecordBatch>>, io::Error>>,
+    ) -> Result<(), io::Error> {
+        use crate::readers::parquet_reader::{create_projection_mask, read_row_group};
+        use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+        use std::fs::File;
+
+        let cols: Vec<&str> = cols.iter().map(|s| s.as_str()).collect();
+
+        let file = File::open(path)?;
+        let builder = ParquetRecordBatchReaderBuilder::try_new(file)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+
+        let num_row_groups = builder.metadata().num_row_groups();
+        let projection = create_projection_mask(builder.parquet_schema(), &cols);
+
+        let mut mini_batch: Vec<Arc<RecordBatch>> = Vec::with_capacity(MINI_BATCH_SIZE);
+
+        for rg_idx in 0..num_row_groups {
+            let row_group_batches = read_row_group(path, rg_idx, projection.clone())?;
+
+            for batch in row_group_batches {
+                mini_batch.push(batch);
+
+                if mini_batch.len() >= MINI_BATCH_SIZE {
+                    if sender.send(Ok(mini_batch.clone())).is_err() {
+                        return Ok(());
+                    }
+                    mini_batch.clear();
+                }
+            }
+        }
+
+        if !mini_batch.is_empty() {
+            let _ = sender.send(Ok(mini_batch));
+        }
+
+        Ok(())
+    }
+}
+
+/// Read file sequentially in a single thread
+///
+/// # Arguments
+///
+/// * `path` - Path to the file
+/// * `cols` - Column names to read
+/// * `format` - File format (CSV or Parquet)
+///
+/// # Returns
+///
+/// Vector of RecordBatches
+pub fn read_sequential(
+    path: &str,
+    cols: Vec<String>,
+    format: FileFormat,
+) -> Result<Vec<Arc<RecordBatch>>, io::Error> {
+    let reader: Box<dyn SequentialReader> = match format {
+        FileFormat::Csv => Box::new(CsvSequentialReader),
+        FileFormat::Parquet => Box::new(ParquetSequentialReader),
+    };
+
+    reader.read_sequential(path, &cols)
+}
+
+/// Read file in parallel using multiple threads
+///
+/// # Arguments
+///
+/// * `path` - Path to the file
+/// * `cols` - Column names to read
+/// * `format` - File format (CSV or Parquet)
+/// * `config` - Reader configuration
+///
+/// # Returns
+///
+/// Vector of RecordBatches
+pub fn read_parallel(
+    path: &str,
+    cols: Vec<String>,
+    format: FileFormat,
+    config: &ReaderConfig,
+) -> Result<Vec<Arc<RecordBatch>>, io::Error> {
+    let reader: Box<dyn ParallelReader> = match format {
+        FileFormat::Csv => Box::new(CsvParallelReader),
+        FileFormat::Parquet => Box::new(ParquetParallelReader),
+    };
+
+    reader.read_parallel(path, &cols, config)
+}
+
+/// Read file in streaming mode
+///
+/// # Arguments
+///
+/// * `path` - Path to the file
+/// * `cols` - Column names to read
+/// * `format` - File format (CSV or Parquet)
+/// * `config` - Reader configuration
+///
+/// # Returns
+///
+/// Receiver yielding mini-batches as they become available
+pub fn read_streaming(
+    path: &str,
+    cols: Vec<String>,
+    format: FileFormat,
+    config: ReaderConfig,
+) -> Result<Receiver<Result<Vec<Arc<RecordBatch>>, io::Error>>, io::Error> {
+    let (sender, receiver) = bounded(CHANNEL_CAPACITY);
+    let path = path.to_string();
+
+    thread::spawn(move || {
+        let reader: Box<dyn StreamingReader> = match format {
+            FileFormat::Csv => Box::new(CsvStreamingReader),
+            FileFormat::Parquet => Box::new(ParquetStreamingReader),
+        };
+
+        if let Err(e) = reader.read_streaming(&path, &cols, &config, &sender) {
+            let _ = sender.send(Err(e));
+        }
+    });
+
+    Ok(receiver)
+}
+
+/// Auto-detect format and read sequentially
+pub fn read_sequential_auto(
+    path: &str,
+    cols: Vec<String>,
+) -> Result<Vec<Arc<RecordBatch>>, io::Error> {
+    let format = FileFormat::from_path(path).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Could not detect file format from extension",
+        )
+    })?;
+
+    read_sequential(path, cols, format)
+}
+
+/// Auto-detect format and read in parallel
+pub fn read_parallel_auto(
+    path: &str,
+    cols: Vec<String>,
+    config: &ReaderConfig,
+) -> Result<Vec<Arc<RecordBatch>>, io::Error> {
+    let format = FileFormat::from_path(path).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Could not detect file format from extension",
+        )
+    })?;
+
+    read_parallel(path, cols, format, config)
+}
+
+/// Auto-detect format and read in streaming mode
+pub fn read_streaming_auto(
+    path: &str,
+    cols: Vec<String>,
+    config: ReaderConfig,
+) -> Result<Receiver<Result<Vec<Arc<RecordBatch>>, io::Error>>, io::Error> {
+    let format = FileFormat::from_path(path).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Could not detect file format from extension",
+        )
+    })?;
+
+    read_streaming(path, cols, format, config)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_file_format_detection() {
+        assert_eq!(FileFormat::from_path("data.csv"), Some(FileFormat::Csv));
+        assert_eq!(FileFormat::from_path("data.CSV"), Some(FileFormat::Csv));
+        assert_eq!(
+            FileFormat::from_path("data.parquet"),
+            Some(FileFormat::Parquet)
+        );
+        assert_eq!(
+            FileFormat::from_path("data.PARQUET"),
+            Some(FileFormat::Parquet)
+        );
+        assert_eq!(FileFormat::from_path("data.txt"), None);
+        assert_eq!(FileFormat::from_path("data"), None);
+    }
+}

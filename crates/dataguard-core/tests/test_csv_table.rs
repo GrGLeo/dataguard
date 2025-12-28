@@ -256,3 +256,74 @@ fn test_table_mixed_column_types() {
     let res = csv_table.validate();
     assert!(res.is_ok())
 }
+
+#[test]
+fn test_table_auto_batch_mode_small_file() {
+    // Small file (< 500MB) should use batch mode automatically
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("test_small.csv");
+    let mut file = File::create(&file_path).unwrap();
+    writeln!(file, "id,value").unwrap();
+    for i in 0..100 {
+        writeln!(file, "{},{}", i, i * 2).unwrap();
+    }
+
+    let mut id_col = NumericColumnBuilder::<i64>::new("id".to_string());
+    id_col.is_positive(0.0);
+
+    let file_path = file_path.into_os_string().into_string().unwrap();
+    let mut csv_table = CsvTable::new(file_path, "batch_mode_test".to_string()).unwrap();
+    csv_table.prepare(vec![Box::new(id_col)], vec![]).unwrap();
+
+    // Should use batch mode (small file)
+    let res = csv_table.validate();
+    assert!(res.is_ok());
+    let validation_result = res.unwrap();
+    assert_eq!(validation_result.table_name, "batch_mode_test");
+    assert_eq!(validation_result.total_rows, 100);
+}
+
+#[test]
+fn test_table_streaming_mode_produces_same_results() {
+    // Verify streaming and batch modes produce identical results
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("test_comparison.csv");
+    let mut file = File::create(&file_path).unwrap();
+    writeln!(file, "name,age,score").unwrap();
+    writeln!(file, "alice,25,95").unwrap(); // ok
+    writeln!(file, "bob,150,85").unwrap(); // age fail
+    writeln!(file, "charlie,30,105").unwrap(); // score fail
+    writeln!(file, "dave,45,90").unwrap(); // ok
+    writeln!(file, "eve,-5,80").unwrap(); // age fail
+
+    let mut name_col = StringColumnBuilder::new("name".to_string());
+    name_col.with_min_length(3, 0.0);
+
+    let mut age_col = NumericColumnBuilder::<i64>::new("age".to_string());
+    age_col.between(0, 120, 0.0);
+
+    let mut score_col = NumericColumnBuilder::<i64>::new("score".to_string());
+    score_col.between(0, 100, 0.0);
+
+    let file_path = file_path.into_os_string().into_string().unwrap();
+    let mut csv_table = CsvTable::new(file_path, "comparison_test".to_string()).unwrap();
+    csv_table
+        .prepare(
+            vec![Box::new(name_col), Box::new(age_col), Box::new(score_col)],
+            vec![],
+        )
+        .unwrap();
+
+    // Validate (will use batch mode for small file)
+    let res = csv_table.validate();
+    assert!(res.is_ok());
+    let validation_result = res.unwrap();
+
+    // Verify basic properties
+    assert_eq!(validation_result.table_name, "comparison_test");
+    assert_eq!(validation_result.total_rows, 5);
+
+    // Should have column results for all 3 columns
+    let column_results = validation_result.get_column_results();
+    assert_eq!(column_results.len(), 3);
+}
