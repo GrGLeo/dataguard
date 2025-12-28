@@ -6,6 +6,7 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader, Read, Seek, SeekFrom};
 use std::sync::Arc;
 
+use crate::readers::config::{calculate_chunk_size, ReaderConfig};
 use crate::readers::BATCH_SIZE;
 
 const MIN_CHUNK_SIZE: u64 = 50 * 1024 * 1024; // 50MB minimum per chunk
@@ -51,7 +52,64 @@ pub fn read_csv_parallel(
 
     let batches: Result<Vec<_>, _> = chunks
         .into_par_iter()
-        .map(|(start, end)| parse_chunk(path, &schema, &projection, &header, start, end))
+        .map(|(start, end)| parse_chunk(path, &schema, &projection, 256_000, &header, start, end))
+        .collect();
+
+    Ok(batches?.into_iter().flatten().collect())
+}
+
+/// Reads a CSV file in parallel using multiple threads.
+///
+/// # Arguments
+///
+/// * `path`   - Path to the CSV file
+/// * `cols`   - List of column names to read
+/// * `config` - A [`ReaderConfig`]
+///
+/// # Returns
+///
+/// A vector of Arrow RecordBatches containing the requested columns.
+///
+/// # Note
+///
+/// If a requested column is not present in the CSV file, it will be silently
+/// dismissed without raising an error. Only columns that exist in the file
+/// will be included in the resulting batches.
+pub fn read_csv_parallel_with_config(
+    path: &str,
+    cols: Vec<String>,
+    config: &ReaderConfig,
+) -> Result<Vec<Arc<RecordBatch>>, io::Error> {
+    let cols: Vec<&str> = cols.iter().map(|v| v.as_str()).collect();
+    let file = File::open(path)?;
+    let file_size = file.metadata()?.len();
+
+    let schema = Arc::new(generate_utf_schema(path)?);
+    let cols = cols.as_slice();
+    let projection = calculate_projection(&schema, cols);
+
+    let mut header_reader = BufReader::new(File::open(path)?);
+    let mut header = String::new();
+    header_reader.read_line(&mut header)?;
+    let header_len = header.len() as u64;
+
+    let num_threads = rayon::current_num_threads();
+    let chunk_size = calculate_chunk_size(file_size, header_len, num_threads, config);
+    let chunks = create_chunks(path, header_len, file_size, chunk_size)?;
+
+    let batches: Result<Vec<_>, _> = chunks
+        .into_par_iter()
+        .map(|(start, end)| {
+            parse_chunk(
+                path,
+                &schema,
+                &projection,
+                config.batch_size as usize,
+                &header,
+                start,
+                end,
+            )
+        })
         .collect();
 
     Ok(batches?.into_iter().flatten().collect())
@@ -117,6 +175,7 @@ fn parse_chunk(
     path: &str,
     schema: &Arc<Schema>,
     projection: &[usize],
+    batch_size: usize,
     header: &str,
     start: u64,
     end: u64,
@@ -136,7 +195,7 @@ fn parse_chunk(
     let reader = ReaderBuilder::new(schema.clone())
         .with_header(true)
         .with_projection(projection.to_vec())
-        .with_batch_size(BATCH_SIZE)
+        .with_batch_size(batch_size)
         .build(cursor)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
