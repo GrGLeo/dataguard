@@ -1,3 +1,4 @@
+mod config;
 pub mod csv_reader;
 pub mod parquet_reader;
 
