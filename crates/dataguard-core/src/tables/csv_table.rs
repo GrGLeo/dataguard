@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use crate::columns::{relation_builder::RelationBuilder, ColumnBuilder};
 use crate::errors::RuleError;
-use crate::readers::csv_reader::read_csv_parallel;
+use crate::readers::csv_reader::read_csv_parallel_with_config;
+use crate::readers::ReaderConfig;
 use crate::tables::Table;
 use crate::validator::{ExecutableColumn, ExecutableRelation};
 use crate::{compiler, engine, ValidationResult};
@@ -56,7 +57,9 @@ impl Table for CsvTable {
             .iter()
             .map(|v| v.get_name())
             .collect();
-        let batches = read_csv_parallel(self.path.as_str(), needed_cols)?;
+        let config = ReaderConfig::default();
+        let batches = read_csv_parallel_with_config(self.path.as_str(), needed_cols, &config)?;
+        //let batches = read_csv_parallel(self.path.as_str(), needed_cols)?;
         // What should i do with this!
         let _existing_cols = self
             .executable_columns
