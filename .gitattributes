@@ -1,2 +1,3 @@
 # Parquet files are binary
 *.parquet binary
+*.csv binary

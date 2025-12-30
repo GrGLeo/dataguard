@@ -29,6 +29,19 @@ cargo build --release -p dataguard-cli
 
 The binary will be available at `./target/release/dataguard-cli`
 
+## Examples
+
+Working examples in both Rust and Python are available in the `examples/` directory. See `examples/README.md` for details.
+
+**Quick run:**
+```bash
+# Rust example
+cargo run --example validate_products
+
+# Python example (after installing dataguard-py)
+python examples/validate_products.py
+```
+
 ## Quick Start
 
 1. Create a TOML configuration file (`validation.toml`):

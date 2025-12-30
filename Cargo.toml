@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/dataguard-cli", "crates/dataguard-core", "crates/dataguard-reports"]
+members = ["crates/dataguard-cli", "crates/dataguard-core", "crates/dataguard-reports", "crates/dataguard-py"]
 resolver = "2"
 
 [workspace.package]

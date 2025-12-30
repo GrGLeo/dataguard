@@ -40,6 +40,10 @@ name = "unicity_bench"
 harness = false
 path = "benches/unicity_bench.rs"
 
+[[example]]
+name = "validate_products"
+path = "../../examples/validate_products.rs"
+
 [lints]
 workspace = true
 
