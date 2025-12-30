@@ -1,6 +1,6 @@
 # DataGuard
 
-High-performance data validation for CSV and Parquet files.
+Data validation for CSV and Parquet files.
 
 ## Installation
 
@@ -10,7 +10,7 @@ pip install dataguard
 
 ## Features
 
-- Fast validation of CSV and Parquet files
+- Validation of CSV and Parquet files
 - Fluent API for defining validation rules
 - Support for string, numeric, and date columns
 - Cross-column relationship validation
@@ -170,12 +170,3 @@ table = ParquetTable("data.parquet", "users")
 table.prepare([col])
 result = table.validate()
 ```
-
-## License
-
-This project is licensed under either of:
-
-- Apache License, Version 2.0
-- MIT License
-
-at your option.

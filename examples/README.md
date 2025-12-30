@@ -4,17 +4,8 @@ This directory contains example code demonstrating how to use DataGuard for data
 
 ## Example Data
 
-### Small Dataset: `data/products.csv`
-Sample e-commerce product data (10 rows) with clean data for testing:
-- `id` - Product ID (integer)
-- `name` - Product name (string)
-- `price` - Product price (float)
-- `category` - Product category (string)
-- `stock` - Stock quantity (integer)
-- `created_date` - Creation date (string, YYYY-MM-DD format)
-
 ### Large Dataset: `data/products_large.csv`
-Large e-commerce dataset (512k rows) for performance testing:
+Large e-commerce dataset (512k rows) for testing:
 - `Index` - Row number (integer)
 - `Name` - Product name (string)
 - `Description` - Product description (string)
@@ -47,7 +38,10 @@ cargo run -p dataguard-core --example validate_products
 
 The Rust example demonstrates:
 - Creating column builders for different data types (integer, string)
-- Adding validation rules (positive values, uniqueness, length checks, membership, exact length)
+- String column validation with length, null, and format checks
+- Integer column validation with range, uniqueness, and boundary checks
+- String membership validation (currency, availability values)
+- Exact length validation (EAN codes)
 - Creating a CsvTable and preparing it with columns
 - Validating the data and displaying results
 
@@ -85,11 +79,7 @@ Then run the Python example:
 python examples/validate_products.py
 ```
 
-The Python example demonstrates the same validation logic using the Python API:
-- String column validation with length, null, and format checks
-- Integer column validation with range, uniqueness, and boundary checks
-- String membership validation (currency, availability values)
-- Exact length validation (EAN codes)
+The Python example demonstrates the same validation logic using the Python API.
 
 **Output:**
 ```

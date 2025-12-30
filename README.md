@@ -1,10 +1,11 @@
 # DataGuard
 
-DataGuard is a high-performance data validation CLI tool written in Rust. It provides a flexible and efficient way to define and apply validation rules to CSV files using TOML configuration files, ensuring data quality and integrity.
+DataGuard is a data validation CLI tool written in Rust. It provides a flexible and efficient way to define and apply validation rules to CSV files using TOML configuration files, ensuring data quality and integrity.
 
 ## Features
 
 - **TOML-based Configuration**: Define validation rules in a simple, declarative format
+- **Library**: Can be used with rust or python.
 - **Supported Data Types**:  string(Utf8), integer(Int32), float(Float64), and date(Date32) columns
 - **Comprehensive Validation Rules**:
   - String: length checks, regex matching, enumeration (isin)
@@ -12,10 +13,9 @@ DataGuard is a high-performance data validation CLI tool written in Rust. It pro
   - Generic: type checking, uniqueness, null checks
   - Relation: date comparison
   - Statistical rules: Implemented for Numerics, compute mean, variance, and standard deviation.
-- **Flexible Output**: Human-readable table reports or JSON format
+- **Flexible Output**: terminal printed reports or JSON format
 - **Watch Mode**: Automatic re-validation on file changes
 - **Threshold**: Set per rule validation threshold
-- **Performance**: Built with parallel processing and optimized validation logic
 
 ## Installation
 
@@ -24,7 +24,7 @@ DataGuard is a high-performance data validation CLI tool written in Rust. It pro
 ```bash
 git clone https://github.com/GrGLeo/dataguard.git
 cd dataguard
-cargo build --release -p dataguard-cli
+cargo b --release -p dataguard-cli
 ```
 
 The binary will be available at `./target/release/dataguard-cli`
@@ -42,7 +42,7 @@ cargo run --example validate_products
 python examples/validate_products.py
 ```
 
-## Quick Start
+## Quick Start with CLI
 
 1. Create a TOML configuration file (`validation.toml`):
 
@@ -136,7 +136,7 @@ PASSED: 2/2 rules valid
 Result: 1 failed, 1 passed
 ```
 
-**JSON Output**: Structured validation results with detailed error information
+**JSON Output**: Structured validation results
 
 ### Example of available validation rules
 
@@ -186,5 +186,5 @@ is used for testing and stored in `crates/dataguard-core/tests/fixtures`
 ### Planned Features
 - **CSV output**: Adding alongside json and stdout a csv output.
 - **Additional Data Types**: Support for more variant of datatype (Int64, LongString...), time validation.
-- **Loading Performance**: Reducing csv loading time, and starting validation of present batch, while loading next batch
+- **Streaming**: adding streaming file in validation, mostly for large file that cannot be in fully in memory.
 - **SQL support**: Enabling validation on SQL engine (PostgreSQL and Snowflake)
