@@ -5,7 +5,9 @@ This directory contains example code demonstrating how to use DataGuard for data
 ## Example Data
 
 ### Large Dataset: `data/products_large.csv`
-Large e-commerce dataset (512k rows) for testing:
+Large e-commerce dataset (2M rows) for testing. The dataset is an example of [products datasets](https://www.datablist.com/learn/csv/download-sample-csv-files#products-dataset).
+
+**Columns:**
 - `Index` - Row number (integer)
 - `Name` - Product name (string)
 - `Description` - Product description (string)
@@ -20,85 +22,9 @@ Large e-commerce dataset (512k rows) for testing:
 - `Availability` - Stock status (string)
 - `Internal ID` - Internal identifier (integer)
 
-## Running the Examples
+## Validation Rules
 
-All three examples (Rust, Python, and CLI) use the **same validation rules** and **same dataset** for consistency.
-The dataset used is an example of [products](https://www.datablist.com/learn/csv/download-sample-csv-files#products-dataset) datasets
-
-### Rust Example
-
-Build and run the Rust example:
-
-```bash
-# From the repository root (workspace searches for examples automatically)
-cargo run --example validate_products
-
-# Or be explicit about which package contains the example
-cargo run -p dataguard-core --example validate_products
-```
-
-The Rust example demonstrates:
-- Creating column builders for different data types (integer, string)
-- String column validation with length, null, and format checks
-- Integer column validation with range, uniqueness, and boundary checks
-- String membership validation (currency, availability values)
-- Exact length validation (EAN codes)
-- Creating a CsvTable and preparing it with columns
-- Validating the data and displaying results
-
-**Output:**
-```
-DataGuard Example - Product Validation
-
-Validating products_large.csv (512k rows)...
-
-Validation Results:
-  Table: Products Large Dataset
-  Total rows: 512000
-  Rules: 24/24 passed
-
-✓ All validation rules passed!
-```
-
-### Python Example
-
-First, install the DataGuard Python package:
-
-```bash
-# From the repository root
-cd crates/dataguard-py
-uv venv .venv
-source .venv/bin/activate
-uv pip install maturin
-maturin develop --release
-cd ../..
-```
-
-Then run the Python example:
-
-```bash
-python examples/validate_products.py
-```
-
-The Python example demonstrates the same validation logic using the Python API.
-
-**Output:**
-```
-DataGuard Example - Product Validation
-
-Validating products_large.csv (512k rows)...
-
-Validation Results:
-  Table: Products Large Dataset
-  Total rows: 512000
-  Rules: 24/24 passed
-
-✓ All validation rules passed!
-```
-
-## Validation Rules Applied
-
-All three examples apply the same 24 validation rules across 9 columns:
+All three examples (Rust, Python, and CLI) apply the **same 24 validation rules** across 9 columns:
 
 1. **Index Column** (integer):
    - Must be unique
@@ -135,11 +61,53 @@ All three examples apply the same 24 validation rules across 9 columns:
 
 **Total:** 24 rules across 9 columns, validating 512,000 rows
 
+## Running the Examples
+
+### Rust Example
+
+**Run the example:**
+
+```bash
+cargo run --example validate_products
+```
+
+**What it demonstrates:**
+- Creating column builders for different data types (integer, string)
+- String column validation with length, null, and format checks
+- Integer column validation with range, uniqueness, and boundary checks
+- String membership validation (currency, availability values)
+- Exact length validation (EAN codes)
+- Creating a CsvTable and preparing it with columns
+- Validating the data and displaying results
+
+### Python Example
+
+**Setup:**
+
+```bash
+# From the repository root
+cd crates/dataguard-py
+uv venv .venv
+source .venv/bin/activate
+uv pip install maturin
+maturin develop --release
+cd ../..
+```
+
+**Run the example:**
+
+```bash
+python examples/validate_products.py
+```
+
+**What it demonstrates:**
+- Using the Python API to define column builders
+- Applying the same validation rules as the Rust example
+- Programmatic validation with Python-native error handling
+
 ### CLI Example
 
-DataGuard includes a command-line interface for configuration-based validation.
-
-**Run with the example config:**
+**Run the example:**
 
 ```bash
 # From the repository root
@@ -152,12 +120,11 @@ cargo run -p dataguard-cli -- --config examples/config.toml --brief
 dataguard-cli --config examples/config.toml
 ```
 
-**Configuration file:** `config.toml`
-
-The configuration file demonstrates:
+**What it demonstrates:**
+- Configuration-based validation using TOML files
 - Table definition with CSV file path
 - Multiple column type definitions (integer, string)
-- Various validation rules:
+- Declarative validation rules:
   - Uniqueness checks (`is_unique`)
   - Null checks (`is_not_null`)
   - Range validation (`between`, `is_positive`, `is_non_negative`)
@@ -165,8 +132,25 @@ The configuration file demonstrates:
   - Membership validation (`is_in`)
   - Format validation (`is_numeric`)
 
-**Expected output:**
+## Expected Output
 
+All three examples validate the same dataset with the same rules and produce similar output:
+
+**Rust & Python:**
+```
+DataGuard Example - Product Validation
+
+Validating products_large.csv (512k rows)...
+
+Validation Results:
+  Table: Products Large Dataset
+  Total rows: 512000
+  Rules: 24/24 passed
+
+✓ All validation rules passed!
+```
+
+**CLI:**
 ```
 DataGuard v0.1.0 - Validation Report
 ====================================

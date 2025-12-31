@@ -1,5 +1,5 @@
 """
-DataGuard: High-performance data validation for CSV and Parquet files.
+DataGuard: data validation for CSV and Parquet files.
 
 This package provides a fluent API for defining and executing validation rules
 on tabular data with excellent performance.

@@ -12,7 +12,7 @@ use pyo3::prelude::*;
 use relations::{relation, RelationBuilder};
 use tables::{CsvTable, ParquetTable};
 
-/// DataGuard: A high-performance data validation library.
+/// DataGuard: A data validation library.
 ///
 /// This module provides Python bindings for the dataguard-core library,
 /// enabling fast validation of CSV and Parquet files with a fluent builder API.
