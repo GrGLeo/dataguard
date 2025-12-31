@@ -74,7 +74,6 @@ docs/_build/
 
 # csv
 *.csv
-!examples/data/products_large.csv
 
 # Parquet files (except test fixtures)
 *.parquet

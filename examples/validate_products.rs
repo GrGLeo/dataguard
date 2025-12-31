@@ -3,9 +3,6 @@ use dataguard_core::{CsvTable, NumericColumnBuilder, StringColumnBuilder, Table}
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("DataGuard Example - Product Validation\n");
 
-    // Define validation rules for each column
-    // These match the rules in examples/config.toml
-
     // Index: integer with uniqueness, not null, and positive checks
     let mut index_column = NumericColumnBuilder::<i64>::new("Index".to_string());
     index_column
@@ -68,9 +65,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut internal_id_column = NumericColumnBuilder::<i64>::new("Internal ID".to_string());
     internal_id_column.is_positive(0.0);
 
-    // Create and configure table
     let mut table = CsvTable::new(
-        "examples/data/products_large.csv".to_string(),
+        "examples/data/products.csv".to_string(),
         "Products Large Dataset".to_string(),
     )?;
 
@@ -89,11 +85,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         vec![],
     )?;
 
-    // Validate the data
-    println!("Validating products_large.csv (512k rows)...\n");
     let result = table.validate()?;
 
-    // Display results
     println!("Validation Results:");
     println!("  Table: {}", result.table_name);
     println!("  Total rows: {}", result.total_rows);

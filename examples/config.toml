@@ -5,7 +5,7 @@
 
 [[table]]
 name = "Products Large Dataset"
-path = "examples/data/products_large.csv"
+path = "examples/data/products.csv"
 
 # Integer column with range validation
 [[table.column]]

@@ -22,7 +22,8 @@ Large e-commerce dataset (512k rows) for testing:
 
 ## Running the Examples
 
-All three examples (Rust, Python, and CLI) use the **same validation rules** and **same dataset** (`products_large.csv` with 512k rows) for consistency.
+All three examples (Rust, Python, and CLI) use the **same validation rules** and **same dataset** for consistency.
+The dataset used is an example of [products](https://www.datablist.com/learn/csv/download-sample-csv-files#products-dataset) datasets
 
 ### Rust Example
 

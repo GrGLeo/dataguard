@@ -14,9 +14,6 @@ import dataguard
 def main():
     print("DataGuard Example - Product Validation\n")
 
-    # Define validation rules for each column
-    # These match the rules in examples/config.toml
-
     # Index: integer with uniqueness, not null, and positive checks
     index_column = (
         dataguard.integer_column("Index").is_unique().is_not_null().is_positive()
@@ -62,10 +59,7 @@ def main():
     # Internal ID: integer with positive check
     internal_id_column = dataguard.integer_column("Internal ID").is_positive()
 
-    # Create and configure table
-    table = dataguard.CsvTable(
-        "examples/data/products_large.csv", "Products Large Dataset"
-    )
+    table = dataguard.CsvTable("examples/data/products.csv", "Products Large Dataset")
     table.prepare(
         [
             index_column,
@@ -80,11 +74,8 @@ def main():
         ]
     )
 
-    # Validate the data
-    print("Validating products_large.csv (512k rows)...\n")
     result = table.validate()
 
-    # Display results
     print("Validation Results:")
     print(f"  Table: {result['table_name']}")
     print(f"  Total rows: {result['total_rows']}")
