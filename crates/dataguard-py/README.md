@@ -1,6 +1,6 @@
-# DataGuard
+# DataGuard Python Bindings
 
-Data validation for CSV and Parquet files.
+Python bindings for DataGuard, providing data validation for CSV and Parquet files.
 
 ## Installation
 
@@ -10,12 +10,11 @@ pip install dataguard
 
 ## Features
 
-- Validation of CSV and Parquet files
+- CSV and Parquet file validation
 - Fluent API for defining validation rules
-- Support for string, numeric, and date columns
+- String, numeric, and date column support
 - Cross-column relationship validation
 - Configurable error thresholds
-- Built on Apache Arrow for performance
 
 ## Quick Start
 

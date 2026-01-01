@@ -1,30 +1,58 @@
 # DataGuard
 
-DataGuard is a data validation CLI tool written in Rust. It provides a flexible and efficient way to define and apply validation rules to CSV files using TOML configuration files, ensuring data quality and integrity.
+A data validation tool written in Rust for validating CSV and Parquet files using TOML configuration files.
+
+## Project Structure
+
+This repository is organized as a Cargo workspace with three crates:
+
+### `dataguard-core` - Rust Library
+Core validation engine providing data structures, validation rules, and processing logic. Can be used directly in Rust projects.
+
+### `dataguard-py` - Python Bindings
+Python bindings for the core library, built with PyO3.
+
+### `dataguard-cli` - Command Line Interface
+CLI tool for validating data files using TOML configuration.
 
 ## Features
 
-- **TOML-based Configuration**: Define validation rules in a simple, declarative format
-- **Library**: Can be used with rust or python.
-- **Supported Data Types**:  string(Utf8), integer(Int32), float(Float64), and date(Date32) columns
-- **Comprehensive Validation Rules**:
+- TOML-based configuration for validation rules
+- Available as Rust library, Python package, or CLI tool
+- Supported data types: string (Utf8), integer (Int32), float (Float64), date (Date32)
+- Validation rules:
   - String: length checks, regex matching, enumeration (isin)
   - Numeric: range validation (min/max)
   - Generic: type checking, uniqueness, null checks
   - Relation: date comparison
-  - Statistical rules: Implemented for Numerics, compute mean, variance, and standard deviation.
-- **Flexible Output**: terminal printed reports or JSON format
-- **Watch Mode**: Automatic re-validation on file changes
-- **Threshold**: Set per rule validation threshold
+  - Statistical: mean, variance, standard deviation for numeric types
+- File format support: CSV and Parquet
+- Output formats: terminal or JSON
+- Watch mode for automatic re-validation (CLI)
+- Per-rule validation thresholds
 
 ## Installation
 
-### From Source
+### Rust Library (dataguard-core)
+
+```toml
+[dependencies]
+dataguard-core = { path = "crates/dataguard-core" }
+```
+
+### Python Package (dataguard-py)
+
+```bash
+cd crates/dataguard-py
+pip install .
+```
+
+### CLI Tool (dataguard-cli)
 
 ```bash
 git clone https://github.com/GrGLeo/dataguard.git
 cd dataguard
-cargo b --release -p dataguard-cli
+cargo build --release -p dataguard-cli
 ```
 
 The binary will be available at `./target/release/dataguard-cli`
@@ -183,8 +211,7 @@ is used for testing and stored in `crates/dataguard-core/tests/fixtures`
 
 ## Roadmap
 
-### Planned Features
-- **CSV output**: Adding alongside json and stdout a csv output.
-- **Additional Data Types**: Support for more variant of datatype (Int64, LongString...), time validation.
-- **Streaming**: adding streaming file in validation, mostly for large file that cannot be in fully in memory.
-- **SQL support**: Enabling validation on SQL engine (PostgreSQL and Snowflake)
+- **CSV output**: Add CSV output format alongside JSON and stdout
+- **Additional Data Types**: Support for more datatype variants (Int64, LongString, etc.) and time validation
+- **Streaming**: Stream processing for large files that cannot fit fully in memory
+- **SQL support**: Enable validation on SQL engines (PostgreSQL, Snowflake)
