@@ -1,38 +1,9 @@
-use crate::rules::core::Rule;
-use pyo3::prelude::*;
+pub mod date_builder;
+pub mod float_builder;
+pub mod integer_builder;
+pub mod string_builder;
 
-pub mod float_column;
-pub mod integer_column;
-pub mod string_column;
-
-#[pyclass(name = "Column")]
-#[derive(Clone)]
-pub struct Column {
-    #[pyo3(get)]
-    pub name: String,
-    #[pyo3(get)]
-    pub column_type: String, // Using a simple String is easier for PyO3 interop
-    #[pyo3(get)]
-    pub rules: Vec<Rule>,
-    #[pyo3(get)]
-    pub unicity: Option<Rule>,
-}
-
-#[pymethods]
-impl Column {
-    #[new]
-    pub fn new(name: String, column_type: String, rules: Vec<Rule>, unicity: Option<Rule>) -> Self {
-        Self {
-            name,
-            column_type,
-            rules,
-            unicity,
-        }
-    }
-}
-
-#[derive(Clone)]
-pub enum ColumnType {
-    String,
-    Integer,
-}
+pub use date_builder::{date_column, DateColumnBuilder};
+pub use float_builder::{float_column, FloatColumnBuilder};
+pub use integer_builder::{integer_column, IntegerColumnBuilder};
+pub use string_builder::{string_column, StringColumnBuilder};

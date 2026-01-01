@@ -21,7 +21,7 @@ enum OutputFormat {
     version,
     author = "DataGuard Contributors",
     about = "DataGuard CLI - Data validation tool for CSV/table files",
-    long_about = "DataGuard is a high-performance data validation tool that validates data tables \
+    long_about = "DataGuard is a data validation tool that validates data tables \
                   based on configurable rules. It supports various data types and validation rules \
                   for numeric, string, and generic columns.\n\n\
                   Example usage:\n  \

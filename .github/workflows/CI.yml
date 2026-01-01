@@ -31,10 +31,28 @@ jobs:
       steps:
         - uses: actions/checkout@v4
         - run: rustup update ${{ matrix.toolchain }} && rustup default ${{ matrix.toolchain }}
-        - run: cargo build -p dataguard-core --verbose
-        - run: cargo build -p dataguard-cli --verbose
+        - run: cargo build --verbose
         - run: cargo test -p dataguard-core --verbose
         - run: cargo test -p dataguard-cli --verbose
+
+  python_tests:
+    name: Python tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      - name: Build and test Python package
+        working-directory: crates/dataguard-py
+        run: |
+          uv venv
+          source .venv/bin/activate
+          uv pip install maturin pytest pandas
+          maturin develop
+          pytest tests/test_generic_rules.py -v
 
   linux:
     runs-on: ${{ matrix.platform.runner }}
@@ -134,8 +152,6 @@ jobs:
     strategy:
       matrix:
         platform:
-          - runner: macos-13
-            target: x86_64
           - runner: macos-14
             target: aarch64
     steps:
@@ -163,7 +179,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           command: sdist
-          args: --out dist
+          args: --out dist --manifest-path crates/dataguard-py/Cargo.toml
       - name: Upload sdist
         uses: actions/upload-artifact@v4
         with:

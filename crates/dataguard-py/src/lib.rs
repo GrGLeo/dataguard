@@ -1,62 +1,38 @@
 pub mod columns;
-pub mod rules;
-pub mod validator;
+pub mod relations;
+pub mod tables;
 
-// Re-export core modules
-pub use dataguard_core::{errors, reader, report, types};
-
-use crate::columns::float_column::FloatColumnBuilder;
-use crate::columns::integer_column::IntegerColumnBuilder;
-use crate::columns::string_column::StringColumnBuilder;
-use crate::columns::Column;
+#[allow(unused_imports)]
+use columns::{
+    date_column, float_column, integer_column, string_column, DateColumnBuilder,
+    FloatColumnBuilder, IntegerColumnBuilder, StringColumnBuilder,
+};
 use pyo3::prelude::*;
+#[allow(unused_imports)]
+use relations::{relation, RelationBuilder};
+use tables::{CsvTable, ParquetTable};
 
-/// Creates a builder for defining rules on a string column.
+/// DataGuard: A data validation library.
 ///
-/// Args:
-///     name (str): The name of the column.
-///
-/// Returns:
-///     StringColumnBuilder: A builder object for chaining rules.
-#[pyfunction]
-fn string_column(name: String) -> PyResult<StringColumnBuilder> {
-    Ok(StringColumnBuilder::new(name))
-}
-
-/// Creates a builder for defining rules on a integer column.
-///
-/// Args:
-///     name (str): The name of the column.
-///
-/// Returns:
-///     IntegerColumnBuilder: A builder object for chaining rules.
-#[pyfunction]
-fn integer_column(name: String) -> PyResult<IntegerColumnBuilder> {
-    Ok(IntegerColumnBuilder::new(name))
-}
-
-/// Creates a builder for defining rules on a float column.
-///
-/// Args:
-///     name (str): The name of the column.
-///
-/// Returns:
-///     FloatColumnBuilder: A builder object for chaining rules.
-#[pyfunction]
-fn float_column(name: String) -> PyResult<FloatColumnBuilder> {
-    Ok(FloatColumnBuilder::new(name))
-}
-
-/// DataGuard: A high-performance CSV validation library.
+/// This module provides Python bindings for the dataguard-core library,
+/// enabling fast validation of CSV and Parquet files with a fluent builder API.
 #[pymodule]
 fn dataguard(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<validator::Validator>()?;
-    m.add_class::<Column>()?;
+    // Register classes
+    m.add_class::<CsvTable>()?;
+    m.add_class::<ParquetTable>()?;
     m.add_class::<StringColumnBuilder>()?;
     m.add_class::<IntegerColumnBuilder>()?;
     m.add_class::<FloatColumnBuilder>()?;
-    m.add_function(wrap_pyfunction!(string_column, m)?)?;
-    m.add_function(wrap_pyfunction!(integer_column, m)?)?;
-    m.add_function(wrap_pyfunction!(float_column, m)?)?;
+    m.add_class::<DateColumnBuilder>()?;
+    m.add_class::<RelationBuilder>()?;
+
+    // Register column builder functions
+    m.add_function(wrap_pyfunction!(columns::string_column, m)?)?;
+    m.add_function(wrap_pyfunction!(columns::integer_column, m)?)?;
+    m.add_function(wrap_pyfunction!(columns::float_column, m)?)?;
+    m.add_function(wrap_pyfunction!(columns::date_column, m)?)?;
+    m.add_function(wrap_pyfunction!(relations::relation, m)?)?;
+
     Ok(())
 }
