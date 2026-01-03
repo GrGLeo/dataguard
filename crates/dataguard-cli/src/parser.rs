@@ -46,6 +46,10 @@ pub enum Relation {
         threshold: Option<f64>,
         operator: String,
     },
+    NumericComparaison {
+        threshold: Option<f64>,
+        operator: String,
+    },
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -186,6 +190,7 @@ impl std::fmt::Display for Relation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Relation::DateComparaison { .. } => write!(f, "date_comparaison"),
+            Relation::NumericComparaison { .. } => write!(f, "numeric_comparaison"),
         }
     }
 }

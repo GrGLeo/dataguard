@@ -29,7 +29,7 @@ impl RelationBuilder {
 
     pub fn numeric_comparaison(&mut self, op: CompOperator, threshold: f64) -> &mut Self {
         self.rules
-            .push(TableConstraint::DateComparaison { op, threshold });
+            .push(TableConstraint::NumericComparaison { op, threshold });
         self
     }
 }

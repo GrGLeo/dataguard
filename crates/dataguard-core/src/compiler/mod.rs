@@ -8,7 +8,7 @@
 
 use std::fmt::Debug;
 
-use arrow::datatypes::{DataType, Date32Type, Int32Type};
+use arrow::datatypes::{DataType, Date32Type, Int64Type};
 use arrow_array::ArrowNumericType;
 use num_traits::{Num, NumCast};
 
@@ -366,7 +366,7 @@ pub fn compile_relations(builder: RelationBuilder) -> Result<ExecutableRelation,
                 executable_relations.push(Box::new(CompareCheck::<Date32Type>::new(op, threshold)));
             }
             TableConstraint::NumericComparaison { op, threshold } => {
-                executable_relations.push(Box::new(CompareCheck::<Int32Type>::new(op, threshold)));
+                executable_relations.push(Box::new(CompareCheck::<Int64Type>::new(op, threshold)));
             }
         }
     }

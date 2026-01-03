@@ -55,6 +55,14 @@ impl RelationBuilder {
         self.inner.date_comparaison(op, threshold);
         Ok(self.clone())
     }
+
+    #[pyo3(signature = (operator, threshold=0.0))]
+    pub fn numeric_comparaison(&mut self, operator: &str, threshold: f64) -> PyResult<Self> {
+        let op = CompOperator::try_from(operator)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        self.inner.numeric_comparaison(op, threshold);
+        Ok(self.clone())
+    }
 }
 
 /// Creates a builder for defining validation rules between two columns.

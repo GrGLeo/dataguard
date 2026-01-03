@@ -415,6 +415,15 @@ fn apply_relation_rule(
             builder.date_comparaison(op, t);
             Ok(())
         }
+        Relation::NumericComparaison {
+            threshold,
+            operator,
+        } => {
+            let op = CompOperator::try_from(operator.as_str())?;
+            let t = threshold.unwrap_or(relation_threshold);
+            builder.numeric_comparaison(op, t);
+            Ok(())
+        }
     }
 }
 
