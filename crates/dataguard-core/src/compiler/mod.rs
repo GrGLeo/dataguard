@@ -6,9 +6,9 @@
 //! This module is used by table implementations (CsvTable, future ParquetTable, etc.)
 //! to compile user-defined validation rules into optimized, type-specific validators.
 
-use std::fmt::Debug;
+use std::{collections::HashMap, fmt::Debug};
 
-use arrow::datatypes::{DataType, Date32Type, Int64Type};
+use arrow::datatypes::{DataType, Date32Type, Float64Type, Int64Type};
 use arrow_array::ArrowNumericType;
 use num_traits::{Num, NumCast};
 
@@ -179,7 +179,7 @@ fn compile_numeric_rules<N, A>(
     RuleError,
 >
 where
-    N: NumericType + Num + PartialOrd + Copy + Debug + Send + Sync + NumCast + 'static,
+    N: NumericType + Num + PartialOrd + Debug + NumCast + 'static,
     A: ArrowNumericType<Native = N>,
 {
     let mut unicity = None;
@@ -257,7 +257,7 @@ where
 /// an `ExecutableColumn` with type-specific validators ready for runtime execution.
 ///
 /// For CSV tables, a `TypeCheck` is always added to handle string-to-type conversion.
-/// Future table types (Parquet, SQL) may skip type checking as their types are native.
+/// Parquet skip type checking as their types are native.
 ///
 /// # Errors
 ///
@@ -357,16 +357,84 @@ pub fn compile_column(
     }
 }
 
-pub fn compile_relations(builder: RelationBuilder) -> Result<ExecutableRelation, RuleError> {
+/// Build a map of column names to their Arrow DataTypes.
+///
+/// This helper function extracts type information from column builders,
+/// which is used by relation compilation to determine the correct Arrow type
+/// for numeric comparisons.
+pub fn build_column_type_map(columns: &[Box<dyn ColumnBuilder>]) -> HashMap<String, DataType> {
+    columns
+        .iter()
+        .map(|col| {
+            let data_type = match col.column_type() {
+                ColumnType::Integer => DataType::Int64,
+                ColumnType::Float => DataType::Float64,
+                ColumnType::String => DataType::Utf8,
+                ColumnType::DateType => DataType::Date32,
+            };
+            (col.name().to_string(), data_type)
+        })
+        .collect()
+}
+
+pub fn compile_relations(
+    builder: RelationBuilder,
+    column_types: &HashMap<String, DataType>,
+) -> Result<ExecutableRelation, RuleError> {
     let RelationBuilder { names, rules } = builder;
     let mut executable_relations: Vec<Box<dyn RelationRule>> = Vec::new();
+
+    // For the cli we ensure from the config that the Column is present, we do not have the same
+    // check in api, so we need to do this here
+    let left_type = column_types.get(&names[0]).ok_or_else(|| {
+        RuleError::ValidationError(format!("Column '{}' not found in relation", names[0]))
+    })?;
+    let right_type = column_types.get(&names[1]).ok_or_else(|| {
+        RuleError::ValidationError(format!("Column '{}' not found in relation", names[1]))
+    })?;
+
+    // We only validate columns of same type
+    if left_type != right_type {
+        return Err(RuleError::ValidationError(format!(
+            "Cannot compare columns of different types: '{}' ({:?}) vs '{}' ({:?})",
+            names[0], left_type, names[1], right_type
+        )));
+    }
+
     for rule in rules {
         match rule {
-            TableConstraint::DateComparaison { op, threshold } => {
-                executable_relations.push(Box::new(CompareCheck::<Date32Type>::new(op, threshold)));
-            }
+            TableConstraint::DateComparaison { op, threshold } => match left_type {
+                DataType::Date32 => {
+                    executable_relations
+                        .push(Box::new(CompareCheck::<Date32Type>::new(op, threshold)));
+                }
+                other_type => {
+                    return Err(RuleError::ValidationError(format!(
+                        "Date comparison not supported for type {:?}. Only Date32 is supported.",
+                        other_type
+                    )));
+                }
+            },
             TableConstraint::NumericComparaison { op, threshold } => {
-                executable_relations.push(Box::new(CompareCheck::<Int64Type>::new(op, threshold)));
+                // Create appropriate CompareCheck based on the type
+                match left_type {
+                    DataType::Int64 => {
+                        executable_relations
+                            .push(Box::new(CompareCheck::<Int64Type>::new(op, threshold)));
+                    }
+                    DataType::Float64 => {
+                        executable_relations
+                            .push(Box::new(CompareCheck::<Float64Type>::new(op, threshold)));
+                    }
+                    other_type => {
+                        return Err(RuleError::ValidationError(
+                            format!(
+                                "Numeric comparison not supported for type {:?}. Only Int64 and Float64 are supported.",
+                                other_type
+                            )
+                        ));
+                    }
+                }
             }
         }
     }

@@ -1,7 +1,3 @@
-//! Result accumulation during validation.
-//!
-//! `ResultAccumulator` provides thread-safe collection of validation errors
-//! during parallel batch processing.
 use dashmap::DashMap;
 use std::{
     collections::HashMap,

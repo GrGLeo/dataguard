@@ -877,10 +877,18 @@ mod validation_engine_tests {
         let end_col = create_date_column("end_date", "%Y-%m-%d");
         let columns = vec![start_col, end_col].into_boxed_slice();
 
+        // Build column type map for relation compilation
+        let start_builder =
+            DateColumnBuilder::new("start_date".to_string(), "%Y-%m-%d".to_string());
+        let end_builder = DateColumnBuilder::new("end_date".to_string(), "%Y-%m-%d".to_string());
+        let column_builders: Vec<Box<dyn crate::columns::ColumnBuilder>> =
+            vec![Box::new(start_builder), Box::new(end_builder)];
+        let column_types = compiler::build_column_type_map(&column_builders);
+
         // Create relation: start_date <= end_date
         let mut relation = RelationBuilder::new(["start_date".to_string(), "end_date".to_string()]);
         relation.date_comparaison(CompOperator::Lte, 0.0);
-        let executable_relation = compiler::compile_relations(relation).unwrap();
+        let executable_relation = compiler::compile_relations(relation, &column_types).unwrap();
         let relations = Some(vec![executable_relation].into_boxed_slice());
 
         let engine = ValidationEngine::new(&columns, &relations);
@@ -911,5 +919,154 @@ mod validation_engine_tests {
         assert!(
             relation_results.contains_key("start_date | end_date") || relation_results.is_empty()
         );
+    }
+
+    #[test]
+    fn test_validate_i64_numeric_relation() {
+        // Create two integer columns
+        let price_builder = NumericColumnBuilder::<i64>::new("price".to_string());
+        let discount_builder = NumericColumnBuilder::<i64>::new("discount".to_string());
+
+        let price_col = compiler::compile_column(Box::new(price_builder.clone()), false).unwrap();
+        let discount_col =
+            compiler::compile_column(Box::new(discount_builder.clone()), false).unwrap();
+        let columns = vec![price_col, discount_col].into_boxed_slice();
+
+        // Build column type map
+        let column_builders: Vec<Box<dyn crate::columns::ColumnBuilder>> =
+            vec![Box::new(price_builder), Box::new(discount_builder)];
+        let column_types = compiler::build_column_type_map(&column_builders);
+
+        // Create relation: price >= discount
+        let mut relation = RelationBuilder::new(["price".to_string(), "discount".to_string()]);
+        relation.numeric_comparaison(CompOperator::Gte, 0.0);
+        let executable_relation = compiler::compile_relations(relation, &column_types).unwrap();
+        let relations = Some(vec![executable_relation].into_boxed_slice());
+
+        let engine = ValidationEngine::new(&columns, &relations);
+
+        // Create batch with integer pairs
+        let price_array = Int64Array::from(vec![Some(100), Some(50), Some(75), Some(200)]);
+        let discount_array = Int64Array::from(vec![Some(20), Some(60), Some(75), Some(150)]);
+
+        let schema = Schema::new(vec![
+            Field::new("price", DataType::Int64, true),
+            Field::new("discount", DataType::Int64, true),
+        ]);
+        let batch = RecordBatch::try_new(
+            Arc::new(schema),
+            vec![Arc::new(price_array), Arc::new(discount_array)],
+        )
+        .unwrap();
+
+        let result = engine
+            .validate_batches("test_table".to_string(), &[Arc::new(batch)])
+            .unwrap();
+
+        assert_eq!(result.total_rows, 4);
+
+        // If we got here, i64 numeric comparisons were successfully compiled and executed
+        // The actual relation validation logic is tested in integration tests
+    }
+
+    #[test]
+    fn test_validate_f64_numeric_relation() {
+        // Create two float columns
+        let temperature_builder = NumericColumnBuilder::<f64>::new("temperature".to_string());
+        let threshold_builder = NumericColumnBuilder::<f64>::new("threshold".to_string());
+
+        let temp_col =
+            compiler::compile_column(Box::new(temperature_builder.clone()), false).unwrap();
+        let thresh_col =
+            compiler::compile_column(Box::new(threshold_builder.clone()), false).unwrap();
+        let columns = vec![temp_col, thresh_col].into_boxed_slice();
+
+        // Build column type map
+        let column_builders: Vec<Box<dyn crate::columns::ColumnBuilder>> =
+            vec![Box::new(temperature_builder), Box::new(threshold_builder)];
+        let column_types = compiler::build_column_type_map(&column_builders);
+
+        // Create relation: temperature > threshold
+        let mut relation =
+            RelationBuilder::new(["temperature".to_string(), "threshold".to_string()]);
+        relation.numeric_comparaison(CompOperator::Gt, 0.0);
+        let executable_relation = compiler::compile_relations(relation, &column_types).unwrap();
+        let relations = Some(vec![executable_relation].into_boxed_slice());
+
+        let engine = ValidationEngine::new(&columns, &relations);
+
+        // Create batch with float pairs
+        let temp_array = Float64Array::from(vec![Some(98.6), Some(100.5), Some(95.2), Some(102.1)]);
+        let thresh_array =
+            Float64Array::from(vec![Some(98.0), Some(101.0), Some(96.0), Some(100.0)]);
+
+        let schema = Schema::new(vec![
+            Field::new("temperature", DataType::Float64, true),
+            Field::new("threshold", DataType::Float64, true),
+        ]);
+        let batch = RecordBatch::try_new(
+            Arc::new(schema),
+            vec![Arc::new(temp_array), Arc::new(thresh_array)],
+        )
+        .unwrap();
+
+        let result = engine
+            .validate_batches("test_table".to_string(), &[Arc::new(batch)])
+            .unwrap();
+
+        assert_eq!(result.total_rows, 4);
+
+        // If we got here, f64 numeric comparisons were successfully compiled and executed
+        // The actual relation validation logic is tested in integration tests
+    }
+
+    #[test]
+    fn test_numeric_relation_type_mismatch_error() {
+        // Create one integer and one float column
+        let int_builder = NumericColumnBuilder::<i64>::new("int_col".to_string());
+        let float_builder = NumericColumnBuilder::<f64>::new("float_col".to_string());
+
+        let column_builders: Vec<Box<dyn crate::columns::ColumnBuilder>> =
+            vec![Box::new(int_builder), Box::new(float_builder)];
+        let column_types = compiler::build_column_type_map(&column_builders);
+
+        // Try to create relation between different types
+        let mut relation = RelationBuilder::new(["int_col".to_string(), "float_col".to_string()]);
+        relation.numeric_comparaison(CompOperator::Eq, 0.0);
+
+        // Should fail with type mismatch error
+        let result = compiler::compile_relations(relation, &column_types);
+        assert!(result.is_err());
+
+        if let Err(e) = result {
+            let error_msg = format!("{:?}", e);
+            assert!(
+                error_msg.contains("different types")
+                    || error_msg.contains("Int64") && error_msg.contains("Float64")
+            );
+        }
+    }
+
+    #[test]
+    fn test_numeric_relation_column_not_found_error() {
+        // Create column type map with only one column
+        let int_builder = NumericColumnBuilder::<i64>::new("existing_col".to_string());
+        let column_builders: Vec<Box<dyn crate::columns::ColumnBuilder>> =
+            vec![Box::new(int_builder)];
+        let column_types = compiler::build_column_type_map(&column_builders);
+
+        // Try to create relation with non-existent column
+        let mut relation =
+            RelationBuilder::new(["existing_col".to_string(), "missing_col".to_string()]);
+        relation.numeric_comparaison(CompOperator::Eq, 0.0);
+
+        // Should fail with column not found error
+        let result = compiler::compile_relations(relation, &column_types);
+        assert!(result.is_err());
+
+        if let Err(e) = result {
+            let error_msg = format!("{:?}", e);
+            assert!(error_msg.contains("not found") || error_msg.contains("missing_col"));
+        }
     }
 }

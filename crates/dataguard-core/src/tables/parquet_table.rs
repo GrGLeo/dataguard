@@ -36,6 +36,10 @@ impl Table for ParquetTable {
     ) -> Result<(), RuleError> {
         // Here with parquet, we do not add TypeCheck, we use the schema from the parquet file
         // Since we only support a small range of available Arrow type for now this is incomplete
+
+        // Build column type map before consuming the columns vector
+        let column_types = compiler::build_column_type_map(&columns);
+
         self.executable_columns = columns
             .into_iter()
             .map(|col| compiler::compile_column(col, false))
@@ -45,7 +49,7 @@ impl Table for ParquetTable {
         self.executable_relations = Some(
             relations
                 .into_iter()
-                .map(compiler::compile_relations)
+                .map(|rel| compiler::compile_relations(rel, &column_types))
                 .collect::<Result<Vec<_>, _>>()?
                 .into_boxed_slice(),
         );

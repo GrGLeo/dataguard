@@ -34,6 +34,9 @@ impl Table for CsvTable {
         columns: Vec<Box<dyn ColumnBuilder>>,
         relations: Vec<RelationBuilder>,
     ) -> Result<(), RuleError> {
+        // Build column type map before consuming the columns vector
+        let column_types = compiler::build_column_type_map(&columns);
+
         self.executable_columns = columns
             .into_iter()
             .map(|col| compiler::compile_column(col, true))
@@ -43,7 +46,7 @@ impl Table for CsvTable {
         self.executable_relations = Some(
             relations
                 .into_iter()
-                .map(compiler::compile_relations)
+                .map(|rel| compiler::compile_relations(rel, &column_types))
                 .collect::<Result<Vec<_>, _>>()?
                 .into_boxed_slice(),
         );

@@ -72,7 +72,7 @@ static ARRAYS_50PCT_UNIQUE: Lazy<Vec<(usize, Arc<StringArray>)>> = Lazy::new(|| 
 fn bench_unicity_100pct_unique(c: &mut Criterion) {
     let mut group = c.benchmark_group("unicity_100pct_unique");
 
-    let rule = UnicityCheck::new();
+    let rule = UnicityCheck::new(0.);
 
     for (size, arr) in ARRAYS_100PCT_UNIQUE.iter() {
         group.throughput(criterion::Throughput::Elements(*size as u64));
