@@ -193,7 +193,7 @@ impl<'a> ValidationEngine<'a> {
                         if let Ok(col_index) = batch.schema().index_of(name) {
                             let array = batch.column(col_index);
                             let stats = columns_stats.get(name);
-                            let _ = validate_numeric_column::<Int64Type>(
+                            if let Ok(casted_array) = validate_numeric_column::<Int64Type>(
                                 name,
                                 domain_rules,
                                 statistical_rules,
@@ -205,7 +205,10 @@ impl<'a> ValidationEngine<'a> {
                                 &error_counter,
                                 &report,
                                 &unicity_accumulators,
-                            );
+                            ) {
+                                println!("ok: {}", name.clone());
+                                array_ref.insert(name.clone(), casted_array);
+                            }
                         }
                     }
                     ExecutableColumn::Float {
@@ -219,7 +222,7 @@ impl<'a> ValidationEngine<'a> {
                         if let Ok(col_index) = batch.schema().index_of(name) {
                             let array = batch.column(col_index);
                             let stats = columns_stats.get(name);
-                            let _ = validate_numeric_column::<Float64Type>(
+                            if let Ok(casted_array) = validate_numeric_column::<Float64Type>(
                                 name,
                                 domain_rules,
                                 statistical_rules,
@@ -231,7 +234,10 @@ impl<'a> ValidationEngine<'a> {
                                 &error_counter,
                                 &report,
                                 &unicity_accumulators,
-                            );
+                            ) {
+                                println!("ok: {}", name.clone());
+                                array_ref.insert(name.clone(), casted_array);
+                            }
                         }
                     }
                     ExecutableColumn::Date {
@@ -473,7 +479,7 @@ fn validate_numeric_column<T: ArrowNumericType>(
     error_counter: &AtomicUsize,
     report: &ResultAccumulator,
     unicity_accumulators: &UnicityAccumulator,
-) -> Result<(), RuleError> {
+) -> Result<Arc<dyn Array>, RuleError> {
     let array_values = array.len() - array.null_count();
     report.record_valid_values(name, array_values);
     // Run null check if present
@@ -535,7 +541,7 @@ fn validate_numeric_column<T: ArrowNumericType>(
                     let (null_count, local_hash) = unicity_rule.validate_numeric(numeric_array);
                     unicity_accumulators.record_hashes(name, null_count, local_hash);
                 }
-                Ok(())
+                Ok(Arc::new(numeric_array.to_owned()))
             }
             Err(e) => {
                 record_type_check_error(
@@ -574,12 +580,13 @@ fn validate_numeric_column<T: ArrowNumericType>(
                     let (null_count, local_hash) = unicity_rule.validate_numeric(numeric_array);
                     unicity_accumulators.record_hashes(name, null_count, local_hash);
                 }
+                Ok(Arc::new(numeric_array.to_owned()))
             }
             None => {
                 record_downcast_failure(array.len(), name, "DowncastFailure".to_string(), report);
+                Err(RuleError::TypeCastFailed)
             }
         }
-        Ok(())
     }
 }
 

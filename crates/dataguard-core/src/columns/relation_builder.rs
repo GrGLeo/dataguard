@@ -26,4 +26,10 @@ impl RelationBuilder {
             .push(TableConstraint::DateComparaison { op, threshold });
         self
     }
+
+    pub fn numeric_comparaison(&mut self, op: CompOperator, threshold: f64) -> &mut Self {
+        self.rules
+            .push(TableConstraint::NumericComparaison { op, threshold });
+        self
+    }
 }
